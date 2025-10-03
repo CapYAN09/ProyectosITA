@@ -1,0 +1,1089 @@
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC152C1EDA1D7A58314FC8BE39B0DC97',
+    participant: undefined
+  },
+  messageTimestamp: 1759425365,
+  pushName: 'Uribe™',
+  broadcast: false,
+  messageStubType: 2,
+  messageStubParameters: [ 'Message absent from node' ],
+  body: undefined,
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC152C1EDA1D7A58314FC8BE39B0DC97',
+    participant: undefined
+  },
+  messageTimestamp: 1759425366,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Hola',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Hola',
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC152C1EDA1D7A58314FC8BE39B0DC97',
+    participant: undefined
+  },
+  messageTimestamp: 1759425367,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Hola',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Hola',
+  from: '5214492894725'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC68D9DA1648B0FF22C105E35973AB41',
+    participant: undefined
+  },
+  messageTimestamp: 1759425690,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '1',
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'ACC6FA11EE1F176D283AF05D3B241A2D',
+    participant: undefined
+  },
+  messageTimestamp: 1759425705,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    conversation: '25150485',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '25150485',
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC3400000E91C89D8478A2AFA8BDFE18',
+    participant: undefined
+  },
+  messageTimestamp: 1759425721,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    conversation: 'Jose Daniel Cerda Uribe',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Jose Daniel Cerda Uribe',
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC3950FF96C73291F081A2046BEDE5E0',
+    participant: undefined
+  },
+  messageTimestamp: 1759426408,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    conversation: 'Me aparece que la contraseña no es correcta',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Me aparece que la contraseña no es correcta',
+  from: '5214492894725'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC070F76326D97CBB90B5CBD05AA0DDB',
+    participant: undefined
+  },
+  messageTimestamp: 1759426421,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '1',
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC937D71BD12E96E5E1883AFD9B673E2',
+    participant: undefined
+  },
+  messageTimestamp: 1759426445,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    conversation: '25150485',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '25150485',
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492894725@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC969F3BEDEB88364722EEC66E7A6F30',
+    participant: undefined
+  },
+  messageTimestamp: 1759426451,
+  pushName: 'Uribe™',
+  broadcast: false,
+  message: Message {
+    conversation: 'Jose Daniel Cerda Uribe',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Jose Daniel Cerda Uribe',
+  from: '5214492894725'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214494877990@s.whatsapp.net',
+    fromMe: false,
+    id: '3FBAD899D7A581AD6528',
+    participant: undefined
+  },
+  messageTimestamp: 1759426722,
+  pushName: 'Alejandro Nieves 😎',
+  broadcast: false,
+  message: Message {
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2
+    },
+    reactionMessage: ReactionMessage {
+      key: [MessageKey],
+      text: '👍',
+      senderTimestampMs: [Long]
+    }
+  },
+  body: '',
+  from: '5214494877990'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214494877990@s.whatsapp.net',
+    fromMe: false,
+    id: '3F6BC3509BCF1983BD87',
+    participant: undefined
+  },
+  messageTimestamp: 1759426724,
+  pushName: 'Alejandro Nieves 😎',
+  broadcast: false,
+  message: Message {
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2
+    },
+    reactionMessage: ReactionMessage {
+      key: [MessageKey],
+      text: '👍',
+      senderTimestampMs: [Long]
+    }
+  },
+  body: '',
+  from: '5214494877990'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A58BB420FB847E6E6F2A8D323151E50F',
+    participant: undefined
+  },
+  messageTimestamp: 1759426780,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Hola',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Hola',
+  from: '5214491835717'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A5DC6D60A0C0014044C88C6CE81EB325',
+    participant: undefined
+  },
+  messageTimestamp: 1759426785,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: '2',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '2',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A527C67178089FC2C32EA9DC899C11C2',
+    participant: undefined
+  },
+  messageTimestamp: 1759426792,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: '12151234',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '12151234',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A5099423689A7C57C3F7440BF6B7641D',
+    participant: undefined
+  },
+  messageTimestamp: 1759426795,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Hcvfgh',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Hcvfgh',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214494877990@s.whatsapp.net',
+    fromMe: false,
+    id: '3FFC420FA81035011F5D',
+    participant: undefined
+  },
+  messageTimestamp: 1759426805,
+  pushName: 'Alejandro Nieves 😎',
+  broadcast: false,
+  message: Message {
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2
+    },
+    reactionMessage: ReactionMessage {
+      key: [MessageKey],
+      text: '👍',
+      senderTimestampMs: [Long]
+    }
+  },
+  body: '',
+  from: '5214494877990'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214499997821@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC7C97A082423B71E9DA1D4D43C77926',
+    participant: undefined
+  },
+  messageTimestamp: 1759431024,
+  pushName: 'memoooo',
+  broadcast: false,
+  messageStubType: 2,
+  messageStubParameters: [ 'Message absent from node' ],
+  body: undefined,
+  from: '5214499997821'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214499997821@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC7C97A082423B71E9DA1D4D43C77926',
+    participant: undefined
+  },
+  messageTimestamp: 1759431024,
+  pushName: 'memoooo',
+  broadcast: false,
+  message: Message {
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Hola',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Hola',
+  from: '5214499997821'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214499997821@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC7C97A082423B71E9DA1D4D43C77926',
+    participant: undefined
+  },
+  messageTimestamp: 1759431025,
+  pushName: 'memoooo',
+  broadcast: false,
+  message: Message {
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Hola',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Hola',
+  from: '5214499997821'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214499997821@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC438DEB93F9AC4022DD783ED5941BAA',
+    participant: undefined
+  },
+  messageTimestamp: 1759431040,
+  pushName: 'memoooo',
+  broadcast: false,
+  message: Message {
+    conversation: 'Restablecer contraseña',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Restablecer contraseña',
+  from: '5214499997821'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214499997821@s.whatsapp.net',
+    fromMe: false,
+    id: 'ACFB0C169D537E21C5F87C0633CD30AE',
+    participant: undefined
+  },
+  messageTimestamp: 1759431053,
+  pushName: 'memoooo',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '1',
+  from: '5214499997821'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214499997821@s.whatsapp.net',
+    fromMe: false,
+    id: 'ACC3B61B724D2D57C33F33D8B08AD093',
+    participant: undefined
+  },
+  messageTimestamp: 1759431063,
+  pushName: 'memoooo',
+  broadcast: false,
+  message: Message {
+    conversation: '25151320',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '25151320',
+  from: '5214499997821'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214499997821@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC342FCBFCF7AF8B139C6ACCD25829C3',
+    participant: undefined
+  },
+  messageTimestamp: 1759431072,
+  pushName: 'memoooo',
+  broadcast: false,
+  message: Message {
+    conversation: 'Guillermo Santiago Reza Macias',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Guillermo Santiago Reza Macias',
+  from: '5214499997821'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214494877990@s.whatsapp.net',
+    fromMe: false,
+    id: '3F3D55A54E9DE20F7167',
+    participant: undefined
+  },
+  messageTimestamp: 1759432673,
+  pushName: 'Alejandro Nieves 😎',
+  broadcast: false,
+  message: Message {
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2
+    },
+    reactionMessage: ReactionMessage {
+      key: [MessageKey],
+      text: '👍',
+      senderTimestampMs: [Long]
+    }
+  },
+  body: '',
+  from: '5214494877990'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491931263@s.whatsapp.net',
+    fromMe: false,
+    id: '3A93BF152CD417FB9E71',
+    participant: undefined
+  },
+  messageTimestamp: 1759436079,
+  pushName: 'Josue',
+  broadcast: false,
+  message: Message {
+    extendedTextMessage: ExtendedTextMessage { text: 'Hola', contextInfo: [ContextInfo] },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Hola',
+  from: '5214491931263'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491931263@s.whatsapp.net',
+    fromMe: false,
+    id: '3AA9BCAF808E4E6FA0F5',
+    participant: undefined
+  },
+  messageTimestamp: 1759436089,
+  pushName: 'Josue',
+  broadcast: false,
+  message: Message {
+    conversation: '2',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '2',
+  from: '5214491931263'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491931263@s.whatsapp.net',
+    fromMe: false,
+    id: '3A96384D154E777360D0',
+    participant: undefined
+  },
+  messageTimestamp: 1759436100,
+  pushName: 'Josue',
+  broadcast: false,
+  message: Message {
+    conversation: '23151275',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '23151275',
+  from: '5214491931263'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491931263@s.whatsapp.net',
+    fromMe: false,
+    id: '3A3D9392CA29E45E3507',
+    participant: undefined
+  },
+  messageTimestamp: 1759436108,
+  pushName: 'Josue',
+  broadcast: false,
+  message: Message {
+    conversation: 'Víctor Josué Garay Salgado',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Víctor Josué Garay Salgado',
+  from: '5214491931263'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214494877990@s.whatsapp.net',
+    fromMe: false,
+    id: '3F8C4D943597AF1D0FD1',
+    participant: undefined
+  },
+  messageTimestamp: 1759436197,
+  pushName: 'Alejandro Nieves 😎',
+  broadcast: false,
+  message: Message {
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2
+    },
+    reactionMessage: ReactionMessage {
+      key: [MessageKey],
+      text: '👍',
+      senderTimestampMs: [Long]
+    }
+  },
+  body: '',
+  from: '5214494877990'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214426079650@s.whatsapp.net',
+    fromMe: false,
+    id: '3A5A67487956FB724683',
+    participant: undefined
+  },
+  messageTimestamp: 1759436203,
+  pushName: 'Daniel',
+  broadcast: false,
+  message: Message {
+    conversation: 'Hola',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Hola',
+  from: '5214426079650'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  keyword: 'key_9e416d45-f46f-42d7-adb7-42ad15b05813',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'f1ca64bcf7d7594ce74b023860401ac5'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_095c7e87-8270-44eb-8b64-03b1ae6850b8',
+  keyword: 'ans_2d87ba04-52b2-46db-a37c-9902da2d6be8',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '3cb6a94a41865488400776a0e78299c8'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214426079650@s.whatsapp.net',
+    fromMe: false,
+    id: '3AACB8553787CDC0D08F',
+    participant: undefined
+  },
+  messageTimestamp: 1759436218,
+  pushName: 'Daniel',
+  broadcast: false,
+  message: Message {
+    conversation: '2',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '2',
+  from: '5214426079650'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214426079650@s.whatsapp.net',
+    fromMe: false,
+    id: '3AE103C3F070911B10AC',
+    participant: undefined
+  },
+  messageTimestamp: 1759436229,
+  pushName: 'Daniel',
+  broadcast: false,
+  message: Message {
+    conversation: '23151281',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '23151281',
+  from: '5214426079650'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214426079650@s.whatsapp.net',
+    fromMe: false,
+    id: '3A43296E804D8FF35BF1',
+    participant: undefined
+  },
+  messageTimestamp: 1759436243,
+  pushName: 'Daniel',
+  broadcast: false,
+  message: Message {
+    conversation: 'Daniel Leon Santana',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Daniel Leon Santana',
+  from: '5214426079650'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214494877990@s.whatsapp.net',
+    fromMe: false,
+    id: '3F73AC101FA95E1AAD8A',
+    participant: undefined
+  },
+  messageTimestamp: 1759436276,
+  pushName: 'Alejandro Nieves 😎',
+  broadcast: false,
+  message: Message {
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2
+    },
+    reactionMessage: ReactionMessage {
+      key: [MessageKey],
+      text: '👍',
+      senderTimestampMs: [Long]
+    }
+  },
+  body: '',
+  from: '5214494877990'
+}
