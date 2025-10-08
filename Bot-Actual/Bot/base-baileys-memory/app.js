@@ -123,19 +123,21 @@ function isValidText(input) {
 
 function validarNumeroControl(numeroControl) {
   const letrasPermitidas = ['D', 'C', 'B', 'R', 'G', 'd', 'c', 'b', 'r', 'g']
+  const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6'] // ← POSICIÓN 3
+  const posicion4Permitidas = ['0', '2', '5', '6', '9', '1', '5', '7', '3', '4'] // ← POSICIÓN 4
   
   if (numeroControl.length === 8) {
     const esSoloNumeros = /^\d+$/.test(numeroControl)
-    const posicion3Correcta = numeroControl[2] === '1'
-    const posicion4Correcta = numeroControl[3] === '5'
-    return esSoloNumeros && posicion3Correcta && posicion4Correcta
+    const posicion2Correcta = posicion3Permitidas.includes(numeroControl[2]) // posición 3
+    const posicion3Correcta = posicion4Permitidas.includes(numeroControl[3]) // posición 4
+    return esSoloNumeros && posicion2Correcta && posicion3Correcta
   }
   
   if (numeroControl.length === 9) {
     const primeraLetraValida = letrasPermitidas.includes(numeroControl[0])
     const restoEsNumeros = /^\d+$/.test(numeroControl.slice(1))
-    const posicion3Correcta = numeroControl[3] === '1'
-    const posicion4Correcta = numeroControl[4] === '5'
+    const posicion3Correcta = posicion3Permitidas.includes(numeroControl[3]) // posición 4
+    const posicion4Correcta = posicion4Permitidas.includes(numeroControl[4]) // posición 5
     return primeraLetraValida && restoEsNumeros && posicion3Correcta && posicion4Correcta
   }
   
