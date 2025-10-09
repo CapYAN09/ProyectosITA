@@ -1,18 +1,18 @@
 const { createBot, createProvider, createFlow, addKeyword, EVENTS } = require('@bot-whatsapp/bot')
 const QRPortalWeb = require('@bot-whatsapp/portal')
 const BaileysProvider = require('@bot-whatsapp/provider/baileys')
-const MySQLAdapter = require('@bot-whatsapp/database/mysql') // ← CORREGIDO
+const MySQLAdapter = require('@bot-whatsapp/database/mysql')
 
 // Contacto específico donde se enviará la información
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
 
 // ==== Configuración para XAMPP ====
 const adapterDB = new MySQLAdapter({
-  host: 'localhost',           // XAMPP usa localhost
-  user: 'root',                // Usuario por defecto de XAMPP
-  database: 'bot_whatsapp',    // Nombre de la base de datos que creaste
-  password: '',                // XAMPP por defecto tiene password vacío
-  port: 3306,                  // Puerto por defecto de MySQL en XAMPP
+  host: 'localhost',
+  user: 'root',
+  database: 'bot_whatsapp',
+  password: '',
+  port: 3306,
 })
 
 // ==== ALTERNATIVA: Crear nuestra propia conexión MySQL ====
@@ -47,6 +47,21 @@ async function inicializarMySQL() {
   return conexionMySQL;
 }
 
+// ==== FUNCIÓN LIMPIAR ESTADO MYSQL ====
+async function limpiarEstadoMySQL(userPhone) {
+  try {
+    await inicializarMySQL();
+    if (!conexionMySQL) return;
+
+    const query = `DELETE FROM user_states WHERE user_phone = ?`;
+    await conexionMySQL.execute(query, [userPhone]);
+    console.log(`✅ Estado limpiado en MySQL para: ${userPhone}`);
+  } catch (error) {
+    console.error('❌ Error limpiando estado en MySQL:', error.message);
+  }
+}
+
+// ==== FUNCIÓN GUARDAR ESTADO MYSQL ====
 async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
   try {
     await inicializarMySQL();
@@ -83,67 +98,7 @@ async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {
   }
 }
 
-// ==== FUNCIONES MYSQL CORREGIDAS - USANDO EL ADAPTER CORRECTAMENTE ====
-async function obtenerConexionMySQL() {
-  try {
-    // El MySQLAdapter usa mysql2/promise internamente
-    // Verificamos la estructura real del adapter
-    console.log('🔍 Estructura del adapter DB:', Object.keys(adapterDB));
-    
-    // Intentamos acceder a la conexión de diferentes formas
-    if (adapterDB.connection) {
-      return adapterDB.connection;
-    } else if (adapterDB.db) {
-      return adapterDB.db;
-    } else if (adapterDB.pool) {
-      return adapterDB.pool;
-    } else {
-      console.log('❌ No se pudo encontrar la conexión en el adapter');
-      console.log('💡 El adapter tiene estas propiedades:', Object.keys(adapterDB));
-      return null;
-    }
-  } catch (error) {
-    console.error('❌ Error obteniendo conexión MySQL:', error);
-    return null;
-  }
-}
-
-async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
-  const connection = await obtenerConexionMySQL();
-  if (!connection) return false;
-
-  const query = `
-    INSERT INTO user_states (user_phone, estado_usuario, estado_metadata, numero_control, nombre_completo)
-    VALUES (?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE 
-    estado_usuario = VALUES(estado_usuario),
-    estado_metadata = VALUES(estado_metadata),
-    numero_control = VALUES(numero_control),
-    nombre_completo = VALUES(nombre_completo),
-    updated_at = CURRENT_TIMESTAMP
-  `;
-  
-  const values = [
-    userPhone,
-    estado,
-    JSON.stringify(metadata),
-    userData.numeroControl || null,
-    userData.nombreCompleto || null
-  ];
-  
-  try {
-    await connection.execute(query, values);
-    console.log(`✅ Estado guardado en MySQL para: ${userPhone}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Error guardando estado en MySQL:', error);
-    return false;
-  } finally {
-    // Liberar conexión si es un pool
-    if (connection.release) connection.release();
-  }
-}
-
+// ==== FUNCIÓN OBTENER ESTADO MYSQL ====
 async function obtenerEstadoMySQL(userPhone) {
   try {
     await inicializarMySQL();
@@ -176,30 +131,6 @@ async function obtenerEstadoMySQL(userPhone) {
   return null;
 }
 
-async function limpiarEstado(state) {
-  try {
-    const myState = await state.getMyState();
-    
-    // Limpiar timeouts e intervals
-    if (myState?.estadoMetadata?.timeoutId) {
-      clearTimeout(myState.estadoMetadata.timeoutId);
-    }
-    if (myState?.estadoMetadata?.intervalId) {
-      clearInterval(myState.estadoMetadata.intervalId);
-    }
-    
-    // Limpiar en memoria y MySQL
-    await state.update({ 
-      estadoUsuario: ESTADOS_USUARIO.LIBRE,
-      estadoMetadata: {}
-    });
-    
-    await limpiarEstadoMySQL(state.id);
-  } catch (error) {
-    console.error('❌ Error limpiando estado:', error);
-  }
-}
-
 // ==== Sistema de Estados del Usuario ====
 const ESTADOS_USUARIO = {
   LIBRE: 'libre',
@@ -208,7 +139,7 @@ const ESTADOS_USUARIO = {
   EN_MENU: 'en_menu'
 };
 
-// ==== Funciones de Gestión de Estados - SIMPLIFICADAS ====
+// ==== Funciones de Gestión de Estados - CORREGIDAS ====
 async function actualizarEstado(state, nuevoEstado, metadata = {}) {
   try {
     const estadoActual = await state.getMyState();
@@ -234,24 +165,29 @@ async function actualizarEstado(state, nuevoEstado, metadata = {}) {
   }
 }
 
+// ==== FUNCIÓN LIMPIAR ESTADO - ÚNICA DEFINICIÓN ====
 async function limpiarEstado(state) {
-  const myState = await state.getMyState();
-  
-  // Limpiar timeouts e intervals
-  if (myState?.estadoMetadata?.timeoutId) {
-    clearTimeout(myState.estadoMetadata.timeoutId);
+  try {
+    const myState = await state.getMyState();
+    
+    // Limpiar timeouts e intervals
+    if (myState?.estadoMetadata?.timeoutId) {
+      clearTimeout(myState.estadoMetadata.timeoutId);
+    }
+    if (myState?.estadoMetadata?.intervalId) {
+      clearInterval(myState.estadoMetadata.intervalId);
+    }
+    
+    // Limpiar en memoria y MySQL
+    await state.update({ 
+      estadoUsuario: ESTADOS_USUARIO.LIBRE,
+      estadoMetadata: {}
+    });
+    
+    await limpiarEstadoMySQL(state.id);
+  } catch (error) {
+    console.error('❌ Error limpiando estado:', error);
   }
-  if (myState?.estadoMetadata?.intervalId) {
-    clearInterval(myState.estadoMetadata.intervalId);
-  }
-  
-  // Limpiar en memoria y MySQL
-  await state.update({ 
-    estadoUsuario: ESTADOS_USUARIO.LIBRE,
-    estadoMetadata: {}
-  });
-  
-  await limpiarEstadoMySQL(state.id);
 }
 
 async function restaurarEstadoInicial(ctx, state) {
@@ -377,21 +313,21 @@ function isValidText(input) {
 // ==== Validar número de control (8 o 9 dígitos, con reglas específicas) ====
 function validarNumeroControl(numeroControl) {
   const letrasPermitidas = ['D', 'C', 'B', 'R', 'G', 'd', 'c', 'b', 'r', 'g']
-  const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6'] // ← POSICIÓN 3
-  const posicion4Permitidas = ['0', '2', '5', '6', '9', '1', '5', '7', '3', '4'] // ← POSICIÓN 4
+  const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6']
+  const posicion4Permitidas = ['0', '2', '5', '6', '9', '1', '5', '7', '3', '4']
   
   if (numeroControl.length === 8) {
     const esSoloNumeros = /^\d+$/.test(numeroControl)
-    const posicion2Correcta = posicion3Permitidas.includes(numeroControl[2]) // posición 3
-    const posicion3Correcta = posicion4Permitidas.includes(numeroControl[3]) // posición 4
+    const posicion2Correcta = posicion3Permitidas.includes(numeroControl[2])
+    const posicion3Correcta = posicion4Permitidas.includes(numeroControl[3])
     return esSoloNumeros && posicion2Correcta && posicion3Correcta
   }
   
   if (numeroControl.length === 9) {
     const primeraLetraValida = letrasPermitidas.includes(numeroControl[0])
     const restoEsNumeros = /^\d+$/.test(numeroControl.slice(1))
-    const posicion3Correcta = posicion3Permitidas.includes(numeroControl[3]) // posición 4
-    const posicion4Correcta = posicion4Permitidas.includes(numeroControl[4]) // posición 5
+    const posicion3Correcta = posicion3Permitidas.includes(numeroControl[3])
+    const posicion4Correcta = posicion4Permitidas.includes(numeroControl[4])
     return primeraLetraValida && restoEsNumeros && posicion3Correcta && posicion4Correcta
   }
   
@@ -456,7 +392,7 @@ const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
     }
   })
 
-// ==== Flujo final de contraseña ====
+// ==== Flujo final de contraseña - CORREGIDO ====
 const flowContrasena = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
@@ -524,8 +460,7 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
             console.error('❌ Error enviando mensaje final:', error.message)
         }
 
-        // 🔓 LIBERAR ESTADO al finalizar
-        await limpiarEstado(state);
+        // 🔓 LIBERAR ESTADO al finalizar - SOLO UNA VEZ
         await limpiarEstado(state);
       }, 30 * 60000)
 
@@ -548,7 +483,7 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     }
   )
 
-// ==== Flujo final de autenticador ====
+// ==== Flujo final de autenticador - CORREGIDO ====
 const flowAutenticador = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '⏳ Permítenos un momento, vamos a configurar tu autenticador... \n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
@@ -618,9 +553,8 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
           console.error('❌ Error enviando mensaje final:', error.message)
         }
         
-        // 🔓 LIBERAR ESTADO al finalizar
+        // 🔓 LIBERAR ESTADO al finalizar - CORREGIDO
         await limpiarEstado(state);
-        await state.clear()
       }, 30 * 60000)
 
       // Guardar ID del timeout
@@ -642,7 +576,7 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
     }
   )
 
-// ==== Flujo final de SIE ====
+// ==== Flujo final de SIE - CORREGIDO ====
 const flowFinSIE = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '⏳ Permítenos un momento, vamos a actualizar tus datos... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
@@ -706,9 +640,8 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
           console.error('❌ Error enviando mensaje final:', error.message)
         }
 
-        // 🔓 LIBERAR ESTADO al finalizar
+        // 🔓 LIBERAR ESTADO al finalizar - CORREGIDO
         await limpiarEstado(state);
-        await state.clear()
       }, 30 * 60000)
 
       // Guardar ID del timeout
@@ -1509,7 +1442,6 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
         'ℹ️ **Comandos Disponibles Durante Procesos**',
         '',
         '• *estado* - Ver el progreso del proceso actual',
-        //'• *cancelar* - Detener el proceso en curso', 
         '• *ayuda* - Mostrar esta información',
         '',
         '🔒 Mientras el proceso esté activo, no podrás usar el menú principal.',
