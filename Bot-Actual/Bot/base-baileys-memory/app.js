@@ -1,10 +1,114 @@
 const { createBot, createProvider, createFlow, addKeyword, EVENTS } = require('@bot-whatsapp/bot')
 const QRPortalWeb = require('@bot-whatsapp/portal')
 const BaileysProvider = require('@bot-whatsapp/provider/baileys')
-const MockAdapter = require('@bot-whatsapp/database/mock')
+const MySQLAdapter = require('@bot-whatsapp/database/mysql') // ← CORREGIDO
 
 // Contacto específico donde se enviará la información
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
+
+// ==== Configuración para XAMPP ====
+const adapterDB = new MySQLAdapter({
+  host: 'localhost',           // XAMPP usa localhost
+  user: 'root',                // Usuario por defecto de XAMPP
+  database: 'bot_whatsapp',    // Nombre de la base de datos que creaste
+  password: '',                // XAMPP por defecto tiene password vacío
+  port: 3306,                  // Puerto por defecto de MySQL en XAMPP
+})
+
+// ==== Funciones para MySQL - CORREGIDAS ====
+async function obtenerConexionMySQL() {
+  try {
+    // El adapter de MySQL expone getConnection() o pool
+    if (adapterDB.pool) {
+      return await adapterDB.pool.getConnection();
+    } else if (adapterDB.conn) {
+      return adapterDB.conn;
+    } else {
+      throw new Error('No se pudo obtener conexión a MySQL');
+    }
+  } catch (error) {
+    console.error('❌ Error obteniendo conexión MySQL:', error);
+    return null;
+  }
+}
+
+async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
+  const connection = await obtenerConexionMySQL();
+  if (!connection) return false;
+
+  const query = `
+    INSERT INTO user_states (user_phone, estado_usuario, estado_metadata, numero_control, nombre_completo)
+    VALUES (?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE 
+    estado_usuario = VALUES(estado_usuario),
+    estado_metadata = VALUES(estado_metadata),
+    numero_control = VALUES(numero_control),
+    nombre_completo = VALUES(nombre_completo),
+    updated_at = CURRENT_TIMESTAMP
+  `;
+  
+  const values = [
+    userPhone,
+    estado,
+    JSON.stringify(metadata),
+    userData.numeroControl || null,
+    userData.nombreCompleto || null
+  ];
+  
+  try {
+    await connection.execute(query, values);
+    console.log(`✅ Estado guardado en MySQL para: ${userPhone}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error guardando estado en MySQL:', error);
+    return false;
+  } finally {
+    // Liberar conexión si es un pool
+    if (connection.release) connection.release();
+  }
+}
+
+async function obtenerEstadoMySQL(userPhone) {
+  const connection = await obtenerConexionMySQL();
+  if (!connection) return null;
+
+  const query = `SELECT * FROM user_states WHERE user_phone = ?`;
+  
+  try {
+    const [rows] = await connection.execute(query, [userPhone]);
+    if (rows.length > 0) {
+      const estado = rows[0];
+      return {
+        estadoUsuario: estado.estado_usuario,
+        estadoMetadata: JSON.parse(estado.estado_metadata || '{}'),
+        numeroControl: estado.numero_control,
+        nombreCompleto: estado.nombre_completo
+      };
+    }
+  } catch (error) {
+    console.error('❌ Error obteniendo estado de MySQL:', error);
+  } finally {
+    if (connection.release) connection.release();
+  }
+  
+  return null;
+}
+
+async function limpiarEstadoMySQL(userPhone) {
+  const connection = await obtenerConexionMySQL();
+  if (!connection) return;
+
+  const query = `DELETE FROM user_states WHERE user_phone = ?`;
+  
+  try {
+    await connection.execute(query, [userPhone]);
+    console.log(`✅ Estado limpiado en MySQL para: ${userPhone}`);
+  } catch (error) {
+    console.error('❌ Error limpiando estado en MySQL:', error);
+  } finally {
+    if (connection.release) connection.release();
+  }
+}
 
 // ==== Sistema de Estados del Usuario ====
 const ESTADOS_USUARIO = {
@@ -14,29 +118,81 @@ const ESTADOS_USUARIO = {
   EN_MENU: 'en_menu'
 };
 
-// ==== Funciones de Gestión de Estados ====
+// ==== Funciones de Gestión de Estados - ACTUALIZADAS ====
 async function actualizarEstado(state, nuevoEstado, metadata = {}) {
+  const estadoActual = await state.getMyState();
+  const nuevoMetadata = {
+    ...metadata,
+    ultimaActualizacion: Date.now()
+  };
+  
   await state.update({ 
     estadoUsuario: nuevoEstado,
-    estadoMetadata: {
-      ...metadata,
-      ultimaActualizacion: Date.now()
-    }
+    estadoMetadata: nuevoMetadata
   });
+
+  // Guardar también en MySQL si es un proceso largo
+  if (nuevoEstado === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+    await guardarEstadoMySQL(state.id, nuevoEstado, nuevoMetadata, {
+      numeroControl: estadoActual?.numeroControl,
+      nombreCompleto: estadoActual?.nombreCompleto
+    });
+  }
 }
 
 async function limpiarEstado(state) {
   const myState = await state.getMyState();
+  
+  // Limpiar timeouts e intervals
   if (myState?.estadoMetadata?.timeoutId) {
     clearTimeout(myState.estadoMetadata.timeoutId);
   }
   if (myState?.estadoMetadata?.intervalId) {
     clearInterval(myState.estadoMetadata.intervalId);
   }
+  
+  // Limpiar en memoria y MySQL
   await state.update({ 
     estadoUsuario: ESTADOS_USUARIO.LIBRE,
     estadoMetadata: {}
   });
+  
+  await limpiarEstadoMySQL(state.id);
+}
+
+async function restaurarEstadoInicial(ctx, state) {
+  if (!ctx.from) return false;
+  
+  try {
+    const estadoMySQL = await obtenerEstadoMySQL(ctx.from);
+    
+    if (estadoMySQL && estadoMySQL.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      // Verificar si el proceso ya expiró (más de 30 minutos)
+      const tiempoTranscurrido = Date.now() - (estadoMySQL.estadoMetadata.ultimaActualizacion || Date.now());
+      const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
+      
+      if (minutosTranscurridos > 30) {
+        // Proceso expirado, limpiar estado
+        await limpiarEstadoMySQL(ctx.from);
+        return false;
+      }
+      
+      // Restaurar el estado desde MySQL
+      await state.update({
+        estadoUsuario: estadoMySQL.estadoUsuario,
+        estadoMetadata: estadoMySQL.estadoMetadata,
+        numeroControl: estadoMySQL.numeroControl,
+        nombreCompleto: estadoMySQL.nombreCompleto
+      });
+      
+      console.log(`🔄 Estado restaurado para: ${ctx.from}`);
+      return true;
+    }
+  } catch (error) {
+    console.error('❌ Error restaurando estado inicial:', error);
+  }
+  
+  return false;
 }
 
 // ==== Función para mostrar estado de bloqueo (CENTRALIZADA) ====
@@ -66,11 +222,15 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
 async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   if (ctx.from === CONTACTO_ADMIN) return false;
   
-  const myState = await state.getMyState();
-  
-  if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-    await mostrarEstadoBloqueado(flowDynamic, myState);
-    return true;
+  try {
+    const myState = await state.getMyState();
+    
+    if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      await mostrarEstadoBloqueado(flowDynamic, myState);
+      return true;
+    }
+  } catch (error) {
+    console.error('❌ Error en verificación de estado bloqueado:', error);
   }
   
   return false;
@@ -121,6 +281,7 @@ function isValidText(input) {
   return true
 }
 
+// ==== Validar número de control (8 o 9 dígitos, con reglas específicas) ====
 function validarNumeroControl(numeroControl) {
   const letrasPermitidas = ['D', 'C', 'B', 'R', 'G', 'd', 'c', 'b', 'r', 'g']
   const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6'] // ← POSICIÓN 3
@@ -144,24 +305,23 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-// ==== FLUJO INTERCEPTOR GLOBAL (SIMPLIFICADO) ====
+// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
-    // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
     
-    // 🔒 VERIFICAR SI ESTÁ BLOQUEADO
-    const myState = await state.getMyState();
+    // Intentar restaurar estado desde MySQL al iniciar
+    const estadoRestaurado = await restaurarEstadoInicial(ctx, state);
     
-    if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-      await mostrarEstadoBloqueado(flowDynamic, myState);
+    if (estadoRestaurado) {
+      await mostrarEstadoBloqueado(flowDynamic, await state.getMyState());
       return gotoFlow(flowBloqueoActivo);
     }
     
     return endFlow();
   });
 
-// ==== Flujo de Bloqueo Activo (SIMPLIFICADO) ====
+// ==== Flujo de Bloqueo Activo ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -203,7 +363,7 @@ const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
     }
   })
 
-// ==== Flujo final de contraseña (CORREGIDO) ====
+// ==== Flujo final de contraseña ====
 const flowContrasena = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
@@ -268,12 +428,12 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
           )
           
         } catch (error) {
-          console.error('❌ Error enviando mensaje final:', error.message)
+            console.error('❌ Error enviando mensaje final:', error.message)
         }
 
         // 🔓 LIBERAR ESTADO al finalizar
         await limpiarEstado(state);
-        await state.clear()
+        await limpiarEstado(state);
       }, 30 * 60000)
 
       // Guardar ID del timeout en el estado
@@ -295,7 +455,7 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     }
   )
 
-// ==== Flujo final de autenticador (CORREGIDO) ====
+// ==== Flujo final de autenticador ====
 const flowAutenticador = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '⏳ Permítenos un momento, vamos a configurar tu autenticador... \n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
@@ -389,7 +549,7 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
     }
   )
 
-// ==== Flujo final de SIE (CORREGIDO) ====
+// ==== Flujo final de SIE ====
 const flowFinSIE = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '⏳ Permítenos un momento, vamos a actualizar tus datos... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
@@ -1271,6 +1431,49 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
     return gotoFlow(flowMenu);
   });
 
+// ==== VERIFICACIÓN DE LA BASE DE DATOS ====
+async function verificarBaseDeDatos() {
+  try {
+    const connection = await obtenerConexionMySQL();
+    if (!connection) {
+      console.error('❌ No se pudo conectar a la base de datos');
+      return false;
+    }
+    
+    // Verificar que la tabla existe
+    const [tablas] = await connection.execute(`
+      SELECT TABLE_NAME 
+      FROM INFORMATION_SCHEMA.TABLES 
+      WHERE TABLE_SCHEMA = 'bot_whatsapp' 
+      AND TABLE_NAME = 'user_states'
+    `);
+    
+    if (tablas.length === 0) {
+      console.error('❌ La tabla user_states no existe en la base de datos');
+      console.log('💡 Ejecuta este SQL para crear la tabla:');
+      console.log(`
+        CREATE TABLE user_states (
+          user_phone VARCHAR(255) PRIMARY KEY,
+          estado_usuario VARCHAR(50) NOT NULL,
+          estado_metadata JSON,
+          numero_control VARCHAR(20),
+          nombre_completo VARCHAR(255),
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        );
+      `);
+      return false;
+    }
+    
+    console.log('✅ Conexión a MySQL verificada correctamente');
+    if (connection.release) connection.release();
+    return true;
+  } catch (error) {
+    console.error('❌ Error verificando base de datos:', error);
+    return false;
+  }
+}
+
 // ==== Flujo para mensajes no entendidos ====
 const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
   if (ctx.from === CONTACTO_ADMIN) return;
@@ -1292,54 +1495,66 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
 
 // ==== Inicialización CORREGIDA ====
 const main = async () => {
-  const adapterDB = new MockAdapter()
-  
-  const adapterFlow = createFlow([
-    flowBlockAdmin,
-    flowInterceptorGlobal,
-    flowComandosEspeciales,
-    flowPrincipal,
-    flowMenu,
-    flowBloqueoActivo,
-    flowrestablecercontrase,
-    flowrestablecerautenti,
-    flowContrasena,
-    flowAutenticador,
-    flowDistancia,
-    flowGracias,
-    flowSIE,
-    flowrestablecerSIE,
-    flowFinSIE,
-    flowEsperaMenu,
-    flowEsperaPrincipal,
-    flowEsperaSIE,
-    flowEsperaContrasena,
-    flowEsperaAutenticador,
-    flowEsperaMenuDistancia,
-    flowEsperaMenuSIE,
-    flowCapturaNumeroControl,
-    flowCapturaNumeroControlAutenticador,
-    flowCapturaNumeroControlSIE,
-    flowCapturaNombre,
-    flowCapturaNombreAutenticador,
-    flowCapturaNombreSIE,
-    flowDefault
-  ])
+  try {
+    console.log('🔄 Conectando a la base de datos...');
 
-  const adapterProvider = createProvider(BaileysProvider, {
-    printQRInTerminal: true,
-    logger: {
-      level: 'warn'
+    // Verificar la base de datos antes de iniciar
+    const dbOk = await verificarBaseDeDatos();
+    if (!dbOk) {
+      console.log('⚠️ Continuando sin base de datos...');
     }
-  })
 
-  createBot({
-    flow: adapterFlow,
-    provider: adapterProvider,
-    database: adapterDB
-  })
+    const adapterFlow = createFlow([
+      flowBlockAdmin,
+      flowInterceptorGlobal,
+      flowComandosEspeciales,
+      flowPrincipal,
+      flowMenu,
+      flowBloqueoActivo,
+      flowrestablecercontrase,
+      flowrestablecerautenti,
+      flowContrasena,
+      flowAutenticador,
+      flowDistancia,
+      flowGracias,
+      flowSIE,
+      flowrestablecerSIE,
+      flowFinSIE,
+      flowEsperaMenu,
+      flowEsperaPrincipal,
+      flowEsperaSIE,
+      flowEsperaContrasena,
+      flowEsperaAutenticador,
+      flowEsperaMenuDistancia,
+      flowEsperaMenuSIE,
+      flowCapturaNumeroControl,
+      flowCapturaNumeroControlAutenticador,
+      flowCapturaNumeroControlSIE,
+      flowCapturaNombre,
+      flowCapturaNombreAutenticador,
+      flowCapturaNombreSIE,
+      flowDefault
+    ])
 
-  QRPortalWeb()
+    const adapterProvider = createProvider(BaileysProvider, {
+      printQRInTerminal: true,
+      logger: {
+        level: 'warn'
+      }
+    });
+
+    await createBot({
+      flow: adapterFlow,
+      provider: adapterProvider,
+      database: adapterDB
+    });
+
+    console.log('✅ Bot iniciado correctamente');
+    QRPortalWeb();
+
+  } catch (error) {
+    console.error('❌ Error al iniciar el bot:', error);
+  }
 }
 
-main()
+main();
