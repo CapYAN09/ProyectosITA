@@ -1,0 +1,124 @@
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A57FB16A0A76673B158E31515BAF04BB',
+    participant: undefined
+  },
+  messageTimestamp: 1759974894,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Hola',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Hola',
+  from: '5214491835717'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_d3a4f65f-738e-42a6-bbac-e155320f1574',
+  keyword: 'key_8eadf8a2-bcef-42a6-b28b-5f89b2036a17',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'bad9ca54c4428baa0bc18496170f34ab'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_31a8e94e-a161-4f34-869e-7024e39fb23f',
+  keyword: 'ans_d3a4f65f-738e-42a6-bbac-e155320f1574',
+  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
+  options: {
+    media: null,
+    buttons: [],
+    capture: true,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'bc6605be5e5c2ad1f325d4177487f577'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A59F8717D2E011F776BEDF128DD861C5',
+    participant: undefined
+  },
+  messageTimestamp: 1759974898,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '1',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A53854F1F6337A3D8F250BC21A373E97',
+    participant: undefined
+  },
+  messageTimestamp: 1759974903,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: '17151278',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '17151278',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A563599BC9A42FC5A80B1538726FF58B',
+    participant: undefined
+  },
+  messageTimestamp: 1759974907,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Alejandro Nieves',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Alejandro Nieves',
+  from: '5214491835717'
+}
