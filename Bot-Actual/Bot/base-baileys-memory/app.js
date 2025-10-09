@@ -15,16 +15,92 @@ const adapterDB = new MySQLAdapter({
   port: 3306,                  // Puerto por defecto de MySQL en XAMPP
 })
 
-// ==== Funciones para MySQL - CORREGIDAS ====
+// ==== ALTERNATIVA: Crear nuestra propia conexión MySQL ====
+const mysql = require('mysql2/promise');
+
+async function crearConexionMySQL() {
+  try {
+    const connection = await mysql.createConnection({
+      host: 'localhost',
+      user: 'root',
+      password: '',
+      database: 'bot_whatsapp',
+      port: 3306
+    });
+    
+    console.log('✅ Conexión MySQL creada exitosamente');
+    return connection;
+  } catch (error) {
+    console.error('❌ Error creando conexión MySQL:', error.message);
+    return null;
+  }
+}
+
+// Variable global para nuestra conexión
+let conexionMySQL = null;
+
+// ==== Funciones para MySQL usando nuestra propia conexión ====
+async function inicializarMySQL() {
+  if (!conexionMySQL) {
+    conexionMySQL = await crearConexionMySQL();
+  }
+  return conexionMySQL;
+}
+
+async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
+  try {
+    await inicializarMySQL();
+    if (!conexionMySQL) {
+      console.log('⚠️ No hay conexión MySQL, omitiendo guardado');
+      return false;
+    }
+
+    const query = `
+      INSERT INTO user_states (user_phone, estado_usuario, estado_metadata, numero_control, nombre_completo)
+      VALUES (?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE 
+      estado_usuario = VALUES(estado_usuario),
+      estado_metadata = VALUES(estado_metadata),
+      numero_control = VALUES(numero_control),
+      nombre_completo = VALUES(nombre_completo),
+      updated_at = CURRENT_TIMESTAMP
+    `;
+    
+    const values = [
+      userPhone,
+      estado,
+      JSON.stringify(metadata),
+      userData.numeroControl || null,
+      userData.nombreCompleto || null
+    ];
+    
+    await conexionMySQL.execute(query, values);
+    console.log(`✅ Estado guardado en MySQL para: ${userPhone}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error guardando estado en MySQL:', error.message);
+    return false;
+  }
+}
+
+// ==== FUNCIONES MYSQL CORREGIDAS - USANDO EL ADAPTER CORRECTAMENTE ====
 async function obtenerConexionMySQL() {
   try {
-    // El adapter de MySQL expone getConnection() o pool
-    if (adapterDB.pool) {
-      return await adapterDB.pool.getConnection();
-    } else if (adapterDB.conn) {
-      return adapterDB.conn;
+    // El MySQLAdapter usa mysql2/promise internamente
+    // Verificamos la estructura real del adapter
+    console.log('🔍 Estructura del adapter DB:', Object.keys(adapterDB));
+    
+    // Intentamos acceder a la conexión de diferentes formas
+    if (adapterDB.connection) {
+      return adapterDB.connection;
+    } else if (adapterDB.db) {
+      return adapterDB.db;
+    } else if (adapterDB.pool) {
+      return adapterDB.pool;
     } else {
-      throw new Error('No se pudo obtener conexión a MySQL');
+      console.log('❌ No se pudo encontrar la conexión en el adapter');
+      console.log('💡 El adapter tiene estas propiedades:', Object.keys(adapterDB));
+      return null;
     }
   } catch (error) {
     console.error('❌ Error obteniendo conexión MySQL:', error);
@@ -69,44 +145,58 @@ async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {
 }
 
 async function obtenerEstadoMySQL(userPhone) {
-  const connection = await obtenerConexionMySQL();
-  if (!connection) return null;
-
-  const query = `SELECT * FROM user_states WHERE user_phone = ?`;
-  
   try {
-    const [rows] = await connection.execute(query, [userPhone]);
+    await inicializarMySQL();
+    if (!conexionMySQL) return null;
+
+    const query = `SELECT * FROM user_states WHERE user_phone = ?`;
+    const [rows] = await conexionMySQL.execute(query, [userPhone]);
+    
     if (rows.length > 0) {
       const estado = rows[0];
+      let estadoMetadata = {};
+      
+      try {
+        estadoMetadata = JSON.parse(estado.estado_metadata || '{}');
+      } catch (e) {
+        console.error('❌ Error parseando estado_metadata:', e);
+      }
+      
       return {
         estadoUsuario: estado.estado_usuario,
-        estadoMetadata: JSON.parse(estado.estado_metadata || '{}'),
+        estadoMetadata: estadoMetadata,
         numeroControl: estado.numero_control,
         nombreCompleto: estado.nombre_completo
       };
     }
   } catch (error) {
-    console.error('❌ Error obteniendo estado de MySQL:', error);
-  } finally {
-    if (connection.release) connection.release();
+    console.error('❌ Error obteniendo estado de MySQL:', error.message);
   }
   
   return null;
 }
 
-async function limpiarEstadoMySQL(userPhone) {
-  const connection = await obtenerConexionMySQL();
-  if (!connection) return;
-
-  const query = `DELETE FROM user_states WHERE user_phone = ?`;
-  
+async function limpiarEstado(state) {
   try {
-    await connection.execute(query, [userPhone]);
-    console.log(`✅ Estado limpiado en MySQL para: ${userPhone}`);
+    const myState = await state.getMyState();
+    
+    // Limpiar timeouts e intervals
+    if (myState?.estadoMetadata?.timeoutId) {
+      clearTimeout(myState.estadoMetadata.timeoutId);
+    }
+    if (myState?.estadoMetadata?.intervalId) {
+      clearInterval(myState.estadoMetadata.intervalId);
+    }
+    
+    // Limpiar en memoria y MySQL
+    await state.update({ 
+      estadoUsuario: ESTADOS_USUARIO.LIBRE,
+      estadoMetadata: {}
+    });
+    
+    await limpiarEstadoMySQL(state.id);
   } catch (error) {
-    console.error('❌ Error limpiando estado en MySQL:', error);
-  } finally {
-    if (connection.release) connection.release();
+    console.error('❌ Error limpiando estado:', error);
   }
 }
 
@@ -118,25 +208,29 @@ const ESTADOS_USUARIO = {
   EN_MENU: 'en_menu'
 };
 
-// ==== Funciones de Gestión de Estados - ACTUALIZADAS ====
+// ==== Funciones de Gestión de Estados - SIMPLIFICADAS ====
 async function actualizarEstado(state, nuevoEstado, metadata = {}) {
-  const estadoActual = await state.getMyState();
-  const nuevoMetadata = {
-    ...metadata,
-    ultimaActualizacion: Date.now()
-  };
-  
-  await state.update({ 
-    estadoUsuario: nuevoEstado,
-    estadoMetadata: nuevoMetadata
-  });
-
-  // Guardar también en MySQL si es un proceso largo
-  if (nuevoEstado === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-    await guardarEstadoMySQL(state.id, nuevoEstado, nuevoMetadata, {
-      numeroControl: estadoActual?.numeroControl,
-      nombreCompleto: estadoActual?.nombreCompleto
+  try {
+    const estadoActual = await state.getMyState();
+    const nuevoMetadata = {
+      ...metadata,
+      ultimaActualizacion: Date.now()
+    };
+    
+    await state.update({ 
+      estadoUsuario: nuevoEstado,
+      estadoMetadata: nuevoMetadata
     });
+
+    // Guardar también en MySQL si es un proceso largo
+    if (nuevoEstado === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      await guardarEstadoMySQL(state.id, nuevoEstado, nuevoMetadata, {
+        numeroControl: estadoActual?.numeroControl,
+        nombreCompleto: estadoActual?.nombreCompleto
+      });
+    }
+  } catch (error) {
+    console.error('❌ Error actualizando estado:', error);
   }
 }
 
@@ -195,7 +289,7 @@ async function restaurarEstadoInicial(ctx, state) {
   return false;
 }
 
-// ==== Función para mostrar estado de bloqueo (CENTRALIZADA) ====
+// ==== Función para mostrar estado de bloqueo ====
 async function mostrarEstadoBloqueado(flowDynamic, myState) {
   const metadata = myState.estadoMetadata || {};
   const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
@@ -214,7 +308,6 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
     '',
     '💡 **Puedes usar estos comandos:**',
     '• *estado* - Ver progreso actual',
-    //'• *cancelar* - Detener proceso',
   ].join('\n'));
 }
 
@@ -1431,45 +1524,58 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
     return gotoFlow(flowMenu);
   });
 
-// ==== VERIFICACIÓN DE LA BASE DE DATOS ====
+// ==== VERIFICACIÓN DE LA BASE DE DATOS - SIMPLIFICADA ====
 async function verificarBaseDeDatos() {
   try {
-    const connection = await obtenerConexionMySQL();
+    console.log('🔍 Verificando conexión a MySQL...');
+    
+    const connection = await crearConexionMySQL();
     if (!connection) {
       console.error('❌ No se pudo conectar a la base de datos');
+      console.log('💡 Verifica que:');
+      console.log('   1. XAMPP esté ejecutándose');
+      console.log('   2. MySQL esté activo en puerto 3306');
+      console.log('   3. La base de datos "bot_whatsapp" exista');
       return false;
     }
     
     // Verificar que la tabla existe
-    const [tablas] = await connection.execute(`
-      SELECT TABLE_NAME 
-      FROM INFORMATION_SCHEMA.TABLES 
-      WHERE TABLE_SCHEMA = 'bot_whatsapp' 
-      AND TABLE_NAME = 'user_states'
-    `);
-    
-    if (tablas.length === 0) {
-      console.error('❌ La tabla user_states no existe en la base de datos');
-      console.log('💡 Ejecuta este SQL para crear la tabla:');
-      console.log(`
-        CREATE TABLE user_states (
-          user_phone VARCHAR(255) PRIMARY KEY,
-          estado_usuario VARCHAR(50) NOT NULL,
-          estado_metadata JSON,
-          numero_control VARCHAR(20),
-          nombre_completo VARCHAR(255),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-        );
+    try {
+      const [tablas] = await connection.execute(`
+        SELECT TABLE_NAME 
+        FROM INFORMATION_SCHEMA.TABLES 
+        WHERE TABLE_SCHEMA = 'bot_whatsapp' 
+        AND TABLE_NAME = 'user_states'
       `);
+      
+      if (tablas.length === 0) {
+        console.log('📦 Creando tabla user_states...');
+        await connection.execute(`
+          CREATE TABLE user_states (
+            user_phone VARCHAR(255) PRIMARY KEY,
+            estado_usuario VARCHAR(50) NOT NULL,
+            estado_metadata JSON,
+            numero_control VARCHAR(20),
+            nombre_completo VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+          )
+        `);
+        console.log('✅ Tabla user_states creada exitosamente');
+      } else {
+        console.log('✅ Tabla user_states encontrada');
+      }
+      
+      await connection.end();
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Error en verificación de tabla:', error.message);
       return false;
     }
     
-    console.log('✅ Conexión a MySQL verificada correctamente');
-    if (connection.release) connection.release();
-    return true;
   } catch (error) {
-    console.error('❌ Error verificando base de datos:', error);
+    console.error('❌ Error verificando base de datos:', error.message);
     return false;
   }
 }
@@ -1496,12 +1602,16 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
 // ==== Inicialización CORREGIDA ====
 const main = async () => {
   try {
-    console.log('🔄 Conectando a la base de datos...');
+    console.log('🚀 Iniciando bot de WhatsApp...');
 
     // Verificar la base de datos antes de iniciar
     const dbOk = await verificarBaseDeDatos();
     if (!dbOk) {
-      console.log('⚠️ Continuando sin base de datos...');
+      console.log('⚠️ Modo sin base de datos - Los estados no persistirán');
+    } else {
+      console.log('🎯 Base de datos lista - Estados persistirán correctamente');
+      // Inicializar nuestra conexión
+      await inicializarMySQL();
     }
 
     const adapterFlow = createFlow([
@@ -1543,6 +1653,7 @@ const main = async () => {
       }
     });
 
+    console.log('🔧 Creando bot...');
     await createBot({
       flow: adapterFlow,
       provider: adapterProvider,
@@ -1550,10 +1661,12 @@ const main = async () => {
     });
 
     console.log('✅ Bot iniciado correctamente');
+    console.log('📱 Escaneando QR code...');
+    
     QRPortalWeb();
 
   } catch (error) {
-    console.error('❌ Error al iniciar el bot:', error);
+    console.error('❌ Error crítico al iniciar el bot:', error);
   }
 }
 
