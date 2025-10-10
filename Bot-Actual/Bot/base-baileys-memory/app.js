@@ -119,15 +119,16 @@ async function crearConexionMySQL() {
       password: '',
       database: 'bot_whatsapp',
       port: 3306,
-      // 🔧 CONFIGURACIONES PARA MANTENER LA CONEXIÓN
+      // 🔧 CONFIGURACIONES ACTUALIZADAS (sin opciones obsoletas)
+      connectTimeout: 60000,
       acquireTimeout: 60000,
       timeout: 60000,
-      reconnect: true,
-      keepAliveInitialDelay: 10000,
-      enableKeepAlive: true
+      // Configuraciones para mantener conexión activa
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
     });
     
-    // 🔧 MANEJADORES DE EVENTOS PARA DETECTAR DESCONEXIONES
+    // 🔧 MANEJADOR DE ERRORES MEJORADO
     connection.on('error', (err) => {
       console.error('❌ Error en conexión MySQL:', err.message);
       if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
@@ -209,7 +210,7 @@ async function limpiarEstadoMySQL(userPhone) {
   }
 }
 
-// ==== FUNCIÓN GUARDAR ESTADO MYSQL ====
+// ==== FUNCIÓN GUARDAR ESTADO MYSQL - CORREGIDA ====
 async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
   try {
     await inicializarMySQL();
@@ -229,15 +230,19 @@ async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {
       updated_at = CURRENT_TIMESTAMP
     `;
     
+    // 🔧 CORRECCIÓN: Asegurar que no haya valores undefined
     const values = [
       userPhone,
       estado,
       JSON.stringify(metadata),
-      userData.numeroControl || null,
-      userData.nombreCompleto || null
+      userData.numeroControl || null,  // ✅ Convierte undefined a null
+      userData.nombreCompleto || null  // ✅ Convierte undefined a null
     ];
     
-    await conexionMySQL.execute(query, values);
+    // 🔧 VALIDACIÓN ADICIONAL: Verificar que no queden undefined
+    const valoresFinales = values.map(val => val === undefined ? null : val);
+    
+    await conexionMySQL.execute(query, valoresFinales);
     console.log(`✅ Estado guardado en MySQL para: ${userPhone}`);
     return true;
   } catch (error) {
@@ -291,6 +296,13 @@ const ESTADOS_USUARIO = {
 async function actualizarEstado(state, nuevoEstado, metadata = {}) {
   try {
     const estadoActual = await state.getMyState();
+    
+    // 🔧 CORRECCIÓN: Asegurar que los datos de usuario no sean undefined
+    const userData = {
+      numeroControl: estadoActual?.numeroControl || null,
+      nombreCompleto: estadoActual?.nombreCompleto || null
+    };
+    
     const nuevoMetadata = {
       ...metadata,
       ultimaActualizacion: Date.now()
@@ -303,10 +315,7 @@ async function actualizarEstado(state, nuevoEstado, metadata = {}) {
 
     // Guardar también en MySQL si es un proceso largo
     if (nuevoEstado === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-      await guardarEstadoMySQL(state.id, nuevoEstado, nuevoMetadata, {
-        numeroControl: estadoActual?.numeroControl,
-        nombreCompleto: estadoActual?.nombreCompleto
-      });
+      await guardarEstadoMySQL(state.id, nuevoEstado, nuevoMetadata, userData);
     }
   } catch (error) {
     console.error('❌ Error actualizando estado:', error);
