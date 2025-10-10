@@ -292,6 +292,25 @@ const ESTADOS_USUARIO = {
   EN_MENU: 'en_menu'
 };
 
+// ==== Función para redirección segura después de timeout ====
+async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
+  try {
+    // 🔧 LIMPIAR TODO ANTES DE REDIRIGIR
+    await limpiarEstado(state);
+    
+    // 🔧 PEQUEÑA PAUSA PARA ASEGURAR LA LIMPIEZA
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 🔧 REDIRIGIR AL MENÚ
+    return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+  } catch (error) {
+    console.error('❌ Error en redirección al menú:', error);
+    // 🔧 FALLBACK: Enviar mensaje y forzar limpieza
+    await flowDynamic('🔧 Reiniciando bot... Por favor escribe *menú* para continuar.');
+    await limpiarEstado(state);
+  }
+}
+
 // ==== Funciones de Gestión de Estados - CORREGIDAS ====
 async function actualizarEstado(state, nuevoEstado, metadata = {}) {
   try {
@@ -371,43 +390,35 @@ async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
 async function limpiarEstado(state) {
   try {
     const myState = await state.getMyState();
+    const userPhone = state.id;
     
-    // 🔧 LIMPIAR TODOS LOS TIMEOUTS E INTERVALS DE FORMA SEGURA
-    if (myState?.estadoMetadata) {
-      const metadata = myState.estadoMetadata;
+    if (userPhone) {
+      // 🔧 LIMPIAR TODOS LOS TIMEOUTS E INTERVALS
+      timeoutManager.clearAll(userPhone);
       
-      // Limpiar timeouts
-      if (metadata.timeoutId) {
-        console.log('🔄 Limpiando timeout:', metadata.timeoutId);
-        clearTimeout(metadata.timeoutId);
-      }
-      
-      // Limpiar intervals
-      if (metadata.intervalId) {
-        console.log('🔄 Limpiando interval:', metadata.intervalId);
-        clearInterval(metadata.intervalId);
-      }
-      
-      // Limpiar timeouts adicionales
-      if (metadata.timeoutMenu) clearTimeout(metadata.timeoutMenu);
-      if (metadata.timeoutPrincipal) clearTimeout(metadata.timeoutPrincipal);
-      if (metadata.timeoutSIE) clearTimeout(metadata.timeoutSIE);
-      if (metadata.timeoutContrasena) clearTimeout(metadata.timeoutContrasena);
-      if (metadata.timeoutAutenticador) clearTimeout(metadata.timeoutAutenticador);
-      if (metadata.timeoutMenuDistancia) clearTimeout(metadata.timeoutMenuDistancia);
-      if (metadata.timeoutMenuSIE) clearTimeout(metadata.timeoutMenuSIE);
-      if (metadata.timeoutCaptura) clearTimeout(metadata.timeoutCaptura);
+      // Limpiar timeouts legacy
+      if (myState?.timeoutCaptura) clearTimeout(myState.timeoutCaptura);
+      if (myState?.timeoutCapturaNombre) clearTimeout(myState.timeoutCapturaNombre);
+      if (myState?.timeoutMenu) clearTimeout(myState.timeoutMenu);
+      if (myState?.timeoutPrincipal) clearTimeout(myState.timeoutPrincipal);
+      // ... limpiar todos los timeouts que tengas
     }
     
-    // Limpiar en memoria y MySQL
+    // 🔧 LIMPIAR ESTADO EN MEMORIA
     await state.update({ 
       estadoUsuario: ESTADOS_USUARIO.LIBRE,
-      estadoMetadata: {}
+      estadoMetadata: {},
+      numeroControl: null,
+      nombreCompleto: null,
+      ultimaInteraccion: Date.now()
     });
     
-    if (state.id) {
-      await limpiarEstadoMySQL(state.id);
+    // 🔧 LIMPIAR ESTADO EN MYSQL (si existe)
+    if (userPhone) {
+      await limpiarEstadoMySQL(userPhone);
     }
+    
+    console.log(`✅ Estado limpiado completamente para: ${userPhone}`);
   } catch (error) {
     console.error('❌ Error limpiando estado:', error);
   }
@@ -603,7 +614,7 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
     
     if (!myState?.estadoUsuario || myState.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       await limpiarEstado(state);
-      return gotoFlow(flowMenu);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }
 
     // Solo mostrar el estado si no es un comando especial
@@ -929,7 +940,7 @@ const flowEsperaMenu = addKeyword(EVENTS.ACTION)
       if (/^men[uú]$/i.test(input)) {
         clearTimeout(await state.get('timeoutMenu'));
         await state.clear();
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (input === 'hola') {
@@ -965,7 +976,7 @@ const flowEsperaPrincipal = addKeyword(EVENTS.ACTION)
       if (/^men[uú]$/i.test(input)) {
         clearTimeout(await state.get('timeoutPrincipal'));
         await state.clear();
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (input === 'hola') {
@@ -1001,7 +1012,7 @@ const flowEsperaSIE = addKeyword(EVENTS.ACTION)
       if (/^men[uú]$/i.test(input)) {
         clearTimeout(await state.get('timeoutSIE'));
         await state.clear();
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (input === 'hola') {
@@ -1037,7 +1048,7 @@ const flowEsperaContrasena = addKeyword(EVENTS.ACTION)
       if (/^men[uú]$/i.test(input)) {
         clearTimeout(await state.get('timeoutContrasena'));
         await state.clear();
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (input === 'hola') {
@@ -1073,7 +1084,7 @@ const flowEsperaAutenticador = addKeyword(EVENTS.ACTION)
       if (/^men[uú]$/i.test(input)) {
         clearTimeout(await state.get('timeoutAutenticador'));
         await state.clear();
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (input === 'hola') {
@@ -1109,7 +1120,7 @@ const flowEsperaMenuDistancia = addKeyword(EVENTS.ACTION)
       if (/^men[uú]$/i.test(input)) {
         clearTimeout(await state.get('timeoutMenuDistancia'));
         await state.clear();
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (input === 'hola') {
@@ -1145,7 +1156,7 @@ const flowEsperaMenuSIE = addKeyword(EVENTS.ACTION)
       if (/^men[uú]$/i.test(input)) {
         clearTimeout(await state.get('timeoutMenuSIE'));
         await state.clear();
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (input === 'hola') {
@@ -1173,7 +1184,7 @@ const flowSIE = addKeyword(['sie']).addAnswer(
     const opcion = ctx.body.trim().toLowerCase();
 
     if (opcion === 'menu' || opcion === 'menú') {
-      return gotoFlow(flowMenu);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }
 
     if (opcion === '1') {
@@ -1192,16 +1203,30 @@ const flowSIE = addKeyword(['sie']).addAnswer(
   }
 );
 
-// ==== Flujo de captura con timeout ====
+// ==== Flujo de captura con timeout - CORREGIDO ====
 const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic, gotoFlow }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⏱️ Timeout de 2 minutos en número de control');
-      await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-      return gotoFlow(flowMenu);
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+    
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en número de control');
+        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
+        
+        // 🔧 LIMPIAR ESTADO COMPLETAMENTE
+        await limpiarEstado(state);
+        
+        // 🔧 REDIRIGIR AL MENÚ PRINCIPAL
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
     }, 2 * 60 * 1000);
 
-    await state.update({ timeoutCaptura: timeout });
+    await state.update({ 
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
   })
   .addAnswer(
     '📝 Por favor escribe tu *número de control*:',
@@ -1209,12 +1234,14 @@ const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      clearTimeout(await state.get('timeoutCaptura'));
+      // 🔧 LIMPIAR TIMEOUT INMEDIATAMENTE
+      timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim().toLowerCase();
 
       if (input === 'menu' || input === 'menú') {
-        return gotoFlow(flowMenu);
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (!input || input === '') {
@@ -1229,6 +1256,9 @@ const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
 
       await state.update({ numeroControl: input });
       await flowDynamic(`✅ Recibimos tu número de control: *${input}*`);
+      
+      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
+      timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowCapturaNombre);
     }
   );
@@ -1239,7 +1269,7 @@ const flowCapturaNumeroControlAutenticador = addKeyword(EVENTS.ACTION)
     const timeout = setTimeout(async () => {
       console.log('⏱️ Timeout de 2 minutos en número de control - autenticador');
       await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-      return gotoFlow(flowMenu);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }, 2 * 60 * 1000);
 
     await state.update({ timeoutCaptura: timeout });
@@ -1255,7 +1285,7 @@ const flowCapturaNumeroControlAutenticador = addKeyword(EVENTS.ACTION)
       const input = ctx.body.trim().toLowerCase();
 
       if (input === 'menu' || input === 'menú') {
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (!input || input === '') {
@@ -1280,7 +1310,7 @@ const flowCapturaNumeroControlSIE = addKeyword(EVENTS.ACTION)
     const timeout = setTimeout(async () => {
       console.log('⏱️ Timeout de 2 minutos en número de control - SIE');
       await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-      return gotoFlow(flowMenu);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }, 2 * 60 * 1000);
 
     await state.update({ timeoutCaptura: timeout });
@@ -1302,7 +1332,7 @@ const flowCapturaNumeroControlSIE = addKeyword(EVENTS.ACTION)
 
       const inputLower = input.toLowerCase();
       if (inputLower === 'menu' || inputLower === 'menú') {
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
       if (!isValidText(input) || !validarNumeroControl(input)) {
@@ -1318,14 +1348,29 @@ const flowCapturaNumeroControlSIE = addKeyword(EVENTS.ACTION)
 
 // ==== Flujo de captura para nombre (contraseña) ====
 const flowCapturaNombre = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic, gotoFlow }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⏱️ Timeout de 2 minutos en nombre completo - contraseña');
-      await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-      return gotoFlow(flowMenu);
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+    
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre completo - contraseña');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        
+        // 🔧 LIMPIAR ESTADO COMPLETAMENTE
+        await limpiarEstado(state);
+        
+        // 🔧 REDIRIGIR AL MENÚ PRINCIPAL
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
     }, 2 * 60 * 1000);
 
-    await state.update({ timeoutCaptura: timeout });
+    // Guardar el timeout ID en el estado
+    await state.update({ 
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
   })
   .addAnswer(
     '📝 Por favor escribe tu *nombre completo*:',
@@ -1333,7 +1378,8 @@ const flowCapturaNombre = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      clearTimeout(await state.get('timeoutCaptura'));
+      // 🔧 LIMPIAR TIMEOUT INMEDIATAMENTE
+      timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim();
 
@@ -1357,6 +1403,9 @@ const flowCapturaNombre = addKeyword(EVENTS.ACTION)
 
       await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu número de control: *${numeroControl}*`);
       await state.update({ nombreCompleto: input });
+      
+      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
+      timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowContrasena);
     }
   );
@@ -1367,7 +1416,7 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     const timeout = setTimeout(async () => {
       console.log('⏱️ Timeout de 2 minutos en nombre completo - autenticador');
       await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-      return gotoFlow(flowMenu);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }, 2 * 60 * 1000);
 
     await state.update({ timeoutCaptura: timeout });
@@ -1412,7 +1461,7 @@ const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
     const timeout = setTimeout(async () => {
       console.log('⏱️ Timeout de 2 minutos en nombre completo - SIE');
       await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-      return gotoFlow(flowMenu);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }, 2 * 60 * 1000);
 
     await state.update({ timeoutCaptura: timeout });
@@ -1664,7 +1713,7 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
         ].join('\n'));
       } else {
         await flowDynamic('✅ No tienes procesos activos. Serás redirigido al menú.');
-        return gotoFlow(flowMenu);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
     }
 
@@ -1678,7 +1727,7 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
         'Ahora puedes seleccionar una nueva opción del menú.',
       ].join('\n'));
       
-      return gotoFlow(flowMenu);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }
 
     if (comando === 'ayuda') {
@@ -1697,7 +1746,7 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
       return gotoFlow(flowBloqueoActivo);
     }
     
-    return gotoFlow(flowMenu);
+    return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
   });
 
 // ==== VERIFICACIÓN DE LA BASE DE DATOS - SIMPLIFICADA ====
