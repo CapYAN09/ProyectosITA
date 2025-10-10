@@ -6,6 +6,94 @@ const MySQLAdapter = require('@bot-whatsapp/database/mysql')
 // Contacto específico donde se enviará la información
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
 
+// ==== Sistema de Timeouts Global - NUEVO ====
+class TimeoutManager {
+  constructor() {
+    this.timeouts = new Map();
+    this.intervals = new Map();
+  }
+
+  setTimeout(userPhone, callback, delay) {
+    this.clearTimeout(userPhone);
+    const timeoutId = setTimeout(callback, delay);
+    this.timeouts.set(userPhone, timeoutId);
+    return timeoutId;
+  }
+
+  setInterval(userPhone, callback, delay) {
+    this.clearInterval(userPhone);
+    const intervalId = setInterval(callback, delay);
+    this.intervals.set(userPhone, intervalId);
+    return intervalId;
+  }
+
+  clearTimeout(userPhone) {
+    if (this.timeouts.has(userPhone)) {
+      clearTimeout(this.timeouts.get(userPhone));
+      this.timeouts.delete(userPhone);
+    }
+  }
+
+  clearInterval(userPhone) {
+    if (this.intervals.has(userPhone)) {
+      clearInterval(this.intervals.get(userPhone));
+      this.intervals.delete(userPhone);
+    }
+  }
+
+  clearAll(userPhone) {
+    this.clearTimeout(userPhone);
+    this.clearInterval(userPhone);
+  }
+}
+
+const timeoutManager = new TimeoutManager();
+
+// ==== Función para manejar inactividad - NUEVA ====
+async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
+  if (ctx.from === CONTACTO_ADMIN) return;
+
+  const userPhone = ctx.from;
+  
+  // Limpiar timeout anterior si existe
+  timeoutManager.clearTimeout(userPhone);
+
+  // Configurar nuevo timeout para 2 minutos
+  timeoutManager.setTimeout(userPhone, async () => {
+    try {
+      const myState = await state.getMyState();
+      
+      // Solo mostrar mensaje si no está en proceso largo
+      if (myState?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+        await flowDynamic([
+          '⏰ *Sesión Inactiva*',
+          '',
+          'He notado que no has interactuado conmigo en los últimos 2 minutos.',
+          '',
+          '💡 **Para reactivar el bot, escribe:**',
+          '• *hola* - Para reiniciar la conversación',
+          '• *menú* - Para ver las opciones disponibles',
+          '',
+          '¡Estoy aquí para ayudarte! 🐦'
+        ].join('\n'));
+        
+        // Limpiar estado temporal pero mantener información básica
+        await state.update({ 
+          estadoUsuario: ESTADOS_USUARIO.LIBRE,
+          ultimaInteraccion: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error en manejo de inactividad:', error);
+    }
+  }, 2 * 60 * 1000); // 2 minutos
+}
+
+// ==== Función para reiniciar inactividad - NUEVA ====
+async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
+  await manejarInactividad(ctx, state, flowDynamic, gotoFlow);
+}
+
 // ==== Configuración para XAMPP ====
 const adapterDB = new MySQLAdapter({
   host: 'localhost',
@@ -18,6 +106,11 @@ const adapterDB = new MySQLAdapter({
 // ==== ALTERNATIVA: Crear nuestra propia conexión MySQL ====
 const mysql = require('mysql2/promise');
 
+// Variable global para nuestra conexión
+let conexionMySQL = null;
+
+let reconectando = false;
+
 async function crearConexionMySQL() {
   try {
     const connection = await mysql.createConnection({
@@ -25,7 +118,22 @@ async function crearConexionMySQL() {
       user: 'root',
       password: '',
       database: 'bot_whatsapp',
-      port: 3306
+      port: 3306,
+      // 🔧 CONFIGURACIONES PARA MANTENER LA CONEXIÓN
+      acquireTimeout: 60000,
+      timeout: 60000,
+      reconnect: true,
+      keepAliveInitialDelay: 10000,
+      enableKeepAlive: true
+    });
+    
+    // 🔧 MANEJADORES DE EVENTOS PARA DETECTAR DESCONEXIONES
+    connection.on('error', (err) => {
+      console.error('❌ Error en conexión MySQL:', err.message);
+      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+        console.log('🔄 Reconectando a MySQL...');
+        reconectarMySQL();
+      }
     });
     
     console.log('✅ Conexión MySQL creada exitosamente');
@@ -36,14 +144,54 @@ async function crearConexionMySQL() {
   }
 }
 
-// Variable global para nuestra conexión
-let conexionMySQL = null;
+async function reconectarMySQL() {
+  if (reconectando) return;
+  
+  reconectando = true;
+  console.log('🔄 Iniciando reconexión a MySQL...');
+  
+  try {
+    if (conexionMySQL) {
+      try {
+        await conexionMySQL.end();
+      } catch (e) {
+        console.log('⚠️ Cerrando conexión anterior...');
+      }
+    }
+    
+    conexionMySQL = await crearConexionMySQL();
+    reconectando = false;
+    
+    if (conexionMySQL) {
+      console.log('✅ Reconexión a MySQL exitosa');
+    }
+  } catch (error) {
+    console.error('❌ Error en reconexión MySQL:', error.message);
+    reconectando = false;
+    
+    // Reintentar después de 5 segundos
+    setTimeout(() => {
+      reconectarMySQL();
+    }, 5000);
+  }
+}
 
 // ==== Funciones para MySQL usando nuestra propia conexión ====
 async function inicializarMySQL() {
-  if (!conexionMySQL) {
+  if (!conexionMySQL || !conexionMySQL._closing) {
     conexionMySQL = await crearConexionMySQL();
   }
+  
+  // Verificar si la conexión sigue activa
+  if (conexionMySQL) {
+    try {
+      await conexionMySQL.execute('SELECT 1');
+    } catch (error) {
+      console.log('🔄 Conexión MySQL inactiva, reconectando...');
+      await reconectarMySQL();
+    }
+  }
+  
   return conexionMySQL;
 }
 
@@ -165,17 +313,81 @@ async function actualizarEstado(state, nuevoEstado, metadata = {}) {
   }
 }
 
-// ==== FUNCIÓN LIMPIAR ESTADO - ÚNICA DEFINICIÓN ====
+// ==== Función para manejar inactividad - NUEVA ====
+async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
+  if (ctx.from === CONTACTO_ADMIN) return;
+
+  const userPhone = ctx.from;
+  
+  // Limpiar timeout anterior si existe
+  timeoutManager.clearTimeout(userPhone);
+
+  // Configurar nuevo timeout para 2 minutos
+  timeoutManager.setTimeout(userPhone, async () => {
+    try {
+      const myState = await state.getMyState();
+      
+      // Solo mostrar mensaje si no está en proceso largo
+      if (myState?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+        await flowDynamic([
+          '⏰ *Sesión Inactiva*',
+          '',
+          'He notado que no has interactuado conmigo en los últimos 2 minutos.',
+          '',
+          '💡 **Para reactivar el bot, escribe:**',
+          '• *hola* - Para reiniciar la conversación',
+          '• *menú* - Para ver las opciones disponibles',
+          '',
+          '¡Estoy aquí para ayudarte! 🐦'
+        ].join('\n'));
+        
+        // Limpiar estado temporal pero mantener información básica
+        await state.update({ 
+          estadoUsuario: ESTADOS_USUARIO.LIBRE,
+          ultimaInteraccion: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error en manejo de inactividad:', error);
+    }
+  }, 2 * 60 * 1000); // 2 minutos
+}
+
+// ==== Función para reiniciar inactividad - NUEVA ====
+async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
+  await manejarInactividad(ctx, state, flowDynamic, gotoFlow);
+}
+
+// ==== MEJORA EN LA GESTIÓN DE TIMEOUTS ====
 async function limpiarEstado(state) {
   try {
     const myState = await state.getMyState();
     
-    // Limpiar timeouts e intervals
-    if (myState?.estadoMetadata?.timeoutId) {
-      clearTimeout(myState.estadoMetadata.timeoutId);
-    }
-    if (myState?.estadoMetadata?.intervalId) {
-      clearInterval(myState.estadoMetadata.intervalId);
+    // 🔧 LIMPIAR TODOS LOS TIMEOUTS E INTERVALS DE FORMA SEGURA
+    if (myState?.estadoMetadata) {
+      const metadata = myState.estadoMetadata;
+      
+      // Limpiar timeouts
+      if (metadata.timeoutId) {
+        console.log('🔄 Limpiando timeout:', metadata.timeoutId);
+        clearTimeout(metadata.timeoutId);
+      }
+      
+      // Limpiar intervals
+      if (metadata.intervalId) {
+        console.log('🔄 Limpiando interval:', metadata.intervalId);
+        clearInterval(metadata.intervalId);
+      }
+      
+      // Limpiar timeouts adicionales
+      if (metadata.timeoutMenu) clearTimeout(metadata.timeoutMenu);
+      if (metadata.timeoutPrincipal) clearTimeout(metadata.timeoutPrincipal);
+      if (metadata.timeoutSIE) clearTimeout(metadata.timeoutSIE);
+      if (metadata.timeoutContrasena) clearTimeout(metadata.timeoutContrasena);
+      if (metadata.timeoutAutenticador) clearTimeout(metadata.timeoutAutenticador);
+      if (metadata.timeoutMenuDistancia) clearTimeout(metadata.timeoutMenuDistancia);
+      if (metadata.timeoutMenuSIE) clearTimeout(metadata.timeoutMenuSIE);
+      if (metadata.timeoutCaptura) clearTimeout(metadata.timeoutCaptura);
     }
     
     // Limpiar en memoria y MySQL
@@ -184,7 +396,9 @@ async function limpiarEstado(state) {
       estadoMetadata: {}
     });
     
-    await limpiarEstadoMySQL(state.id);
+    if (state.id) {
+      await limpiarEstadoMySQL(state.id);
+    }
   } catch (error) {
     console.error('❌ Error limpiando estado:', error);
   }
@@ -334,10 +548,13 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO ====
+// ==== FLUJO INTERCEPTOR GLOBAL - MEJORADO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
+    
+    // Reiniciar contador de inactividad en cada mensaje
+    await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
     
     // Intentar restaurar estado desde MySQL al iniciar
     const estadoRestaurado = await restaurarEstadoInicial(ctx, state);
@@ -345,6 +562,24 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     if (estadoRestaurado) {
       await mostrarEstadoBloqueado(flowDynamic, await state.getMyState());
       return gotoFlow(flowBloqueoActivo);
+    }
+    
+    // Si no es "hola" y no tiene estado, pedir que escriba hola
+    const input = ctx.body?.toLowerCase().trim();
+    if (!input || !['hola', 'ole', 'alo', 'inicio', 'menu', 'menú'].includes(input)) {
+      const myState = await state.getMyState();
+      if (!myState?.estadoUsuario || myState.estadoUsuario === ESTADOS_USUARIO.LIBRE) {
+        await flowDynamic([
+          '🔒 *Bot Inactivo*',
+          '',
+          'Para comenzar a usar el bot, escribe la palabra:',
+          '',
+          '🌟 *hola*',
+          '',
+          '¡Estaré encantado de ayudarte! 🐦'
+        ].join('\n'));
+        return endFlow();
+      }
     }
     
     return endFlow();
@@ -1287,7 +1522,7 @@ const flowDistancia = addKeyword(['Moodle'])
   });
 
 // ==== Flujo principal (CORREGIDO) ====
-const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio'])
+const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', 'Hola', '.','Buenas tardes, tengo un problema', 'Buenas noches, tengo un problema', 'Buenos días, tengo un problema', 'buenas tardes tengo un problema', 'buenas noches tengo un problema', 'buenos días tengo un problema'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
     
@@ -1512,9 +1747,12 @@ async function verificarBaseDeDatos() {
   }
 }
 
-// ==== Flujo para mensajes no entendidos ====
+// ==== Flujo para mensajes no entendidos - ACTUALIZADO ====
 const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
   if (ctx.from === CONTACTO_ADMIN) return;
+
+  // Reiniciar inactividad incluso en mensajes no entendidos
+  await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
 
   if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
     return;
@@ -1524,10 +1762,11 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     '🤖 No entiendo ese tipo de mensajes.',
     '',
     '💡 **Comandos disponibles:**',
-    '• *menú* - Ver opciones principales',
+    '• *hola* - Reactivar el bot',
+    '• *menú* - Ver opciones principales', 
     '• *estado* - Ver progreso de procesos',
     '',
-    '🔙 Escribe *menú* para ver las opciones disponibles.'
+    '🔙 Escribe *hola* para comenzar de nuevo.'
   ])
 });
 
@@ -1578,12 +1817,34 @@ const main = async () => {
       flowDefault
     ])
 
-    const adapterProvider = createProvider(BaileysProvider, {
-      printQRInTerminal: true,
-      logger: {
-        level: 'warn'
-      }
-    });
+// ==== MEJORA EN LA CONFIGURACIÓN DEL PROVIDER ====
+const adapterProvider = createProvider(BaileysProvider, {
+  printQRInTerminal: true,
+  // 🔧 CONFIGURACIONES ADICIONALES DE ESTABILIDAD
+  auth: {
+    creds: {},
+    keys: {}
+  },
+  logger: {
+    level: 'silent'
+  },
+  markOnlineOnConnect: true,
+  generateHighQualityLinkPreview: true,
+  // 🔧 CONFIGURACIONES DE RECONEXIÓN MEJORADAS
+  reconnect: true,
+  maxRetries: 10,
+  connectTimeout: 30000,
+  keepAliveInterval: 15000,
+  // Manejo de errores mejorado
+  getMessage: async (key) => {
+    return {
+      conversation: 'mensaje no disponible'
+    }
+  },
+  // Configuración para evitar desconexiones
+  emitOwnEvents: true,
+  defaultQueryTimeoutMs: 60000
+});
 
     console.log('🔧 Creando bot...');
     await createBot({
