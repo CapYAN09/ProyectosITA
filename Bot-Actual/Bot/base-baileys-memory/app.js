@@ -1627,7 +1627,7 @@ function esSaludoValido(texto) {
     'hola', 'ole', 'alo', 'inicio', 'Inicio', 'comenzar', 'empezar',
     'buenos días', 'buenas tardes', 'buenas noches',
     'buenos dias', 'buenas tardes', 'buenas noches',
-    'hola.', 'hola!', 'hola?',
+    'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.',
     'buenos días, tengo un problema', 'buenas tardes, tengo un problema',
     'buenas noches, tengo un problema', 'buenos días tengo un problema',
     'buenas tardes tengo un problema', 'buenas noches tengo un problema',
