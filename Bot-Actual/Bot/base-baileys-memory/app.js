@@ -1621,7 +1621,9 @@ function esSaludoValido(texto) {
     'hola.', 'hola!', 'hola?',
     'buenos días, tengo un problema', 'buenas tardes, tengo un problema',
     'buenas noches, tengo un problema', 'buenos días tengo un problema',
-    'buenas tardes tengo un problema', 'buenas noches tengo un problema'
+    'buenas tardes tengo un problema', 'buenas noches tengo un problema',
+    'tengo un problema', 'necesito ayuda', 'ayuda', 'tengo un problema con mi cuenta',
+    'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso'
   ];
 
   return saludos.some(saludo => textoLimpio.includes(saludo));
