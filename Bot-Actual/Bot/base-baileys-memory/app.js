@@ -460,7 +460,7 @@ async function restaurarEstadoInicial(ctx, state) {
   return false;
 }
 
-// ==== Función para mostrar estado de bloqueo ====
+// ==== Función para mostrar estado de bloqueo - CORREGIDA ====
 async function mostrarEstadoBloqueado(flowDynamic, myState) {
   const metadata = myState.estadoMetadata || {};
   const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
@@ -477,8 +477,10 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
     '🔄 **Estamos trabajando en tu solicitud...**',
     '📱 Por favor espera, este proceso toma aproximadamente 30 minutos',
     '',
-    '💡 **Puedes usar estos comandos:**',
-    '• *estado* - Ver progreso actual',
+    '💡 **Para ver el progreso actual escribe:**',
+    '*estado*',
+    '',
+    '⏰ El proceso continuará automáticamente.'
   ].join('\n'));
 }
 
@@ -613,7 +615,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     return endFlow();
   });
 
-// ==== Flujo de Bloqueo Activo ====
+// ==== Flujo de Bloqueo Activo - CORREGIDO ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -625,10 +627,23 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
       return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }
 
-    // Solo mostrar el estado si no es un comando especial
+    // Solo mostrar el estado si el usuario escribe "estado"
     const input = ctx.body?.toLowerCase().trim();
-    if (!input || !['estado', 'cancelar', 'ayuda'].includes(input)) {
+    
+    if (input === 'estado') {
       await mostrarEstadoBloqueado(flowDynamic, myState);
+    } else if (input && input !== 'estado') {
+      // Si escribe cualquier otra cosa
+      await flowDynamic([
+        '⏳ *Proceso en curso*',
+        '',
+        'Tu solicitud está siendo procesada...',
+        '',
+        '💡 **Para ver el progreso actual escribe:**',
+        '*estado*',
+        '',
+        '🔄 El proceso continuará automáticamente.'
+      ].join('\n'));
     }
   })
   .addAnswer(
@@ -638,10 +653,12 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
 
       const input = ctx.body.toLowerCase().trim();
 
-      if (input === 'estado' || input === 'cancelar' || input === 'ayuda') {
+      // 🔧 SOLO "estado" redirige a comandos especiales
+      if (input === 'estado') {
         return gotoFlow(flowComandosEspeciales);
       }
 
+      // 🔧 Cualquier otra cosa vuelve al flujo de bloqueo
       return gotoFlow(flowBloqueoActivo);
     }
   );
@@ -686,7 +703,7 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
     if (envioExitoso) {
-      await flowDynamic('✅ Hemos recibido tu solicitud. Te contactaremos pronto.');
+      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
     } else {
       await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
     }
@@ -1653,9 +1670,10 @@ const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'e
 
       const opcion = ctx.body.trim()
 
+      /*
       if (ctx.body.toLowerCase() === 'estado' || ctx.body.toLowerCase() === 'cancelar' || ctx.body.toLowerCase() === 'ayuda') {
         return gotoFlow(flowComandosEspeciales);
-      }
+      }*/
 
       if (!isValidText(opcion) || !['1', '2', '3', '4'].includes(opcion)) {
         await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3* o *4*.')
@@ -1719,10 +1737,10 @@ const flowMenu = addKeyword(['menu', 'menú'])
   )
 
 // ==== Flujo para comandos especiales durante procesos (SIMPLIFICADO) ====
-const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
+const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
-
+    
     const myState = await state.getMyState();
     const comando = ctx.body.toLowerCase();
 
@@ -1732,7 +1750,7 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
         const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
         const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
         const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
+        
         await flowDynamic([
           '📊 **Estado del Proceso**',
           '',
@@ -1740,43 +1758,21 @@ const flowComandosEspeciales = addKeyword(['estado', 'cancelar', 'ayuda'])
           `⏰ Tiempo transcurrido: ${minutosTranscurridos} min`,
           `⏳ Tiempo restante: ${minutosRestantes} min`,
           '',
-          '🔄 El proceso continúa en segundo plano...'
+          '🔄 El proceso continúa en segundo plano...',
+          '',
+          '⏰ Se completará automáticamente.'
         ].join('\n'));
       } else {
         await flowDynamic('✅ No tienes procesos activos. Serás redirigido al menú.');
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
     }
-
-    if (comando === 'cancelar' && myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-      await limpiarEstado(state);
-
-      await flowDynamic([
-        '❌ **Proceso cancelado**',
-        '',
-        'El proceso ha sido detenido exitosamente.',
-        'Ahora puedes seleccionar una nueva opción del menú.',
-      ].join('\n'));
-
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-    }
-
-    if (comando === 'ayuda') {
-      await flowDynamic([
-        'ℹ️ **Comandos Disponibles Durante Procesos**',
-        '',
-        '• *estado* - Ver el progreso del proceso actual',
-        '• *ayuda* - Mostrar esta información',
-        '',
-        '🔒 Mientras el proceso esté activo, no podrás usar el menú principal.',
-        '⏳ Los procesos toman aproximadamente 30 minutos.'
-      ].join('\n'));
-    }
-
+    
+    // 🔧 Siempre regresar al flujo de bloqueo después de mostrar estado
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       return gotoFlow(flowBloqueoActivo);
     }
-
+    
     return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
   });
 
