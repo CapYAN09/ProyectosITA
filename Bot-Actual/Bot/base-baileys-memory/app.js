@@ -735,12 +735,13 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
         await flowDynamic(`✅ Se restableció correctamente tu contraseña.\nTu nueva contraseña temporal es: *SoporteCC1234$*`);
         console.log(`✅ Contraseña enviada correctamente a *${nombreCompleto}* con matrícula *${numeroControl}*`);
 
+        // 🔧 CORRECCIÓN COMPLETA en el contexto de tu código:
         await flowDynamic(
-          '*Instrucciones para acceder* \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: numero_control@aguascalientes.tecnm.mx \n Paso 4.- Ingresa la contraseña temporal: *SoporteCC1234$*  \n Paso 5.- Una vez que ingreses te va a solicitar que realices el cambio de tu contraseña. En contraseña actual es la contraseña temporal: *SoporteCC1234$* en los siguientes campos vas a generar tu nueva contraseña. \n Con esto terminaríamos el proceso total del cambio de contraseña.'
+          `*Instrucciones para acceder* \n\n *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* para poder configurar todo correctamente, despues del primer inicio de sesión ya puedes configurar tus aplicaciones \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${numeroControl}@aguascalientes.tecnm.mx \n Paso 4.- Ingresa la contraseña temporal: *SoporteCC1234$*  \n Paso 5.- Una vez que ingreses te va a solicitar que realices el cambio de tu contraseña. En contraseña actual es la contraseña temporal: *SoporteCC1234$* en los siguientes campos vas a generar tu nueva contraseña personalizada \n (Por recomendación de seguridad procura que tenga mínimo 11 caracteres, al menos debería de contener: Una mayúscula, una minúscula, un número y un carácter especial: %$#!&/-_.*+). \n Con esto terminaríamos el proceso total del cambio de contraseña.`
         );
 
         await flowDynamic(
-          '🔐 Por seguridad, te recomendamos cambiar esta contraseña al iniciar sesión.\n🔙 Escribe *inicio* si necesitas ayuda adicional.'
+          '🔐 Por seguridad, *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* y de esta manera poder cambiar tu contraseña de una manera más cómoda.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
         );
 
       } catch (error) {
@@ -768,185 +769,193 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo final de autenticador - CORREGIDO ====
+// ==== Flujo final de autenticador - CORREGIDO (SOLO cuando ya tiene datos) ====
 const flowAutenticador = addKeyword(EVENTS.ACTION)
-  .addAnswer(
-    '⏳ Permítenos un momento, vamos a configurar tu autenticador... \n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
-    null,
-    async (ctx, { state, flowDynamic, provider }) => {
-      // ⚡ Excluir administrador
-      if (ctx.from === CONTACTO_ADMIN) return;
+  .addAction(async (ctx, { state, flowDynamic, provider }) => {
+    // ⚡ Excluir administrador
+    if (ctx.from === CONTACTO_ADMIN) return;
 
-      // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
-      await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-        tipo: "🔑 Configuración de Autenticador",
-        inicio: Date.now()
-      });
+    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
+    const myState = (await state.getMyState()) || {};
+    const nombreCompleto = myState.nombreCompleto;
+    const numeroControl = myState.numeroControl;
 
-      // Obtener información del usuario
-      const myState = (await state.getMyState()) || {}
-      const nombreCompleto = myState.nombreCompleto || 'Usuario'
-      const numeroControl = myState?.numeroControl || 'Sin matrícula'
-      const phone = ctx.from
-
-      // Enviar información al administrador inmediatamente
-      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`
-
-      enviarAlAdmin(provider, mensajeAdmin).then(success => {
-        if (!success) {
-          console.log('⚠️ No se pudo enviar al administrador, pero el flujo continúa')
-        }
-      })
-
-      let minutosRestantes = 30
-
-      // Aviso cada 10 minutos
-      const intervalId = setInterval(async () => {
-        minutosRestantes -= 10;
-        if (minutosRestantes > 0) {
-          await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar la configuración del autenticador...`)
-        }
-      }, 10 * 60000)
-
-      // Guardar ID del intervalo
-      await state.update({
-        estadoMetadata: {
-          ...(await state.getMyState())?.estadoMetadata,
-          intervalId: intervalId
-        }
-      });
-
-      // Mensaje final después de 30 minutos
-      const timeoutId = setTimeout(async () => {
-        clearInterval(intervalId)
-
-        try {
-          await flowDynamic(
-            '✅ Se desconfiguró correctamente el autenticador de dos factores'
-          )
-          console.log(`✅ Autenticador desconfigurado correctamente para *${nombreCompleto}* con matrícula *${numeroControl}*`)
-
-          await flowDynamic(
-            '*Es importante que estos pasos lo vayas a realizar en una computadora*\n ya que necesitaras tu celular y tu computadora para poder configurar el autenticador. \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: numero_control@aguascalientes.tecnm.mx \n Paso 4.- tu contraseña con la que ingresas normalmente \n Paso 5.- Te va a aparecer una pagina en donde vas a reconfigurar tu autenticador, sigue los pasos que se te mostraran en la pantalla. Necesitaras configurar la aplicación de autenticador y también debes de ingresar un número de teléfono.'
-          )
-
-          await flowDynamic(
-            '🔐 Por seguridad, te recomendamos configurar un nuevo método de autenticación al iniciar sesión.\n🔙 Escribe *inicio* si necesitas ayuda adicional.'
-          )
-
-        } catch (error) {
-          console.error('❌ Error enviando mensaje final:', error.message)
-        }
-
-        // 🔓 LIBERAR ESTADO al finalizar - CORREGIDO
-        await limpiarEstado(state);
-      }, 30 * 60000)
-
-      // Guardar ID del timeout
-      await state.update({
-        estadoMetadata: {
-          ...(await state.getMyState())?.estadoMetadata,
-          timeoutId: timeoutId
-        }
-      });
+    if (!nombreCompleto || !numeroControl) {
+      console.log('❌ Datos incompletos, redirigiendo a captura...');
+      await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
+      return gotoFlow(flowCapturaNumeroControlAutenticador);
     }
-  )
-  // 🔒🔒🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
+
+    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
+    await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+      tipo: "🔑 Configuración de Autenticador",
+      inicio: Date.now()
+    });
+
+    const phone = ctx.from;
+
+    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+
+    if (envioExitoso) {
+      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.');
+    } else {
+      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
+    }
+
+    let minutosRestantes = 30;
+
+    // Aviso cada 10 minutos
+    const intervalId = setInterval(async () => {
+      minutosRestantes -= 10;
+      if (minutosRestantes > 0) {
+        await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar la configuración del autenticador...`);
+      }
+    }, 10 * 60000);
+
+    // Guardar ID del intervalo
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        intervalId: intervalId
+      }
+    });
+
+    // Mensaje final después de 30 minutos
+    const timeoutId = setTimeout(async () => {
+      clearInterval(intervalId);
+
+      try {
+        await flowDynamic(
+          '✅ Se desconfiguró correctamente el autenticador de dos factores'
+        );
+        console.log(`✅ Autenticador desconfigurado correctamente para *${nombreCompleto}* con matrícula *${numeroControl}*`);
+
+        await flowDynamic(
+          `*Es importante que estos pasos los realices en una computadora*,\nya que necesitarás tu celular y tu computadora para poder configurar el autenticador. \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${numeroControl}@aguascalientes.tecnm.mx \n Paso 4.- Tu contraseña con la que ingresas normalmente \n Paso 5.- Te va a aparecer una página en donde vas a reconfigurar tu autenticador, sigue los pasos que se te mostrarán en la pantalla. Necesitarás configurar la aplicación de autenticador y también debes de ingresar un número de teléfono.`
+        );
+
+        await flowDynamic(
+          '🔐 Por seguridad, por seguridad será necesario configurar un nuevo método de autenticación al iniciar sesión.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
+        );
+
+      } catch (error) {
+        console.error('❌ Error enviando mensaje final:', error.message);
+      }
+
+      // 🔓 LIBERAR ESTADO al finalizar
+      await limpiarEstado(state);
+    }, 30 * 60000);
+
+    // Guardar ID del timeout
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        timeoutId: timeoutId
+      }
+    });
+  })
+  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
-      // Redirigir al flujo de bloqueo activo
       return gotoFlow(flowBloqueoActivo);
     }
-  )
+  );
 
-// ==== Flujo final de SIE - CORREGIDO ====
+// ==== Flujo final de SIE - CORREGIDO (SOLO cuando ya tiene datos) ====
 const flowFinSIE = addKeyword(EVENTS.ACTION)
-  .addAnswer(
-    '⏳ Permítenos un momento, vamos a actualizar tus datos... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*',
-    null,
-    async (ctx, { state, flowDynamic, provider }) => {
-      // ⚡ Excluir administrador
-      if (ctx.from === CONTACTO_ADMIN) return;
+  .addAction(async (ctx, { state, flowDynamic, provider }) => {
+    // ⚡ Excluir administrador
+    if (ctx.from === CONTACTO_ADMIN) return;
 
-      // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
-      await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-        tipo: "📊 Sincronización de Datos SIE",
-        inicio: Date.now()
-      });
+    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
+    const myState = (await state.getMyState()) || {};
+    const nombreCompleto = myState.nombreCompleto;
+    const numeroControl = myState.numeroControl;
 
-      // Obtener información del usuario
-      const myState = (await state.getMyState()) || {}
-      const nombreCompleto = myState.nombreCompleto || 'Usuario'
-      const numeroControl = myState?.numeroControl || 'Sin matrícula'
-      const phone = ctx.from
-
-      // Enviar información al administrador inmediatamente
-      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE SINCRONIZACIÓN DE DATOS*\nNo le aparece el horario ni las materias en el SIE 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️Reacciona para validar que está listo`
-
-      enviarAlAdmin(provider, mensajeAdmin).then(success => {
-        if (!success) {
-          console.log('⚠️ No se pudo enviar al administrador, pero el flujo continúa')
-        }
-      })
-
-      let minutosRestantes = 30
-
-      // Aviso cada 10 minutos
-      const intervalId = setInterval(async () => {
-        minutosRestantes -= 10;
-        if (minutosRestantes > 0) {
-          await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`)
-        }
-      }, 10 * 60000)
-
-      // Guardar ID del intervalo
-      await state.update({
-        estadoMetadata: {
-          ...(await state.getMyState())?.estadoMetadata,
-          intervalId: intervalId
-        }
-      });
-
-      // Mensaje final después de 30 minutos
-      const timeoutId = setTimeout(async () => {
-        clearInterval(intervalId)
-
-        try {
-          await flowDynamic(`✅ Se sincronizaron los datos correctamente en tu portal del SIE*`)
-          console.log(`✅ Sincronización enviada correctamente a *${nombreCompleto}* con matrícula *${numeroControl}*`)
-
-          await flowDynamic(
-            '✅Ingresa nuevamente al portal del SIE y valida tus datos.\n🔙 Escribe *inicio* si necesitas ayuda adicional.'
-          )
-
-        } catch (error) {
-          console.error('❌ Error enviando mensaje final:', error.message)
-        }
-
-        // 🔓 LIBERAR ESTADO al finalizar - CORREGIDO
-        await limpiarEstado(state);
-      }, 30 * 60000)
-
-      // Guardar ID del timeout
-      await state.update({
-        estadoMetadata: {
-          ...(await state.getMyState())?.estadoMetadata,
-          timeoutId: timeoutId
-        }
-      });
+    if (!nombreCompleto || !numeroControl) {
+      console.log('❌ Datos incompletos, redirigiendo a captura...');
+      await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
+      return gotoFlow(flowCapturaNumeroControlSIE);
     }
-  )
-  // 🔒🔒🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
+
+    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
+    await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+      tipo: "📊 Sincronización de Datos SIE",
+      inicio: Date.now()
+    });
+
+    const phone = ctx.from;
+
+    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE SINCRONIZACIÓN DE DATOS*\nNo le aparece el horario ni las materias en el SIE 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ Reacciona para validar que está listo`;
+
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+
+    if (envioExitoso) {
+      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.');
+    } else {
+      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
+    }
+
+    let minutosRestantes = 30;
+
+    // Aviso cada 10 minutos
+    const intervalId = setInterval(async () => {
+      minutosRestantes -= 10;
+      if (minutosRestantes > 0) {
+        await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
+      }
+    }, 10 * 60000);
+
+    // Guardar ID del intervalo
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        intervalId: intervalId
+      }
+    });
+
+    // Mensaje final después de 30 minutos
+    const timeoutId = setTimeout(async () => {
+      clearInterval(intervalId);
+
+      try {
+        await flowDynamic(`✅ Se sincronizaron los datos correctamente en tu portal del SIE*`);
+        console.log(`✅ Sincronización enviada correctamente a *${nombreCompleto}* con matrícula *${numeroControl}*`);
+
+        await flowDynamic(
+          '✅ Ingresa nuevamente al portal del SIE y valida tus datos.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
+        );
+
+      } catch (error) {
+        console.error('❌ Error enviando mensaje final:', error.message);
+      }
+
+      // 🔓 LIBERAR ESTADO al finalizar
+      await limpiarEstado(state);
+    }, 30 * 60000);
+
+    // Guardar ID del timeout
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        timeoutId: timeoutId
+      }
+    });
+  })
+  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
-      // Redirigir al flujo de bloqueo activo
       return gotoFlow(flowBloqueoActivo);
     }
-  )
+  );
 
 // ==== Flujo de espera para menú principal ====
 const flowEsperaMenu = addKeyword(EVENTS.ACTION)
@@ -1615,7 +1624,7 @@ function esSaludoValido(texto) {
 
   const textoLimpio = texto.toLowerCase().trim();
   const saludos = [
-    'hola', 'ole', 'alo', 'inicio', 'comenzar', 'empezar',
+    'hola', 'ole', 'alo', 'inicio', 'Inicio', 'comenzar', 'empezar',
     'buenos días', 'buenas tardes', 'buenas noches',
     'buenos dias', 'buenas tardes', 'buenas noches',
     'hola.', 'hola!', 'hola?',
