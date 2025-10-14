@@ -1,63 +1,32 @@
 [handleMsg]:  {
   key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
+    remoteJid: '5214491239368@s.whatsapp.net',
     fromMe: false,
-    id: 'AC5FF33BBA242BF8EB6D205D2A36FC23',
+    id: 'AC72D747DD670CA163557D526CA45F5D',
     participant: undefined
   },
-  messageTimestamp: 1760465572,
-  pushName: 'Omar Flores',
-  broadcast: false,
-  messageStubType: 2,
-  messageStubParameters: [ 'Message absent from node' ],
-  body: undefined,
-  from: '5215527047234'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
-    fromMe: false,
-    id: 'AC5FF33BBA242BF8EB6D205D2A36FC23',
-    participant: undefined
-  },
-  messageTimestamp: 1760465572,
-  pushName: 'Omar Flores',
+  messageTimestamp: 1760474282,
+  pushName: 'Alexis',
   broadcast: false,
   message: Message {
-    conversation: 'Hola muy buenos dias',
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Buenas tardes, Para recuperar mi contraseña de mi correo institucional',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'Hola muy buenos dias',
-  from: '5215527047234'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
-    fromMe: false,
-    id: 'AC5FF33BBA242BF8EB6D205D2A36FC23',
-    participant: undefined
-  },
-  messageTimestamp: 1760465574,
-  pushName: 'Omar Flores',
-  broadcast: false,
-  message: Message {
-    conversation: 'Hola muy buenos dias',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  body: 'Hola muy buenos dias',
-  from: '5215527047234'
+  body: 'Buenas tardes, Para recuperar mi contraseña de mi correo institucional',
+  from: '5214491239368'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
-  keyword: 'key_e53be7b3-60be-463f-b4bb-7b82fa5fac4f',
+  ref: 'ans_0b5f246c-2779-4964-bdd9-7ed560e2931c',
+  keyword: 'key_2c8759df-1927-4883-8d2c-17fb0e476fca',
   answer: '__call_action__',
   options: {
     media: null,
@@ -71,11 +40,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '2c2bf60a94855adaf269cf7c5f60bdc0'
+  refSerialize: '44b028f97368347ebea4fcf604a6dbb2'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
-  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
+  ref: 'ans_c1908ea6-87c0-4664-a61f-5758336c0101',
+  keyword: 'ans_0b5f246c-2779-4964-bdd9-7ed560e2931c',
   answer: 'Ingresa el número de la opción en la que necesitas apoyo',
   options: {
     media: null,
@@ -89,47 +58,37 @@
     keyword: {},
     callback: true
   },
-  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
+  refSerialize: '1ade7c75c9210f0f95775ba7a802fb46'
 }
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
-  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
-  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
-  options: {
-    media: null,
-    buttons: [],
-    capture: true,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214492849976@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC6185E48F1A30E049F0792ACE93B941',
+    participant: undefined
   },
-  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
-  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
-  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
-  options: {
-    media: null,
-    buttons: [],
-    capture: true,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
+  messageTimestamp: 1760474610,
+  pushName: 'Daniel Aguilar',
+  broadcast: false,
+  message: Message {
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Hola',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
   },
-  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
+  body: 'Hola',
+  from: '5214492849976'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
-  keyword: 'key_e53be7b3-60be-463f-b4bb-7b82fa5fac4f',
+  ref: 'ans_0b5f246c-2779-4964-bdd9-7ed560e2931c',
+  keyword: 'key_2c8759df-1927-4883-8d2c-17fb0e476fca',
   answer: '__call_action__',
   options: {
     media: null,
@@ -143,11 +102,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '2c2bf60a94855adaf269cf7c5f60bdc0'
+  refSerialize: '44b028f97368347ebea4fcf604a6dbb2'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
-  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
+  ref: 'ans_c1908ea6-87c0-4664-a61f-5758336c0101',
+  keyword: 'ans_0b5f246c-2779-4964-bdd9-7ed560e2931c',
   answer: 'Ingresa el número de la opción en la que necesitas apoyo',
   options: {
     media: null,
@@ -161,17 +120,17 @@
     keyword: {},
     callback: true
   },
-  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
+  refSerialize: '1ade7c75c9210f0f95775ba7a802fb46'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
+    remoteJid: '5214492849976@s.whatsapp.net',
     fromMe: false,
-    id: 'AC0F9190BE17AEA436056D2AACCCF84C',
+    id: 'AC840104326D7757DEE4DD9566DD5FEA',
     participant: undefined
   },
-  messageTimestamp: 1760465605,
-  pushName: 'Omar Flores',
+  messageTimestamp: 1760474633,
+  pushName: 'Daniel Aguilar',
   broadcast: false,
   message: Message {
     conversation: '1',
@@ -182,146 +141,47 @@
     }
   },
   body: '1',
-  from: '5215527047234'
+  from: '5214492849976'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
+    remoteJid: '5214492849976@s.whatsapp.net',
     fromMe: false,
-    id: 'ACD6EF0FFE8CDF19A5FB5A586FC531DD',
+    id: 'ACD22ECAF5CFC0B4EAF33AF215D119CB',
     participant: undefined
   },
-  messageTimestamp: 1760465717,
-  pushName: 'Omar Flores',
+  messageTimestamp: 1760474648,
+  pushName: 'Daniel Aguilar',
   broadcast: false,
   message: Message {
-    conversation: 'francisco_omar.fr@aguascalientes.tecnm.mx',
+    conversation: '22151308',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'francisco_omar.fr@aguascalientes.tecnm.mx',
-  from: '5215527047234'
+  body: '22151308',
+  from: '5214492849976'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
+    remoteJid: '5214492849976@s.whatsapp.net',
     fromMe: false,
-    id: 'ACCDC3342A9440281DCDA8079E302FBA',
+    id: 'AC02E06B005E0F24F090E4D63C57E9AC',
     participant: undefined
   },
-  messageTimestamp: 1760465784,
-  pushName: 'Omar Flores',
+  messageTimestamp: 1760474657,
+  pushName: 'Daniel Aguilar',
   broadcast: false,
   message: Message {
-    conversation: 'Gracias esque soy docente',
+    conversation: 'Daniel Eduardo Aguilar Hernández',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'Gracias esque soy docente',
-  from: '5215527047234'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
-    fromMe: false,
-    id: 'AC765642E7D118DAA0092EC9B3531071',
-    participant: undefined
-  },
-  messageTimestamp: 1760465812,
-  pushName: 'Omar Flores',
-  broadcast: false,
-  message: Message {
-    conversation: 'Soy profesor',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  body: 'Soy profesor',
-  from: '5215527047234'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
-    fromMe: false,
-    id: 'AC4403D6E8CF7BEB04987AD56974F1B3',
-    participant: undefined
-  },
-  messageTimestamp: 1760465949,
-  pushName: 'Omar Flores',
-  broadcast: false,
-  message: Message {
-    conversation: '1',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  body: '1',
-  from: '5215527047234'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
-  keyword: 'key_e53be7b3-60be-463f-b4bb-7b82fa5fac4f',
-  answer: '__call_action__',
-  options: {
-    media: null,
-    buttons: [],
-    capture: false,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: '2c2bf60a94855adaf269cf7c5f60bdc0'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
-  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
-  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
-  options: {
-    media: null,
-    buttons: [],
-    capture: true,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5215527047234@s.whatsapp.net',
-    fromMe: false,
-    id: 'AC6C9135B0BDC2A49E2637FC4747075F',
-    participant: undefined
-  },
-  messageTimestamp: 1760465964,
-  pushName: 'Omar Flores',
-  broadcast: false,
-  message: Message {
-    conversation: '1',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  body: '1',
-  from: '5215527047234'
+  body: 'Daniel Eduardo Aguilar Hernández',
+  from: '5214492849976'
 }
