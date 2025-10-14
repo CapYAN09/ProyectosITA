@@ -960,27 +960,22 @@ function esImagenValida(ctx) {
   }
 }
 
-// ==== Flujo final de contraseña - SIMPLIFICADO ====
+// ==== Flujo final de contraseña - ACTUALIZADO ====
 const flowContrasena = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-    // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
     const myState = (await state.getMyState()) || {};
     const nombreCompleto = myState.nombreCompleto;
     const numeroControl = myState.numeroControl;
     const correoInstitucional = myState.correoInstitucional;
     const esTrabajador = myState.esTrabajador;
 
-    // 🔧 VALIDACIÓN CORREGIDA - aceptar número de control O correo
     if (!nombreCompleto || (!numeroControl && !correoInstitucional)) {
-      console.log('❌ Datos incompletos, redirigiendo a captura...');
       await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
       return gotoFlow(flowSubMenuContrasena);
     }
 
-    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
     await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
       tipo: "🔐 Restablecimiento de Contraseña",
       inicio: Date.now(),
@@ -991,72 +986,53 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     const identificacion = esTrabajador ? correoInstitucional : numeroControl;
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
-    // ✅ ENVIAR SOLO INFORMACIÓN AL ADMINISTRADOR (la imagen ya se envió antes)
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
+    // ✅ ENVIAR INFORMACIÓN DE CONFIRMACIÓN AL ADMINISTRADOR
+    const mensajeAdmin = `🔔 *SOLICITUD CONFIRMADA - ESPERANDO IDENTIFICACIÓN* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal: *SoporteCC1234$*\n\n📸 *El usuario fue instruido para enviar su identificación directamente a este chat.*\n✅ *Proceso iniciado - 30 minutos*`;
 
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+    await enviarAlAdmin(provider, mensajeAdmin);
 
-    if (envioExitoso) {
-      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
-    } else {
-      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
-    }
+    await flowDynamic([
+      '⏳ *Procesando tu solicitud...*',
+      '',
+      '🔐 **Contraseña temporal asignada:** *SoporteCC1234$*',
+      '',
+      '📋 **Estado actual:**',
+      '✅ Datos registrados correctamente',
+      '✅ Identificación recibida',
+      '⏳ Procesando solicitud...',
+      '',
+      '📱 Por favor no envíes mensajes durante este proceso.',
+      '⏰ **Tiempo estimado:** 30 minutos',
+      '',
+      '💡 **Recuerda:** Si aún no has enviado tu identificación al administrador, por favor hazlo ahora para evitar retrasos.'
+    ].join('\n'));
 
-    let minutosRestantes = 30;
-
-    // Aviso cada 10 minutos
-    const intervalId = setInterval(async () => {
-      minutosRestantes -= 10;
-      if (minutosRestantes > 0) {
-        await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
-      }
-    }, 10 * 60000);
-
-    // Guardar ID del intervalo en el estado
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        intervalId: intervalId
-      }
-    });
-
-    // Mensaje final después de 30 minutos
-    const timeoutId = setTimeout(async () => {
-      clearInterval(intervalId);
-
+    // Proceso de 30 minutos (en producción)
+    setTimeout(async () => {
       try {
-        await flowDynamic(`✅ Se restableció correctamente tu contraseña.\nTu nueva contraseña temporal es: *SoporteCC1234$*`);
+        await flowDynamic(`✅ *Proceso completado*\n\nSe restableció correctamente tu contraseña.`);
 
-        // 🔧 CORREGIR: Obtener el correo correcto según el tipo de usuario
         const correoUsuario = esTrabajador ? correoInstitucional : `${numeroControl}@aguascalientes.tecnm.mx`;
 
-        console.log(`✅ Contraseña enviada correctamente a *${nombreCompleto}* - ${esTrabajador ? 'Correo' : 'Matrícula'}: *${identificacion}*`);
-
         await flowDynamic(
-          `*Instrucciones para acceder* \n\n *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* para poder configurar todo correctamente, después del primer inicio de sesión ya puedes configurar tus aplicaciones \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${correoUsuario} \n Paso 4.- Ingresa la contraseña temporal: *SoporteCC1234$*  \n Paso 5.- Una vez que ingreses te va a solicitar que realices el cambio de tu contraseña. En contraseña actual es la contraseña temporal: *SoporteCC1234$* en los siguientes campos vas a generar tu nueva contraseña personalizada \n (Por recomendación de seguridad procura que tenga mínimo 11 caracteres, al menos debería de contener: Una mayúscula, una minúscula, un número y un carácter especial: %$#!&/-_.*+). \n Con esto terminaríamos el proceso total del cambio de contraseña.`
+          `*📝 Instrucciones para acceder:*\n\n` +
+          `1. 🌐 Ve a: https://office.com\n` +
+          `2. 📧 Ingresa tu correo: ${correoUsuario}\n` +
+          `3. 🔐 Usa la contraseña: *SoporteCC1234$*\n` +
+          `4. 🔄 Cambia tu contraseña inmediatamente\n\n` +
+          `💡 *Recomendación:* Realiza el primer inicio desde una computadora.`
         );
 
-        await flowDynamic(
-          '🔐 Por seguridad, *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* y de esta manera poder cambiar tu contraseña de una manera más cómoda.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
-        );
+        await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
 
+        await limpiarEstado(state);
       } catch (error) {
-        console.error('❌ Error enviando mensaje final:', error.message);
+        console.error('❌ Error en proceso final:', error.message);
       }
+    }, 30 * 60 * 1000); // 30 minutos
 
-      // 🔓 LIBERAR ESTADO al finalizar
-      await limpiarEstado(state);
-    }, 30 * 60000);
-
-    // Guardar ID del timeout en el estado
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        timeoutId: timeoutId
-      }
-    });
+    return gotoFlow(flowBloqueoActivo);
   })
-  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow }) => {
@@ -1102,7 +1078,7 @@ function obtenerInfoImagen(ctx) {
   }
 }
 
-// ==== Flujo de captura para identificación oficial (ALUMNO - CONTRASEÑA) - CORREGIDO ====
+// ==== Flujo de captura para identificación oficial - MODIFICADO ====
 const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1131,18 +1107,20 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
       '',
       '📋 **Por favor toma una foto CLARA de tu identificación oficial:**',
       '• INE/IFE',
-      '• Licencia de conducir',
+      '• Licencia de conducir', 
       '• Pasaporte',
       '• Credencial escolar con foto',
       '',
-      '⚠️ **Asegúrate de que:**',
-      '• La foto sea legible',
-      '• Los datos sean visibles',
-      '• La imagen esté bien iluminada',
+      '📱 **Instrucciones:**',
+      '1. Toca el ícono de 📎',
+      '2. Selecciona "Cámara" 📸', 
+      '3. Toma una foto CLARA de tu identificación',
+      '4. Envía la foto',
       '',
-      '📱 **Puedes:**',
-      '• Tomar una foto directamente con la cámara de WhatsApp',
-      '• Enviar una imagen desde tu galería',
+      '⚠️ **Asegúrate de que:**',
+      '• Se vean todos tus datos claramente',
+      '• La imagen no esté borrosa', 
+      '• La iluminación sea buena',
       '',
       '🔒 Tu información está protegida y será usada solo para verificación.'
     ].join('\n'),
@@ -1152,74 +1130,53 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      console.log('📸 Mensaje recibido en captura de identificación:');
-      console.log('📸 Tipo:', ctx.message?.type);
-      console.log('📸 Mimetype:', ctx.message?.mimetype);
-      console.log('📸 Tiene imageMessage:', !!ctx.message?.imageMessage);
+      console.log('🎯 MEDIO RECIBIDO - PROCESANDO...');
 
-      // Verificar si es una imagen usando la función mejorada
-      if (!esImagenValida(ctx)) {
-        await flowDynamic([
-          '❌ *No recibimos una imagen válida*',
-          '',
-          'Por favor envía una FOTO CLARA de tu identificación oficial:',
-          '',
-          '📷 **Puedes hacerlo de dos formas:**',
-          '',
-          '1. 📱 *Usando la cámara de WhatsApp:*',
-          '   - Toca el ícono de 📎',
-          '   - Selecciona "Cámara" 📸',
-          '   - Toma una foto CLARA de tu identificación',
-          '',
-          '2. 🖼️ *Desde tu galería:*',
-          '   - Toca el ícono de 📎',
-          '   - Selecciona "Galería" o "Archivos"',
-          '   - Elige una foto CLARA de tu identificación',
-          '',
-          '⚠️ **Asegúrate de que:**',
-          '• Se vean todos tus datos claramente',
-          '• La imagen no esté borrosa',
-          '• La iluminación sea buena',
-          '',
-          '📋 **Identificaciones aceptadas:**',
-          '• INE/IFE (por ambos lados)',
-          '• Licencia de conducir',
-          '• Pasaporte',
-          '• Credencial escolar con foto'
-        ].join('\n'));
-        return gotoFlow(flowCapturaIdentificacion);
-      }
-
-      // Guardar información de la imagen en el estado - CORREGIDO
-      const infoImagen = obtenerInfoImagen(ctx);
+      // ACEPTAR LA IMAGEN INMEDIATAMENTE
       const myState = await state.getMyState();
       
-      // 🔧 GUARDAR EL CONTEXTO COMPLETO PARA PODER REENVIAR
       await state.update({
         identificacionSubida: true,
-        infoIdentificacion: infoImagen,
-        timestampIdentificacion: Date.now(),
-        // Guardar la información necesaria para reenviar
-        imagenContext: {
-          key: ctx.key, // Esto es esencial para reenviar
-          message: ctx.message,
-          from: ctx.from
-        }
+        timestampIdentificacion: Date.now()
       });
 
       await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
 
-      // 🔧 ENVIAR IDENTIFICACIÓN AL ADMINISTRADOR INMEDIATAMENTE
+      // 🔧 SOLICITAR AL USUARIO QUE ENVÍE LA IDENTIFICACIÓN AL ADMINISTRADOR
       const userData = {
         nombre: myState.nombreCompleto || 'Por confirmar',
         identificacion: myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl,
         tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
       };
 
-      // Enviar la imagen inmediatamente al admin
-      await enviarIdentificacionAlAdmin(provider, ctx, userData);
+      // Enviar información al admin sobre la solicitud
+      const mensajeAdmin = `🔔 *NUEVA SOLICITUD - IDENTIFICACIÓN REQUERIDA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${userData.nombre}\n👥 Tipo: ${userData.tipo}\n📧 ${userData.tipo}: ${userData.identificacion}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n📸 *El usuario debe enviar su identificación directamente a este chat.*`;
 
-      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
+      await enviarAlAdmin(provider, mensajeAdmin);
+
+      // Pedir al usuario que envíe la identificación al administrador
+      await flowDynamic([
+        '📤 *Paso Final: Envío de Identificación*',
+        '',
+        'Para completar tu solicitud, necesitas enviar tu identificación directamente al administrador.',
+        '',
+        '📝 **Sigue estos pasos:**',
+        '1. 👆 *Presiona y mantén presionada* la imagen que acabas de enviar',
+        '2. 📤 Selecciona la opción "Reenviar"',
+        '3. 👥 Busca y selecciona el contacto:',
+        '   *📞 Centro de Cómputo ITA*',
+        '4. ✅ Envía la identificación',
+        '',
+        '⚠️ **Es importante que reenvíes la misma imagen** que acabas de tomarte.',
+        '',
+        'Una vez enviada, tu solicitud continuará procesándose automáticamente.',
+        '',
+        '🔄 *Continuando con el proceso...*'
+      ].join('\n'));
+
+      // Pequeña pausa para que el usuario lea las instrucciones
+      await new Promise(resolve => setTimeout(resolve, 3000));
+
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowContrasena);
     }
