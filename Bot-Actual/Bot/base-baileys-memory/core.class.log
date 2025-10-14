@@ -1,153 +1,63 @@
 [handleMsg]:  {
   key: {
-    remoteJid: '5214491835717@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'A5BCA0C9149D0A6338507CA7AF6F86CD',
+    id: 'AC5FF33BBA242BF8EB6D205D2A36FC23',
     participant: undefined
   },
-  messageTimestamp: 1760375529,
-  pushName: 'YKStore',
-  broadcast: false,
-  message: Message {
-    conversation: 'Hola',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  verifiedBizName: 'YKStore',
-  body: 'Hola',
-  from: '5214491835717'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  keyword: 'key_9a22c9df-2112-4615-9f20-f67b278670a4',
-  answer: '__call_action__',
-  options: {
-    media: null,
-    buttons: [],
-    capture: false,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: '13dca22f9445b1c13ad0a7630d87d7c1'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
-  options: {
-    media: null,
-    buttons: [],
-    capture: true,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5214491835717@s.whatsapp.net',
-    fromMe: false,
-    id: 'A5E936E55C94E6691951C35CAE4717DF',
-    participant: undefined
-  },
-  messageTimestamp: 1760375537,
-  pushName: 'YKStore',
-  broadcast: false,
-  message: Message {
-    conversation: '1',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  verifiedBizName: 'YKStore',
-  body: '1',
-  from: '5214491835717'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5214497557760@s.whatsapp.net',
-    fromMe: false,
-    id: 'AC7727571A03B1B989B258D9E216046B',
-    participant: undefined
-  },
-  messageTimestamp: 1760376087,
-  pushName: 'Diego',
+  messageTimestamp: 1760465572,
+  pushName: 'Omar Flores',
   broadcast: false,
   messageStubType: 2,
   messageStubParameters: [ 'Message absent from node' ],
   body: undefined,
-  from: '5214497557760'
+  from: '5215527047234'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214497557760@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'AC7727571A03B1B989B258D9E216046B',
+    id: 'AC5FF33BBA242BF8EB6D205D2A36FC23',
     participant: undefined
   },
-  messageTimestamp: 1760376088,
-  pushName: 'Diego',
+  messageTimestamp: 1760465572,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
-    extendedTextMessage: ExtendedTextMessage {
-      text: 'Hola',
-      previewType: 0,
-      contextInfo: [ContextInfo],
-      inviteLinkGroupTypeV2: 0
-    },
+    conversation: 'Hola muy buenos dias',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'Hola',
-  from: '5214497557760'
+  body: 'Hola muy buenos dias',
+  from: '5215527047234'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214497557760@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'AC7727571A03B1B989B258D9E216046B',
+    id: 'AC5FF33BBA242BF8EB6D205D2A36FC23',
     participant: undefined
   },
-  messageTimestamp: 1760376089,
-  pushName: 'Diego',
+  messageTimestamp: 1760465574,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
-    extendedTextMessage: ExtendedTextMessage {
-      text: 'Hola',
-      previewType: 0,
-      contextInfo: [ContextInfo],
-      inviteLinkGroupTypeV2: 0
-    },
+    conversation: 'Hola muy buenos dias',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'Hola',
-  from: '5214497557760'
+  body: 'Hola muy buenos dias',
+  from: '5215527047234'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  keyword: 'key_9a22c9df-2112-4615-9f20-f67b278670a4',
+  ref: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
+  keyword: 'key_e53be7b3-60be-463f-b4bb-7b82fa5fac4f',
   answer: '__call_action__',
   options: {
     media: null,
@@ -161,11 +71,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '13dca22f9445b1c13ad0a7630d87d7c1'
+  refSerialize: '2c2bf60a94855adaf269cf7c5f60bdc0'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
+  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
+  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
   answer: 'Ingresa el número de la opción en la que necesitas apoyo',
   options: {
     media: null,
@@ -179,11 +89,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
+  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
+  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
+  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
   answer: 'Ingresa el número de la opción en la que necesitas apoyo',
   options: {
     media: null,
@@ -197,11 +107,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
+  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
+  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
+  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
   answer: 'Ingresa el número de la opción en la que necesitas apoyo',
   options: {
     media: null,
@@ -215,11 +125,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
+  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  keyword: 'key_9a22c9df-2112-4615-9f20-f67b278670a4',
+  ref: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
+  keyword: 'key_e53be7b3-60be-463f-b4bb-7b82fa5fac4f',
   answer: '__call_action__',
   options: {
     media: null,
@@ -233,11 +143,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '13dca22f9445b1c13ad0a7630d87d7c1'
+  refSerialize: '2c2bf60a94855adaf269cf7c5f60bdc0'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
+  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
+  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
   answer: 'Ingresa el número de la opción en la que necesitas apoyo',
   options: {
     media: null,
@@ -251,17 +161,17 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
+  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214497557760@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'ACC6E70952156C3FBD7C73D2E9C84018',
+    id: 'AC0F9190BE17AEA436056D2AACCCF84C',
     participant: undefined
   },
-  messageTimestamp: 1760376113,
-  pushName: 'Diego',
+  messageTimestamp: 1760465605,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
     conversation: '1',
@@ -272,144 +182,95 @@
     }
   },
   body: '1',
-  from: '5214497557760'
+  from: '5215527047234'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214497557760@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'AC58FDBAC523F44A8FC55951582C1C20',
+    id: 'ACD6EF0FFE8CDF19A5FB5A586FC531DD',
     participant: undefined
   },
-  messageTimestamp: 1760376118,
-  pushName: 'Diego',
+  messageTimestamp: 1760465717,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
-    conversation: '24150025',
+    conversation: 'francisco_omar.fr@aguascalientes.tecnm.mx',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: '24150025',
-  from: '5214497557760'
+  body: 'francisco_omar.fr@aguascalientes.tecnm.mx',
+  from: '5215527047234'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214497557760@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'AC7FEE5F25D3B3F73CFCF38925720A20',
+    id: 'ACCDC3342A9440281DCDA8079E302FBA',
     participant: undefined
   },
-  messageTimestamp: 1760376130,
-  pushName: 'Diego',
+  messageTimestamp: 1760465784,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
-    conversation: 'Diego Haziel Lucio Zacarias',
+    conversation: 'Gracias esque soy docente',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'Diego Haziel Lucio Zacarias',
-  from: '5214497557760'
+  body: 'Gracias esque soy docente',
+  from: '5215527047234'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214494877990@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'AC669E09CD0523539103DE288CFC23A1',
+    id: 'AC765642E7D118DAA0092EC9B3531071',
     participant: undefined
   },
-  messageTimestamp: 1760376887,
-  pushName: 'Alejandro Nieves 😎',
+  messageTimestamp: 1760465812,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2
-    },
-    reactionMessage: ReactionMessage {
-      key: [MessageKey],
-      text: '👍🏼',
-      senderTimestampMs: [Long]
-    }
-  },
-  body: '',
-  from: '5214494877990'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5214492277284@s.whatsapp.net',
-    fromMe: false,
-    id: 'ACEFB9A0EC178FFE2C218302ED689078',
-    participant: undefined
-  },
-  messageTimestamp: 1760377778,
-  pushName: 'José Angel Campos Mireles',
-  broadcast: false,
-  messageStubType: 2,
-  messageStubParameters: [ 'Message absent from node' ],
-  body: undefined,
-  from: '5214492277284'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5214492277284@s.whatsapp.net',
-    fromMe: false,
-    id: 'ACEFB9A0EC178FFE2C218302ED689078',
-    participant: undefined
-  },
-  messageTimestamp: 1760377779,
-  pushName: 'José Angel Campos Mireles',
-  broadcast: false,
-  message: Message {
-    extendedTextMessage: ExtendedTextMessage {
-      text: 'Buenos días, soy José Angel Campos Mireles, alumno de Ing. en TICs del ITA. Tengo problemas con Authenticator de mi correo institucional',
-      previewType: 0,
-      contextInfo: [ContextInfo],
-      inviteLinkGroupTypeV2: 0
-    },
+    conversation: 'Soy profesor',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'Buenos días, soy José Angel Campos Mireles, alumno de Ing. en TICs del ITA. Tengo problemas con Authenticator de mi correo institucional',
-  from: '5214492277284'
+  body: 'Soy profesor',
+  from: '5215527047234'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214492277284@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'ACEFB9A0EC178FFE2C218302ED689078',
+    id: 'AC4403D6E8CF7BEB04987AD56974F1B3',
     participant: undefined
   },
-  messageTimestamp: 1760377780,
-  pushName: 'José Angel Campos Mireles',
+  messageTimestamp: 1760465949,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
-    extendedTextMessage: ExtendedTextMessage {
-      text: 'Buenos días, soy José Angel Campos Mireles, alumno de Ing. en TICs del ITA. Tengo problemas con Authenticator de mi correo institucional',
-      previewType: 0,
-      contextInfo: [ContextInfo],
-      inviteLinkGroupTypeV2: 0
-    },
+    conversation: '1',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: 'Buenos días, soy José Angel Campos Mireles, alumno de Ing. en TICs del ITA. Tengo problemas con Authenticator de mi correo institucional',
-  from: '5214492277284'
+  body: '1',
+  from: '5215527047234'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  keyword: 'key_9a22c9df-2112-4615-9f20-f67b278670a4',
+  ref: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
+  keyword: 'key_e53be7b3-60be-463f-b4bb-7b82fa5fac4f',
   answer: '__call_action__',
   options: {
     media: null,
@@ -423,11 +284,11 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '13dca22f9445b1c13ad0a7630d87d7c1'
+  refSerialize: '2c2bf60a94855adaf269cf7c5f60bdc0'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
+  ref: 'ans_c671c264-fdaf-4047-b8d6-79e82095cbc5',
+  keyword: 'ans_d28c7072-49c3-4dfc-b272-cfb9746e5717',
   answer: 'Ingresa el número de la opción en la que necesitas apoyo',
   options: {
     media: null,
@@ -441,164 +302,26 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
-  options: {
-    media: null,
-    buttons: [],
-    capture: true,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
-  options: {
-    media: null,
-    buttons: [],
-    capture: true,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  keyword: 'key_9a22c9df-2112-4615-9f20-f67b278670a4',
-  answer: '__call_action__',
-  options: {
-    media: null,
-    buttons: [],
-    capture: false,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: '13dca22f9445b1c13ad0a7630d87d7c1'
-}
-[QUEUE_SE_ENVIO]:  {
-  ref: 'ans_b0b47cba-65a6-4fa4-adb7-bcefb85bd178',
-  keyword: 'ans_bfafe425-273a-4958-9ed9-09e943d4c190',
-  answer: 'Ingresa el número de la opción en la que necesitas apoyo',
-  options: {
-    media: null,
-    buttons: [],
-    capture: true,
-    child: null,
-    delay: 0,
-    idle: null,
-    ref: null,
-    nested: [],
-    keyword: {},
-    callback: true
-  },
-  refSerialize: '7508190b7dcd9b18b26e59908f75c659'
+  refSerialize: 'e1560ac135a04671f3fd5af8a1e9b867'
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214492277284@s.whatsapp.net',
+    remoteJid: '5215527047234@s.whatsapp.net',
     fromMe: false,
-    id: 'ACF65EC8D3C0953EA90E48EAD0683364',
+    id: 'AC6C9135B0BDC2A49E2637FC4747075F',
     participant: undefined
   },
-  messageTimestamp: 1760377807,
-  pushName: 'José Angel Campos Mireles',
+  messageTimestamp: 1760465964,
+  pushName: 'Omar Flores',
   broadcast: false,
   message: Message {
-    conversation: '2',
+    conversation: '1',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
-  body: '2',
-  from: '5214492277284'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5214492277284@s.whatsapp.net',
-    fromMe: false,
-    id: 'ACF7810C8C3F55A2ACC53268D046ECB1',
-    participant: undefined
-  },
-  messageTimestamp: 1760377814,
-  pushName: 'José Angel Campos Mireles',
-  broadcast: false,
-  message: Message {
-    conversation: '23151200',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  body: '23151200',
-  from: '5214492277284'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5214492277284@s.whatsapp.net',
-    fromMe: false,
-    id: 'AC3A3BDE832F11A1AA406C132F32CCDF',
-    participant: undefined
-  },
-  messageTimestamp: 1760377820,
-  pushName: 'José Angel Campos Mireles',
-  broadcast: false,
-  message: Message {
-    conversation: 'José Angel Campos Mireles',
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2,
-      messageSecret: [Uint8Array]
-    }
-  },
-  body: 'José Angel Campos Mireles',
-  from: '5214492277284'
-}
-[handleMsg]:  {
-  key: {
-    remoteJid: '5214494877990@s.whatsapp.net',
-    fromMe: false,
-    id: 'ACFBB696EBE89504FFAE43045877D26E',
-    participant: undefined
-  },
-  messageTimestamp: 1760378671,
-  pushName: 'Alejandro Nieves 😎',
-  broadcast: false,
-  message: Message {
-    messageContextInfo: MessageContextInfo {
-      deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2
-    },
-    reactionMessage: ReactionMessage {
-      key: [MessageKey],
-      text: '👍🏼',
-      senderTimestampMs: [Long]
-    }
-  },
-  body: '',
-  from: '5214494877990'
+  body: '1',
+  from: '5215527047234'
 }
