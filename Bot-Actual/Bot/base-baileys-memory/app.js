@@ -2330,7 +2330,22 @@ function esSaludoValido(texto) {
     'Hola buenas noches, cambie de celular y no puedo acceder a mi cuenta',
     'Hola buenas tardes, tengo un problema con mi cuenta',
     'Hola buenas noches, tengo un problema con mi cuenta',
-    'Hola buenos días, tengo un problema con mi cuenta'
+    'Hola buenos días, tengo un problema con mi cuenta',
+    'hola buenas tardes, disculpa, no me deja ingresar a mi correo institucional',
+    'hola buenas noches, disculpa, no me deja ingresar a mi correo institucional',
+    'hola buenos días, disculpa, no me deja ingresar a mi correo institucional',
+    'Hola buenas tardes, tengo un problema con el acceso a mi cuenta',
+    'Hola buenas noches, tengo un problema con el acceso a mi cuenta',
+    'Hola buenos días, tengo un problema con el acceso a mi cuenta',
+    'Hola buenas tardes, necesito ayuda con mi cuenta',
+    'Hola buenas noches, necesito ayuda con mi cuenta',
+    'Hola buenos días, necesito ayuda con mi cuenta',
+    'hola buenas tardes, disculpa, no me deja ingresar a mi correo institucional por mi contraseña como lo puedo restablecer?',
+    'hola buenas noches, disculpa, no me deja ingresar a mi correo institucional por mi contraseña como lo puedo restablecer?',
+    'hola buenos días, disculpa, no me deja ingresar a mi correo institucional por mi contraseña como lo puedo restablecer?',
+    'Hola buenas tardes, necesito ayuda con el acceso a mi cuenta',
+    'Hola buenas noches, necesito ayuda con el acceso a mi cuenta',
+    'Hola buenos días, necesito ayuda con el acceso a mi cuenta'
   ];
 
   return saludos.some(saludo => textoLimpio.includes(saludo));
