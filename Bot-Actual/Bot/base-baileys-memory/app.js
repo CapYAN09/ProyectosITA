@@ -452,7 +452,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   return false;
 }
 
-// ==== Función para enviar identificación al admin - COMPLETAMENTE MEJORADA ====
+// ==== Función para enviar identificación al admin - SOLUCIÓN DEFINITIVA ====
 async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
   if (!provider || !ctx) {
     console.error('❌ Provider o contexto no disponible')
@@ -474,95 +474,151 @@ async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
       text: mensajeInfo
     });
 
-    console.log('🔍 Intentando reenviar medio...');
-    console.log('📸 Contexto completo:', JSON.stringify(ctx, null, 2).substring(0, 1000));
+    console.log('🔍 Analizando tipo de medio...');
+    console.log('📸 Tipo de mensaje:', ctx.message?.type);
+    console.log('📸 Tiene imageMessage:', !!ctx.message?.imageMessage);
+    console.log('📸 Tiene documentMessage:', !!ctx.message?.documentMessage);
 
-    // INTENTO 1: Reenviar usando forward
-    try {
-      console.log('🔄 Intento 1: Reenviando con forward...');
-      await sock.sendMessage(CONTACTO_ADMIN, {
-        forward: ctx.key
-      });
-      console.log('✅ Medio reenviado correctamente con forward');
-      return true;
-    } catch (forwardError) {
-      console.log('❌ Falló forward:', forwardError.message);
-      
-      // INTENTO 2: Si es imageMessage, construir mensaje manualmente
-      if (ctx.message?.imageMessage) {
-        try {
-          console.log('🔄 Intento 2: Enviando imageMessage manualmente...');
+    // DETECTAR EL TIPO DE MEDIO Y MANEJARLO CORRECTAMENTE
+    let mediaEnviada = false;
+
+    // 1. Si es imageMessage (imágenes de cámara de WhatsApp)
+    if (ctx.message?.imageMessage) {
+      try {
+        console.log('🔄 Descargando imageMessage...');
+        const buffer = await sock.downloadMediaMessage(ctx.message);
+        
+        if (buffer) {
           await sock.sendMessage(CONTACTO_ADMIN, {
-            image: ctx.message.imageMessage,
+            image: buffer,
             caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`
           });
-          console.log('✅ ImageMessage enviado manualmente');
-          return true;
-        } catch (imageError) {
-          console.log('❌ Falló imageMessage manual:', imageError.message);
+          console.log('✅ ImageMessage enviado correctamente');
+          mediaEnviada = true;
         }
+      } catch (imageError) {
+        console.error('❌ Error con imageMessage:', imageError.message);
       }
-      
-      // INTENTO 3: Si es documentMessage con imagen
-      if (ctx.message?.documentMessage && ctx.message.documentMessage.mimetype?.startsWith('image/')) {
-        try {
-          console.log('🔄 Intento 3: Enviando documentMessage manualmente...');
-          await sock.sendMessage(CONTACTO_ADMIN, {
-            document: ctx.message.documentMessage,
-            caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`,
-            mimetype: ctx.message.documentMessage.mimetype
-          });
-          console.log('✅ DocumentMessage enviado manualmente');
-          return true;
-        } catch (docError) {
-          console.log('❌ Falló documentMessage manual:', docError.message);
-        }
-      }
-      
-      // INTENTO 4: Enviar como mensaje multimedia genérico
+    }
+    
+    // 2. Si es documentMessage con imagen
+    else if (ctx.message?.documentMessage && ctx.message.documentMessage.mimetype?.startsWith('image/')) {
       try {
-        console.log('🔄 Intento 4: Enviando como multimedia genérico...');
-        const mediaMessage = {
-          ...ctx.message
-        };
+        console.log('🔄 Descargando documentMessage...');
+        const buffer = await sock.downloadMediaMessage(ctx.message);
         
-        await sock.sendMessage(CONTACTO_ADMIN, mediaMessage, {
-          quoted: null
-        });
-        console.log('✅ Medio enviado como multimedia genérico');
-        return true;
-      } catch (mediaError) {
-        console.log('❌ Falló multimedia genérico:', mediaError.message);
-      }
-
-      // INTENTO 5: Descargar y reenviar el medio
-      try {
-        console.log('🔄 Intento 5: Descargando y reenviando medio...');
-        const stream = await sock.downloadMediaMessage(ctx.message);
-        if (stream) {
+        if (buffer) {
           await sock.sendMessage(CONTACTO_ADMIN, {
-            [ctx.message.type === 'image' ? 'image' : 'document']: stream,
-            caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`,
-            mimetype: ctx.message.mimetype || 'image/jpeg'
+            image: buffer,
+            caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`
           });
-          console.log('✅ Medio descargado y reenviado');
-          return true;
+          console.log('✅ DocumentMessage enviado como imagen');
+          mediaEnviada = true;
         }
-      } catch (downloadError) {
-        console.log('❌ Falló descarga y reenvío:', downloadError.message);
+      } catch (docError) {
+        console.error('❌ Error con documentMessage:', docError.message);
       }
+    }
+    
+    // 3. Si es un mensaje de tipo 'image' (imágenes de galería)
+    else if (ctx.message?.type === 'image') {
+      try {
+        console.log('🔄 Descargando imagen de tipo image...');
+        const buffer = await sock.downloadMediaMessage(ctx.message);
+        
+        if (buffer) {
+          await sock.sendMessage(CONTACTO_ADMIN, {
+            image: buffer,
+            caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`
+          });
+          console.log('✅ Imagen de tipo image enviada correctamente');
+          mediaEnviada = true;
+        }
+      } catch (imageError) {
+        console.error('❌ Error con imagen tipo image:', imageError.message);
+      }
+    }
+    
+    // 4. Intentar descargar cualquier medio
+    else {
+      try {
+        console.log('🔄 Intentando descargar medio genérico...');
+        const buffer = await sock.downloadMediaMessage(ctx.message);
+        
+        if (buffer) {
+          // Detectar el tipo por mimetype o usar image por defecto
+          const mimetype = ctx.message?.mimetype || 'image/jpeg';
+          
+          if (mimetype.startsWith('image/')) {
+            await sock.sendMessage(CONTACTO_ADMIN, {
+              image: buffer,
+              caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`,
+              mimetype: mimetype
+            });
+            console.log('✅ Medio genérico enviado como imagen');
+          } else {
+            await sock.sendMessage(CONTACTO_ADMIN, {
+              document: buffer,
+              caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`,
+              mimetype: mimetype,
+              fileName: `identificacion_${userData.nombre}.${mimetype.split('/')[1] || 'jpg'}`
+            });
+            console.log('✅ Medio genérico enviado como documento');
+          }
+          mediaEnviada = true;
+        }
+      } catch (genericError) {
+        console.error('❌ Error con medio genérico:', genericError.message);
+      }
+    }
 
-      // Si todo falla, enviar mensaje de error detallado
-      console.log('❌ Todos los métodos fallaron, enviando mensaje de error...');
+    // 5. Si no se pudo enviar el medio, intentar reenviar el mensaje original
+    if (!mediaEnviada) {
+      try {
+        console.log('🔄 Intentando reenviar mensaje original...');
+        await sock.sendMessage(CONTACTO_ADMIN, {
+          forward: ctx.key
+        });
+        console.log('✅ Mensaje reenviado correctamente');
+        mediaEnviada = true;
+      } catch (forwardError) {
+        console.error('❌ Error reenviando mensaje:', forwardError.message);
+      }
+    }
+
+    if (mediaEnviada) {
+      console.log('✅ Identificación enviada completamente al administrador');
+      return true;
+    } else {
+      console.log('❌ No se pudo enviar la identificación');
       await sock.sendMessage(CONTACTO_ADMIN, {
-        text: `❌ NO SE PUDO ENVIAR LA IDENTIFICACIÓN\n\n👤 Usuario: ${userData.nombre}\n📧 ${userData.identificacion}\n\n🔍 Detalles técnicos:\n• Tipo: ${ctx.message?.type || 'Desconocido'}\n• Mimetype: ${ctx.message?.mimetype || 'N/A'}\n• Tiene imageMessage: ${!!ctx.message?.imageMessage}\n• Tiene documentMessage: ${!!ctx.message?.documentMessage}\n\n⚠️ Por favor contactar manualmente al usuario.`
+        text: `❌ NO SE PUDO ENVIAR LA IDENTIFICACIÓN\n\n👤 Usuario: ${userData.nombre}\n📧 ${userData.identificacion}\n\n⚠️ El usuario envió una identificación pero no se pudo procesar. Contactar manualmente.`
       });
-      
       return false;
     }
+
   } catch (error) {
     console.error('❌ Error crítico enviando identificación al admin:', error.message);
     return false;
+  }
+}
+
+// ==== Función auxiliar para descargar medios ====
+async function descargarMedio(sock, message) {
+  try {
+    console.log('📥 Descargando medio...');
+    const buffer = await sock.downloadMediaMessage(message);
+    
+    if (buffer) {
+      console.log('✅ Medio descargado correctamente, tamaño:', buffer.length, 'bytes');
+      return buffer;
+    } else {
+      console.log('❌ No se pudo descargar el medio (buffer vacío)');
+      return null;
+    }
+  } catch (error) {
+    console.error('❌ Error descargando medio:', error.message);
+    return null;
   }
 }
 
@@ -1136,7 +1192,7 @@ function obtenerInfoImagen(ctx) {
   }
 }
 
-// ==== Flujo de captura para identificación oficial - SIMPLIFICADO ====
+// ==== Flujo de captura para identificación oficial - MEJORADO ====
 const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1188,10 +1244,11 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      // ACEPTAR CUALQUIER MEDIO (para pruebas)
-      console.log('🎯 MEDIO RECIBIDO - ACEPTANDO TODO PARA PRUEBAS');
-      
-      // Guardar información en el estado
+      console.log('🎯 MEDIO RECIBIDO - PROCESANDO...');
+      console.log('📸 Tipo:', ctx.message?.type);
+      console.log('📸 Mimetype:', ctx.message?.mimetype);
+
+      // ACEPTAR CUALQUIER MEDIO Y PROCESAR
       const myState = await state.getMyState();
       
       await state.update({
@@ -1213,7 +1270,13 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
         tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
       };
 
-      await enviarIdentificacionAlAdmin(provider, ctx, userData);
+      const envioExitoso = await enviarIdentificacionAlAdmin(provider, ctx, userData);
+      
+      if (envioExitoso) {
+        await flowDynamic('📤 Identificación enviada para verificación. Continuando con el proceso...');
+      } else {
+        await flowDynamic('⚠️ Hemos recibido tu identificación pero hubo un problema al enviarla. Continuaremos con el proceso.');
+      }
 
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowContrasena);
