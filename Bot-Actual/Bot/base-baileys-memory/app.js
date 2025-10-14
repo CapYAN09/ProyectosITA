@@ -504,8 +504,8 @@ async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
   }
 }
 
-// ==== Función para enviar mensajes y medios al contacto - MEJORADA ====
-async function enviarAlAdmin(provider, mensaje, ctx = null, userData = null) {
+// ==== Función para enviar mensajes y medios al contacto - SIMPLIFICADA ====
+async function enviarAlAdmin(provider, mensaje, userData = null) {
   if (!provider) {
     console.error('❌ Provider no está disponible')
     return false
@@ -521,36 +521,10 @@ async function enviarAlAdmin(provider, mensaje, ctx = null, userData = null) {
       return false
     }
 
-    // Enviar mensaje de texto primero
+    // Enviar mensaje de texto con la información
     await sock.sendMessage(CONTACTO_ADMIN, {
       text: mensaje
     });
-
-    // 🔧 ENVIAR LA IMAGEN SI ESTÁ DISPONIBLE
-    if (ctx && esImagenValida(ctx)) {
-      try {
-        console.log('📤 Enviando imagen al administrador...');
-        
-        // Reenviar el mensaje original con la imagen
-        await sock.sendMessage(CONTACTO_ADMIN, {
-          forward: ctx.key, // Reenviar el mensaje original con la imagen
-          caption: userData ? `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})` : '📸 Identificación del usuario'
-        });
-        
-        console.log('✅ Imagen enviada al administrador correctamente');
-      } catch (imageError) {
-        console.error('❌ Error enviando imagen al admin:', imageError.message);
-        // Enviar mensaje de fallback si no se puede reenviar la imagen
-        await sock.sendMessage(CONTACTO_ADMIN, {
-          text: `📸 *IDENTIFICACIÓN NO PUDO SER ENVIADA*\n\nEl usuario envió una identificación pero no se pudo reenviar la imagen. Por favor contactar manualmente.`
-        });
-      }
-    } else if (ctx && !esImagenValida(ctx)) {
-      console.log('⚠️ Contexto disponible pero no es una imagen válida');
-      await sock.sendMessage(CONTACTO_ADMIN, {
-        text: `⚠️ *IDENTIFICACIÓN PENDIENTE*\n\nEl usuario aún no ha enviado una identificación válida.`
-      });
-    }
 
     console.log('✅ Información enviada al administrador correctamente')
     return true
@@ -937,7 +911,7 @@ function esImagenValida(message) {
   return false;
 }
 
-// ==== Flujo final de contraseña - ACTUALIZADO PARA ENVIAR IMAGEN ====
+// ==== Flujo final de contraseña - SIMPLIFICADO ====
 const flowContrasena = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     // ⚡ Excluir administrador
@@ -968,28 +942,10 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     const identificacion = esTrabajador ? correoInstitucional : numeroControl;
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
-    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR CON IMAGEN
+    // ✅ ENVIAR SOLO INFORMACIÓN AL ADMINISTRADOR (la imagen ya se envió antes)
     const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
 
-    // Preparar datos del usuario para enviar con la imagen
-    const userData = {
-      nombre: nombreCompleto,
-      identificacion: identificacion,
-      tipo: tipoUsuario,
-      telefono: phone
-    };
-
-    // Obtener el contexto de la imagen si está disponible
-    let imagenContext = null;
-    if (myState.imagenIdentificacion) {
-      imagenContext = {
-        message: myState.imagenIdentificacion,
-        key: ctx.key,
-        from: ctx.from
-      };
-    }
-
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin, imagenContext, userData);
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
     if (envioExitoso) {
       await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
@@ -1097,7 +1053,7 @@ function obtenerInfoImagen(ctx) {
   }
 }
 
-// ==== Flujo de captura para identificación oficial (ALUMNO - CONTRASEÑA) - MEJORADO ====
+// ==== Flujo de captura para identificación oficial (ALUMNO - CONTRASEÑA) - CORREGIDO ====
 const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1185,26 +1141,33 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
         return gotoFlow(flowCapturaIdentificacion);
       }
 
-      // Guardar información de la imagen en el estado
+      // Guardar información de la imagen en el estado - CORREGIDO
       const infoImagen = obtenerInfoImagen(ctx);
       const myState = await state.getMyState();
       
+      // 🔧 GUARDAR EL CONTEXTO COMPLETO PARA PODER REENVIAR
       await state.update({
         identificacionSubida: true,
         infoIdentificacion: infoImagen,
         timestampIdentificacion: Date.now(),
-        imagenIdentificacion: ctx.message // Guardar el mensaje completo
+        // Guardar la información necesaria para reenviar
+        imagenContext: {
+          key: ctx.key, // Esto es esencial para reenviar
+          message: ctx.message,
+          from: ctx.from
+        }
       });
 
       await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
 
-      // 🔧 ENVIAR IDENTIFICACIÓN AL ADMINISTRADOR
+      // 🔧 ENVIAR IDENTIFICACIÓN AL ADMINISTRADOR INMEDIATAMENTE
       const userData = {
         nombre: myState.nombreCompleto || 'Por confirmar',
         identificacion: myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl,
         tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
       };
 
+      // Enviar la imagen inmediatamente al admin
       await enviarIdentificacionAlAdmin(provider, ctx, userData);
 
       // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
