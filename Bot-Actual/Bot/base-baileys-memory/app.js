@@ -658,7 +658,7 @@ const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
     }
   })
 
-// ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA ====
+// ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA (CORREGIDO) ====
 const flowSubMenuContrasena = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '👥 *Selecciona tu tipo de usuario:*\n\n' +
@@ -814,7 +814,7 @@ const flowCapturaCorreoTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR ====
+// ==== SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR (CORREGIDO) ====
 const flowSubMenuAutenticador = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '👥 *Selecciona tu tipo de usuario:*\n\n' +
@@ -2104,7 +2104,7 @@ const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo de restablecimiento de contraseña (MODIFICADO) - ESTE FALTA ====
+// ==== Flujo de restablecimiento de contraseña (MODIFICADO) ====
 const flowrestablecercontrase = addKeyword(['1', 'restablecer contraseña', 'contraseña'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -2461,61 +2461,67 @@ const main = async () => {
     }
 
     const adapterFlow = createFlow([
-      // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN (PRIMERO) ====================
-      flowBlockAdmin,           // 1️⃣ Bloquea admin inmediatamente
-      flowInterceptorGlobal,    // 2️⃣ Maneja inactividad, restaura estados
-      flowComandosEspeciales,   // 3️⃣ Comandos globales (estado, cancelar, ayuda)
+  // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN (PRIMERO) ====================
+  flowBlockAdmin,
+  flowInterceptorGlobal,
+  flowComandosEspeciales,
 
-      // ==================== 🎯 FLUJOS PRINCIPALES DE USUARIO ====================
-      flowPrincipal,            // 4️⃣ Saludos e inicio (hola, buenos días, etc.)
-      flowMenu,                 // 5️⃣ Menú principal
+  // ==================== 🎯 FLUJOS PRINCIPALES DE USUARIO ====================
+  flowPrincipal,
+  flowMenu,
 
-      // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
-      flowCapturaNumeroControl, // 6️⃣ Captura número control (contraseña)
-      flowCapturaNombre,        // 7️⃣ Captura nombre (contraseña)
-      flowCapturaNumeroControlAutenticador, // 8️⃣ Captura número control (autenticador)
-      flowCapturaNombreAutenticador,        // 9️⃣ Captura nombre (autenticador)
-      flowCapturaNumeroControlSIE,          // 🔟 Captura número control (SIE)
-      flowCapturaNombreSIE,                 // 1️⃣1️⃣ Captura nombre (SIE)
+  // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
+  flowrestablecercontrase,  // 🔧 ESTE DEBE ESTAR ANTES DE LOS SUBMENÚS
+  flowrestablecerautenti,   // 🔧 ESTE DEBE ESTAR ANTES DE LOS SUBMENÚS
+  
+  // ==================== 🎪 SUBMENÚS ====================
+  flowSubMenuContrasena,    // 🔧 SUBMENÚ CONTRASEÑA
+  flowSubMenuAutenticador,  // 🔧 SUBMENÚ AUTENTICADOR
 
-      // ==================== 📧 NUEVOS FLUJOS PARA TRABAJADORES ====================
-      flowCapturaCorreoTrabajador,
-      flowCapturaNombreTrabajador,
-      flowCapturaCorreoTrabajadorAutenticador,
-      flowCapturaNombreTrabajadorAutenticador,
+  // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
+  flowCapturaNumeroControl,
+  flowCapturaNombre,
+  flowCapturaNumeroControlAutenticador,
+  flowCapturaNombreAutenticador,
+  flowCapturaNumeroControlSIE,
+  flowCapturaNombreSIE,
 
-      // ==================== 📸 NUEVOS FLUJOS DE IDENTIFICACIÓN ====================
-      flowCapturaIdentificacion,
-      flowCapturaIdentificacionAutenticador,
+  // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
+  flowCapturaCorreoTrabajador,
+  flowCapturaNombreTrabajador,
+  flowCapturaCorreoTrabajadorAutenticador,
+  flowCapturaNombreTrabajadorAutenticador,
 
-      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
-      flowDistancia,            // 1️⃣2️⃣ Educación a distancia (sin captura)
-      flowGracias,              // 1️⃣3️⃣ Agradecimiento
-      flowSIE,                  // 1️⃣4️⃣ Menú SIE
+  // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
+  flowCapturaIdentificacion,
+  flowCapturaIdentificacionAutenticador,
 
-      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
-      flowrestablecercontrase,  // 1️⃣5️⃣ Inicia proceso contraseña
-      flowrestablecerautenti,   // 1️⃣6️⃣ Inicia proceso autenticador
-      flowrestablecerSIE,       // 1️⃣7️⃣ Inicia proceso SIE
+  // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
+  flowDistancia,
+  flowGracias,
+  flowSIE,
 
-      // ==================== ⏳ FLUJOS FINALES (BLOQUEAN USUARIO) ====================
-      flowContrasena,           // 1️⃣8️⃣ Proceso largo contraseña
-      flowAutenticador,         // 1️⃣9️⃣ Proceso largo autenticador
-      flowFinSIE,               // 2️⃣0️⃣ Proceso largo SIE
-      flowBloqueoActivo,        // 2️⃣1️⃣ Maneja estado bloqueado
+  // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
+  flowrestablecerSIE,
 
-      // ==================== 🕒 FLUJOS DE ESPERA ====================
-      flowEsperaPrincipal,      // 2️⃣2️⃣ Espera después del flow principal
-      flowEsperaMenu,           // 2️⃣3️⃣ Espera después del menú
-      flowEsperaSIE,            // 2️⃣4️⃣ Espera después de SIE
-      flowEsperaContrasena,     // 2️⃣5️⃣ Espera después de contraseña
-      flowEsperaAutenticador,   // 2️⃣6️⃣ Espera después de autenticador
-      flowEsperaMenuDistancia,  // 2️⃣7️⃣ Espera después de educación distancia
-      flowEsperaMenuSIE,        // 2️⃣8️⃣ Espera después de menú SIE
+  // ==================== ⏳ FLUJOS FINALES (BLOQUEAN USUARIO) ====================
+  flowContrasena,
+  flowAutenticador,
+  flowFinSIE,
+  flowBloqueoActivo,
 
-      // ==================== ❓ FLUJO POR DEFECTO (ÚLTIMO) ====================
-      flowDefault               // 2️⃣9️⃣ Mensajes no entendidos (SIEMPRE ÚLTIMO)
-    ])
+  // ==================== 🕒 FLUJOS DE ESPERA ====================
+  flowEsperaPrincipal,
+  flowEsperaMenu,
+  flowEsperaSIE,
+  flowEsperaContrasena,
+  flowEsperaAutenticador,
+  flowEsperaMenuDistancia,
+  flowEsperaMenuSIE,
+
+  // ==================== ❓ FLUJO POR DEFECTO (ÚLTIMO) ====================
+  flowDefault
+])
 
     // ==== MEJORA EN LA CONFIGURACIÓN DEL PROVIDER ====
     const adapterProvider = createProvider(BaileysProvider, {
