@@ -504,8 +504,8 @@ async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
   }
 }
 
-// ==== Función para enviar mensajes y medios al contacto ====
-async function enviarAlAdmin(provider, mensaje, ctx = null) { // 🔧 AGREGAR ctx como parámetro opcional
+// ==== Función para enviar mensajes y medios al contacto - MEJORADA ====
+async function enviarAlAdmin(provider, mensaje, ctx = null, userData = null) {
   if (!provider) {
     console.error('❌ Provider no está disponible')
     return false
@@ -525,6 +525,32 @@ async function enviarAlAdmin(provider, mensaje, ctx = null) { // 🔧 AGREGAR ct
     await sock.sendMessage(CONTACTO_ADMIN, {
       text: mensaje
     });
+
+    // 🔧 ENVIAR LA IMAGEN SI ESTÁ DISPONIBLE
+    if (ctx && esImagenValida(ctx)) {
+      try {
+        console.log('📤 Enviando imagen al administrador...');
+        
+        // Reenviar el mensaje original con la imagen
+        await sock.sendMessage(CONTACTO_ADMIN, {
+          forward: ctx.key, // Reenviar el mensaje original con la imagen
+          caption: userData ? `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})` : '📸 Identificación del usuario'
+        });
+        
+        console.log('✅ Imagen enviada al administrador correctamente');
+      } catch (imageError) {
+        console.error('❌ Error enviando imagen al admin:', imageError.message);
+        // Enviar mensaje de fallback si no se puede reenviar la imagen
+        await sock.sendMessage(CONTACTO_ADMIN, {
+          text: `📸 *IDENTIFICACIÓN NO PUDO SER ENVIADA*\n\nEl usuario envió una identificación pero no se pudo reenviar la imagen. Por favor contactar manualmente.`
+        });
+      }
+    } else if (ctx && !esImagenValida(ctx)) {
+      console.log('⚠️ Contexto disponible pero no es una imagen válida');
+      await sock.sendMessage(CONTACTO_ADMIN, {
+        text: `⚠️ *IDENTIFICACIÓN PENDIENTE*\n\nEl usuario aún no ha enviado una identificación válida.`
+      });
+    }
 
     console.log('✅ Información enviada al administrador correctamente')
     return true
@@ -911,7 +937,7 @@ function esImagenValida(message) {
   return false;
 }
 
-// ==== Flujo final de contraseña - ACTUALIZADO ====
+// ==== Flujo final de contraseña - ACTUALIZADO PARA ENVIAR IMAGEN ====
 const flowContrasena = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     // ⚡ Excluir administrador
@@ -942,24 +968,28 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     const identificacion = esTrabajador ? correoInstitucional : numeroControl;
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
-    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
+    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR CON IMAGEN
     const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
 
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+    // Preparar datos del usuario para enviar con la imagen
+    const userData = {
+      nombre: nombreCompleto,
+      identificacion: identificacion,
+      tipo: tipoUsuario,
+      telefono: phone
+    };
 
-    // 🔧 ENVIAR IDENTIFICACIÓN SI ESTÁ DISPONIBLE
-    if (myState.identificacionSubida && myState.imagenIdentificacion) {
-      const userData = {
-        nombre: nombreCompleto,
-        identificacion: identificacion,
-        tipo: tipoUsuario
+    // Obtener el contexto de la imagen si está disponible
+    let imagenContext = null;
+    if (myState.imagenIdentificacion) {
+      imagenContext = {
+        message: myState.imagenIdentificacion,
+        key: ctx.key,
+        from: ctx.from
       };
-      // Reenviar la identificación al admin
-      await enviarIdentificacionAlAdmin(provider, { 
-        message: myState.imagenIdentificacion, 
-        key: ctx.key 
-      }, userData);
     }
+
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin, imagenContext, userData);
 
     if (envioExitoso) {
       await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
@@ -1029,59 +1059,6 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
       return gotoFlow(flowBloqueoActivo);
     }
   );
-
-// ==== Función mejorada para verificar imágenes - CORREGIDA ====
-function esImagenValida(ctx) {
-  if (!ctx || !ctx.message) return false;
-
-  try {
-    const message = ctx.message;
-    
-    // Verificar si es imagen directa
-    if (message.type === 'image') {
-      return true;
-    }
-    
-    // Verificar si es sticker
-    if (message.type === 'sticker') {
-      return true;
-    }
-    
-    // Verificar si es documento con imagen
-    if (message.type === 'document' && 
-        message.mimetype && 
-        message.mimetype.startsWith('image/')) {
-      return true;
-    }
-    
-    // Verificar si tiene imageMessage (imágenes de cámara de WhatsApp)
-    if (message.imageMessage) {
-      return true;
-    }
-    
-    // Verificar si tiene documentMessage con imagen
-    if (message.documentMessage && 
-        message.documentMessage.mimetype &&
-        message.documentMessage.mimetype.startsWith('image/')) {
-      return true;
-    }
-    
-    // Verificar si tiene stickerMessage
-    if (message.stickerMessage) {
-      return true;
-    }
-
-    console.log('📸 Tipo de mensaje recibido:', message.type);
-    console.log('📸 Mimetype:', message.mimetype);
-    console.log('📸 Tiene imageMessage:', !!message.imageMessage);
-    console.log('📸 Tiene documentMessage:', !!message.documentMessage);
-    
-    return false;
-  } catch (error) {
-    console.error('❌ Error verificando imagen:', error);
-    return false;
-  }
-}
 
 // ==== Función para obtener información de la imagen - MEJORADA ====
 function obtenerInfoImagen(ctx) {
@@ -1304,9 +1281,9 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo final de autenticador - ACTUALIZADO PARA AMBOS TIPOS ====
+// ==== Flujo final de autenticador - ACTUALIZADO PARA ENVIAR IMAGEN ====
 const flowAutenticador = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => { // 🔧 AGREGAR gotoFlow
+  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1321,7 +1298,7 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
     if (!nombreCompleto || (!numeroControl && !correoInstitucional)) {
       console.log('❌ Datos incompletos, redirigiendo a captura...');
       await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
-      return gotoFlow(flowSubMenuAutenticador); // 🔧 Redirigir al submenú
+      return gotoFlow(flowSubMenuAutenticador);
     }
 
     // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
@@ -1335,10 +1312,28 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
     const identificacion = esTrabajador ? correoInstitucional : numeroControl;
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
-    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
+    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR CON IMAGEN
     const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+    // Preparar datos del usuario para enviar con la imagen
+    const userData = {
+      nombre: nombreCompleto,
+      identificacion: identificacion,
+      tipo: tipoUsuario,
+      telefono: phone
+    };
+
+    // Obtener el contexto de la imagen si está disponible
+    let imagenContext = null;
+    if (myState.imagenIdentificacion) {
+      imagenContext = {
+        message: myState.imagenIdentificacion,
+        key: ctx.key,
+        from: ctx.from
+      };
+    }
+
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin, imagenContext, userData);
 
     if (envioExitoso) {
       await flowDynamic('⏳ Permítenos un momento, vamos a desconfigurar tu autenticador... \n\n Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.');
