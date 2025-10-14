@@ -2104,33 +2104,37 @@ const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo de restablecimiento de contraseña (MODIFICADO) ====
-const flowrestablecercontrase = addKeyword(['restablecer']).addAnswer(
-  [
-    '📄 Vamos a comenzar a restablecer la contraseña de tu correo institucional',
-    '\n👥 Primero necesitamos saber tu tipo de usuario.',
-    '\n🔙 Escribe *menú* para volver a ver el menú.'
-  ],
-  null,
-  async (ctx, { gotoFlow }) => {
+// ==== Flujo de restablecimiento de contraseña (MODIFICADO) - ESTE FALTA ====
+const flowrestablecercontrase = addKeyword(['1', 'restablecer contraseña', 'contraseña'])
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
+    
+    await flowDynamic([
+      '🔐 *Restablecimiento de Contraseña* 🔐',
+      '',
+      'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.',
+      '',
+      'Primero necesitamos saber tu tipo de usuario:'
+    ].join('\n'));
+    
     return gotoFlow(flowSubMenuContrasena);
-  }
-);
+  });
 
 // ==== Flujo de restablecimiento de autenticador (MODIFICADO) ====
-const flowrestablecerautenti = addKeyword(['autenticador']).addAnswer(
-  [
-    '📄 Vamos a comenzar a configurar tu autenticador',
-    '\n👥 Primero necesitamos saber tu tipo de usuario.',
-    '\n🔙 Escribe *menú* para volver a ver el menú.'
-  ],
-  null,
-  async (ctx, { gotoFlow }) => {
+const flowrestablecerautenti = addKeyword(['2', 'restablecer autenticador', 'autenticador'])
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
+    
+    await flowDynamic([
+      '🔑 *Configuración de Autenticador* 🔑',
+      '',
+      'Vamos a ayudarte a configurar tu autenticador.',
+      '',
+      'Primero necesitamos saber tu tipo de usuario:'
+    ].join('\n'));
+    
     return gotoFlow(flowSubMenuAutenticador);
-  }
-);
+  });
 
 // ==== Flujo de restablecimiento de SIE ====
 const flowrestablecerSIE = addKeyword(EVENTS.ACTION).addAnswer(
@@ -2263,16 +2267,12 @@ const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'e
 
       const opcion = ctx.body.trim()
 
-      /*
-      if (ctx.body.toLowerCase() === 'estado' || ctx.body.toLowerCase() === 'cancelar' || ctx.body.toLowerCase() === 'ayuda') {
-        return gotoFlow(flowComandosEspeciales);
-      }*/
-
       if (!isValidText(opcion) || !['1', '2', '3', '4'].includes(opcion)) {
         await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3* o *4*.')
         return gotoFlow(flowEsperaPrincipal)
       }
 
+      // 🔧 CORRECCIÓN: Usar las palabras clave correctas
       if (opcion === '1') return gotoFlow(flowrestablecercontrase)
       if (opcion === '2') return gotoFlow(flowrestablecerautenti)
       if (opcion === '3') return gotoFlow(flowDistancia)
@@ -2310,10 +2310,6 @@ const flowMenu = addKeyword(['menu', 'menú'])
         return;
       }
 
-      if (ctx.body.toLowerCase() === 'estado' || ctx.body.toLowerCase() === 'cancelar' || ctx.body.toLowerCase() === 'ayuda') {
-        return gotoFlow(flowComandosEspeciales);
-      }
-
       const opcion = ctx.body.trim()
 
       if (!isValidText(opcion) || !['1', '2', '3', '4', '5'].includes(opcion)) {
@@ -2321,6 +2317,7 @@ const flowMenu = addKeyword(['menu', 'menú'])
         return gotoFlow(flowEsperaMenu)
       }
 
+      // 🔧 CORRECCIÓN: Usar las palabras clave correctas
       if (opcion === '1') return gotoFlow(flowrestablecercontrase)
       if (opcion === '2') return gotoFlow(flowrestablecerautenti)
       if (opcion === '3') return gotoFlow(flowDistancia)
