@@ -6,7 +6,7 @@ const MySQLAdapter = require('@bot-whatsapp/database/mysql')
 // Contacto específico donde se enviará la información
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
 
-// ==== Sistema de Timeouts Global - NUEVO ====
+// ==== Sistema de Timeouts Global ====
 class TimeoutManager {
   constructor() {
     this.timeouts = new Map();
@@ -49,7 +49,7 @@ class TimeoutManager {
 
 const timeoutManager = new TimeoutManager();
 
-// ==== Función para manejar inactividad - NUEVA ====
+// ==== Función para manejar inactividad ====
 async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
   if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -89,7 +89,7 @@ async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
   }, 2 * 60 * 1000); // 2 minutos
 }
 
-// ==== Función para reiniciar inactividad - NUEVA ====
+// ==== Función para reiniciar inactividad ====
 async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
   await manejarInactividad(ctx, state, flowDynamic, gotoFlow);
 }
@@ -119,16 +119,13 @@ async function crearConexionMySQL() {
       password: '',
       database: 'bot_whatsapp',
       port: 3306,
-      // 🔧 CONFIGURACIONES ACTUALIZADAS (sin opciones obsoletas)
       connectTimeout: 60000,
       acquireTimeout: 60000,
       timeout: 60000,
-      // Configuraciones para mantener conexión activa
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
 
-    // 🔧 MANEJADOR DE ERRORES MEJORADO
     connection.on('error', (err) => {
       console.error('❌ Error en conexión MySQL:', err.message);
       if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
@@ -169,8 +166,6 @@ async function reconectarMySQL() {
   } catch (error) {
     console.error('❌ Error en reconexión MySQL:', error.message);
     reconectando = false;
-
-    // Reintentar después de 5 segundos
     setTimeout(() => {
       reconectarMySQL();
     }, 5000);
@@ -183,7 +178,6 @@ async function inicializarMySQL() {
     conexionMySQL = await crearConexionMySQL();
   }
 
-  // Verificar si la conexión sigue activa
   if (conexionMySQL) {
     try {
       await conexionMySQL.execute('SELECT 1');
@@ -210,7 +204,7 @@ async function limpiarEstadoMySQL(userPhone) {
   }
 }
 
-// ==== FUNCIÓN GUARDAR ESTADO MYSQL - CORREGIDA ====
+// ==== ACTUALIZAR FUNCIÓN GUARDAR ESTADO MYSQL ====
 async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
   try {
     await inicializarMySQL();
@@ -220,26 +214,28 @@ async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {
     }
 
     const query = `
-      INSERT INTO user_states (user_phone, estado_usuario, estado_metadata, numero_control, nombre_completo)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO user_states (user_phone, estado_usuario, estado_metadata, numero_control, nombre_completo, identificacion_subida, timestamp_identificacion)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON DUPLICATE KEY UPDATE 
       estado_usuario = VALUES(estado_usuario),
       estado_metadata = VALUES(estado_metadata),
       numero_control = VALUES(numero_control),
       nombre_completo = VALUES(nombre_completo),
+      identificacion_subida = VALUES(identificacion_subida),
+      timestamp_identificacion = VALUES(timestamp_identificacion),
       updated_at = CURRENT_TIMESTAMP
     `;
 
-    // 🔧 CORRECCIÓN: Asegurar que no haya valores undefined
     const values = [
       userPhone,
       estado,
       JSON.stringify(metadata),
-      userData.numeroControl || null,  // ✅ Convierte undefined a null
-      userData.nombreCompleto || null  // ✅ Convierte undefined a null
+      userData.numeroControl || null,
+      userData.nombreCompleto || null,
+      userData.identificacionSubida || false,
+      userData.timestampIdentificacion || null
     ];
 
-    // 🔧 VALIDACIÓN ADICIONAL: Verificar que no queden undefined
     const valoresFinales = values.map(val => val === undefined ? null : val);
 
     await conexionMySQL.execute(query, valoresFinales);
@@ -292,32 +288,25 @@ const ESTADOS_USUARIO = {
   EN_MENU: 'en_menu'
 };
 
-// ==== Función para redirección segura después de timeout - CORREGIDA ====
+// ==== Función para redirección segura después de timeout ====
 async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
   try {
-    // 🔧 LIMPIAR TODO ANTES DE REDIRIGIR
     await limpiarEstado(state);
-
-    // 🔧 PEQUEÑA PAUSA PARA ASEGURAR LA LIMPIEZA
     await new Promise(resolve => setTimeout(resolve, 100));
-
-    // 🔧 REDIRIGIR AL MENÚ (CORREGIDO - sin recursividad)
     return gotoFlow(flowMenu);
   } catch (error) {
     console.error('❌ Error en redirección al menú:', error);
-    // 🔧 FALLBACK: Enviar mensaje y forzar limpieza
     await flowDynamic('🔧 Reiniciando bot... Por favor escribe *menú* para continuar.');
     await limpiarEstado(state);
     return gotoFlow(flowMenu);
   }
 }
 
-// ==== Funciones de Gestión de Estados - CORREGIDAS ====
+// ==== Funciones de Gestión de Estados ====
 async function actualizarEstado(state, nuevoEstado, metadata = {}) {
   try {
     const estadoActual = await state.getMyState();
 
-    // 🔧 CORRECCIÓN: Asegurar que los datos de usuario no sean undefined
     const userData = {
       numeroControl: estadoActual?.numeroControl || null,
       nombreCompleto: estadoActual?.nombreCompleto || null
@@ -333,7 +322,6 @@ async function actualizarEstado(state, nuevoEstado, metadata = {}) {
       estadoMetadata: nuevoMetadata
     });
 
-    // Guardar también en MySQL si es un proceso largo
     if (nuevoEstado === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       await guardarEstadoMySQL(state.id, nuevoEstado, nuevoMetadata, userData);
     }
@@ -342,84 +330,30 @@ async function actualizarEstado(state, nuevoEstado, metadata = {}) {
   }
 }
 
-// ==== Función para manejar inactividad - NUEVA ====
-async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
-  if (ctx.from === CONTACTO_ADMIN) return;
-
-  const userPhone = ctx.from;
-
-  // Limpiar timeout anterior si existe
-  timeoutManager.clearTimeout(userPhone);
-
-  // Configurar nuevo timeout para 2 minutos
-  timeoutManager.setTimeout(userPhone, async () => {
-    try {
-      const myState = await state.getMyState();
-
-      // Solo mostrar mensaje si no está en proceso largo
-      if (myState?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-        await flowDynamic([
-          '⏰ *Sesión Inactiva*',
-          '',
-          'He notado que no has interactuado conmigo en los últimos 2 minutos.',
-          '',
-          '💡 **Para reactivar el bot, escribe:**',
-          '• *hola* - Para reiniciar la conversación',
-          '• *menú* - Para ver las opciones disponibles',
-          '',
-          '¡Estoy aquí para ayudarte! 🐦'
-        ].join('\n'));
-
-        // Limpiar estado temporal pero mantener información básica
-        await state.update({
-          estadoUsuario: ESTADOS_USUARIO.LIBRE,
-          ultimaInteraccion: Date.now()
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error en manejo de inactividad:', error);
-    }
-  }, 2 * 60 * 1000); // 2 minutos
-}
-
-// ==== Función para reiniciar inactividad - NUEVA ====
-async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
-  await manejarInactividad(ctx, state, flowDynamic, gotoFlow);
-}
-
-// ==== MEJORA EN LA GESTIÓN DE TIMEOUTS ====
+// ==== ACTUALIZAR FUNCIÓN LIMPIAR ESTADO ====
 async function limpiarEstado(state) {
   try {
     const myState = await state.getMyState();
     const userPhone = state.id;
 
     if (userPhone) {
-      // 🔧 LIMPIAR TODOS LOS TIMEOUTS E INTERVALS
       timeoutManager.clearAll(userPhone);
-
-      // Limpiar timeouts legacy
-      if (myState?.timeoutCaptura) clearTimeout(myState.timeoutCaptura);
-      if (myState?.timeoutCapturaNombre) clearTimeout(myState.timeoutCapturaNombre);
-      if (myState?.timeoutMenu) clearTimeout(myState.timeoutMenu);
-      if (myState?.timeoutPrincipal) clearTimeout(myState.timeoutPrincipal);
-      // ... limpiar todos los timeouts que tengas
     }
 
-    // 🔧 LIMPIAR ESTADO EN MEMORIA
     await state.update({
       estadoUsuario: ESTADOS_USUARIO.LIBRE,
       estadoMetadata: {},
       numeroControl: null,
       nombreCompleto: null,
+      correoInstitucional: null,
+      esTrabajador: null,
+      identificacionSubida: false,
+      infoIdentificacion: null,
+      timestampIdentificacion: null,
       ultimaInteraccion: Date.now()
     });
 
-    // 🔧 LIMPIAR ESTADO EN MYSQL (si existe)
-    if (userPhone) {
-      await limpiarEstadoMySQL(userPhone);
-    }
-
-    console.log(`✅ Estado limpiado completamente para: ${userPhone}`);
+    console.log('✅ Estado limpiado correctamente');
   } catch (error) {
     console.error('❌ Error limpiando estado:', error);
   }
@@ -432,17 +366,14 @@ async function restaurarEstadoInicial(ctx, state) {
     const estadoMySQL = await obtenerEstadoMySQL(ctx.from);
 
     if (estadoMySQL && estadoMySQL.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-      // Verificar si el proceso ya expiró (más de 30 minutos)
       const tiempoTranscurrido = Date.now() - (estadoMySQL.estadoMetadata.ultimaActualizacion || Date.now());
       const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
 
       if (minutosTranscurridos > 30) {
-        // Proceso expirado, limpiar estado
         await limpiarEstadoMySQL(ctx.from);
         return false;
       }
 
-      // Restaurar el estado desde MySQL
       await state.update({
         estadoUsuario: estadoMySQL.estadoUsuario,
         estadoMetadata: estadoMySQL.estadoMetadata,
@@ -460,7 +391,7 @@ async function restaurarEstadoInicial(ctx, state) {
   return false;
 }
 
-// ==== Función para mostrar estado de bloqueo - CORREGIDA ====
+// ==== Función para mostrar estado de bloqueo ====
 async function mostrarEstadoBloqueado(flowDynamic, myState) {
   const metadata = myState.estadoMetadata || {};
   const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
@@ -502,7 +433,34 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   return false;
 }
 
-// ==== Función para enviar mensajes al contacto SIN trigger de flujos ====
+// ==== Función para enviar identificación al admin - SIMPLIFICADA ====
+async function enviarIdentificacionAlAdmin(provider, userData) {
+  if (!provider) {
+    console.error('❌ Provider no disponible')
+    return false
+  }
+
+  try {
+    const sock = provider.vendor
+    
+    if (!sock) {
+      console.error('❌ Socket de Baileys no disponible')
+      return false
+    }
+
+    await sock.sendMessage(CONTACTO_ADMIN, {
+      text: `📸 *IDENTIFICACIÓN RECIBIDA*\n\n👤 Nombre: ${userData.nombre}\n📧 ${userData.tipo}: ${userData.identificacion}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n✅ El usuario ha subido su identificación correctamente.`
+    });
+    
+    console.log('✅ Notificación de identificación enviada al administrador');
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando notificación de identificación:', error.message);
+    return false;
+  }
+}
+
+// ==== Función para enviar mensajes al contacto ====
 async function enviarAlAdmin(provider, mensaje) {
   if (!provider) {
     console.error('❌ Provider no está disponible')
@@ -521,7 +479,7 @@ async function enviarAlAdmin(provider, mensaje) {
 
     await sock.sendMessage(CONTACTO_ADMIN, {
       text: mensaje
-    })
+    });
 
     console.log('✅ Información enviada al administrador correctamente')
     return true
@@ -547,7 +505,7 @@ function isValidText(input) {
   return true
 }
 
-// ==== Validar número de control (8 o 9 dígitos, con reglas específicas) ====
+// ==== Validar número de control ====
 function validarNumeroControl(numeroControl) {
   const letrasPermitidas = ['D', 'C', 'B', 'R', 'G', 'd', 'c', 'b', 'r', 'g']
   const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6']
@@ -571,15 +529,63 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-/// ==== FLUJO INTERCEPTOR GLOBAL - MEJORADO ====
+// ==== Función para validar que es una imagen ====
+function esImagenValida(message) {
+  if (!message) return false;
+
+  const esImagen = message.type === 'image' ||
+    message.type === 'sticker' ||
+    (message.type === 'document' &&
+      message.mimetype &&
+      message.mimetype.startsWith('image/'));
+
+  return esImagen;
+}
+
+// ==== Función para obtener información de la imagen ====
+function obtenerInfoImagen(message) {
+  if (!message) return null;
+
+  return {
+    tipo: message.type,
+    mimetype: message.mimetype || 'image/jpeg',
+    timestamp: message.timestamp || Date.now()
+  };
+}
+
+// ==== Función para validar correo institucional de trabajadores ====
+function validarCorreoTrabajador(correo) {
+  const regex = /^[a-zA-Z0-9._%+-]+@aguascalientes\.tecnm\.mx$/;
+  return regex.test(correo) && correo.length > 0;
+}
+
+// ==== Función auxiliar para detectar saludos ====
+function esSaludoValido(texto) {
+  if (!texto || typeof texto !== 'string') return false;
+
+  const textoLimpio = texto.toLowerCase().trim();
+  const saludos = [
+    'hola', 'ole', 'alo', 'inicio', 'Inicio', 'comenzar', 'empezar',
+    'buenos días', 'buenas tardes', 'buenas noches',
+    'buenos dias', 'buenas tardes', 'buenas noches',
+    'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.',
+    'buenos días, tengo un problema', 'buenas tardes, tengo un problema',
+    'buenas noches, tengo un problema', 'buenos días tengo un problema',
+    'buenas tardes tengo un problema', 'buenas noches tengo un problema',
+    'tengo un problema', 'necesito ayuda', 'ayuda', 'tengo un problema con mi cuenta',
+    'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso'
+  ];
+
+  return saludos.some(saludo => textoLimpio.includes(saludo));
+}
+
+/// ==== FLUJO INTERCEPTOR GLOBAL ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
-    // Reiniciar contador de inactividad en cada mensaje
     await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
 
-    // Intentar restaurar estado desde MySQL al iniciar
     const estadoRestaurado = await restaurarEstadoInicial(ctx, state);
 
     if (estadoRestaurado) {
@@ -587,10 +593,8 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
       return gotoFlow(flowBloqueoActivo);
     }
 
-    // 🔧 USAR la función de validación aquí en el interceptor
     const input = ctx.body?.toLowerCase().trim();
 
-    // Si el mensaje NO es un saludo válido Y el usuario no tiene estado activo
     if (!esSaludoValido(input)) {
       const myState = await state.getMyState();
       if (!myState?.estadoUsuario || myState.estadoUsuario === ESTADOS_USUARIO.LIBRE) {
@@ -615,7 +619,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     return endFlow();
   });
 
-// ==== Flujo de Bloqueo Activo - CORREGIDO ====
+// ==== Flujo de Bloqueo Activo ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -627,13 +631,11 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
       return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }
 
-    // Solo mostrar el estado si el usuario escribe "estado"
     const input = ctx.body?.toLowerCase().trim();
-    
+
     if (input === 'estado') {
       await mostrarEstadoBloqueado(flowDynamic, myState);
     } else if (input && input !== 'estado') {
-      // Si escribe cualquier otra cosa
       await flowDynamic([
         '⏳ *Proceso en curso*',
         '',
@@ -653,12 +655,10 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
 
       const input = ctx.body.toLowerCase().trim();
 
-      // 🔧 SOLO "estado" redirige a comandos especiales
       if (input === 'estado') {
         return gotoFlow(flowComandosEspeciales);
       }
 
-      // 🔧 Cualquier otra cosa vuelve al flujo de bloqueo
       return gotoFlow(flowBloqueoActivo);
     }
   );
@@ -672,33 +672,214 @@ const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
     }
   })
 
-// ==== Flujo final de contraseña - CORREGIDO (SOLO cuando ya tiene datos) ====
+// ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA ====
+const flowSubMenuContrasena = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    '👥 *Selecciona tu tipo de usuario:*\n\n' +
+    '1️⃣ ¿Eres un alumno?\n' +
+    '2️⃣ ¿Eres un trabajador?\n\n' +
+    '🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (opcion === '1') {
+        await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaNumeroControl);
+      }
+
+      if (opcion === '2') {
+        await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaCorreoTrabajador);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+      return gotoFlow(flowSubMenuContrasena);
+    }
+  );
+
+// ==== Flujo de captura de correo para trabajador ====
+const flowCapturaCorreoTrabajador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en correo trabajador');
+        await flowDynamic('⏱️ No recibimos tu correo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now(),
+      esTrabajador: true
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *correo institucional* (ejemplo: nombre.apellido@aguascalientes.tecnm.mx):',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu correo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaCorreoTrabajador);
+      }
+
+      if (!isValidText(input) || !validarCorreoTrabajador(input)) {
+        await flowDynamic('❌ Correo institucional inválido. Debe ser: nombre.apellido@aguascalientes.tecnm.mx\nIntenta de nuevo o escribe *menú* para volver.');
+        return gotoFlow(flowCapturaCorreoTrabajador);
+      }
+
+      await state.update({
+        correoInstitucional: input,
+        esTrabajador: true
+      });
+      await flowDynamic(`✅ Recibimos tu correo institucional: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaNombreTrabajador);
+    }
+  );
+
+// ==== Flujo de captura de correo para trabajador (AUTENTICADOR) ====
+const flowCapturaCorreoTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en correo trabajador - autenticador');
+        await flowDynamic('⏱️ No recibimos tu correo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now(),
+      esTrabajador: true
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *correo institucional* (ejemplo: nombre.apellido@aguascalientes.tecnm.mx):',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu correo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaCorreoTrabajadorAutenticador);
+      }
+
+      if (!isValidText(input) || !validarCorreoTrabajador(input)) {
+        await flowDynamic('❌ Correo institucional inválido. Debe ser: nombre.apellido@aguascalientes.tecnm.mx\nIntenta de nuevo o escribe *menú* para volver.');
+        return gotoFlow(flowCapturaCorreoTrabajadorAutenticador);
+      }
+
+      await state.update({
+        correoInstitucional: input,
+        esTrabajador: true
+      });
+      await flowDynamic(`✅ Recibimos tu correo institucional: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+    }
+  );
+
+// ==== SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR ====
+const flowSubMenuAutenticador = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    '👥 *Selecciona tu tipo de usuario:*\n\n' +
+    '1️⃣ ¿Eres un alumno?\n' +
+    '2️⃣ ¿Eres un trabajador?\n\n' +
+    '🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (opcion === '1') {
+        await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaNumeroControlAutenticador);
+      }
+
+      if (opcion === '2') {
+        await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaCorreoTrabajadorAutenticador);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+      return gotoFlow(flowSubMenuAutenticador);
+    }
+  );
+
+// ==== Flujo final de contraseña ====
 const flowContrasena = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, provider }) => {
-    // ⚡ Excluir administrador
+  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
     const myState = (await state.getMyState()) || {};
     const nombreCompleto = myState.nombreCompleto;
     const numeroControl = myState.numeroControl;
+    const correoInstitucional = myState.correoInstitucional;
+    const esTrabajador = myState.esTrabajador;
 
-    if (!nombreCompleto || !numeroControl) {
+    if (!nombreCompleto || (!numeroControl && !correoInstitucional)) {
       console.log('❌ Datos incompletos, redirigiendo a captura...');
       await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
-      return gotoFlow(flowCapturaNumeroControl);
+      return gotoFlow(flowSubMenuContrasena);
     }
 
-    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
     await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
       tipo: "🔐 Restablecimiento de Contraseña",
-      inicio: Date.now()
+      inicio: Date.now(),
+      esTrabajador: esTrabajador || false
     });
 
     const phone = ctx.from;
+    const identificacion = esTrabajador ? correoInstitucional : numeroControl;
+    const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
-    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
 
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -708,10 +889,8 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
       await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
     }
 
-    // ... el resto del código de timers permanece igual
     let minutosRestantes = 30;
 
-    // Aviso cada 10 minutos
     const intervalId = setInterval(async () => {
       minutosRestantes -= 10;
       if (minutosRestantes > 0) {
@@ -719,7 +898,6 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
       }
     }, 10 * 60000);
 
-    // Guardar ID del intervalo en el estado
     await state.update({
       estadoMetadata: {
         ...(await state.getMyState())?.estadoMetadata,
@@ -727,17 +905,18 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
       }
     });
 
-    // Mensaje final después de 30 minutos
     const timeoutId = setTimeout(async () => {
       clearInterval(intervalId);
 
       try {
         await flowDynamic(`✅ Se restableció correctamente tu contraseña.\nTu nueva contraseña temporal es: *SoporteCC1234$*`);
-        console.log(`✅ Contraseña enviada correctamente a *${nombreCompleto}* con matrícula *${numeroControl}*`);
 
-        // 🔧 CORRECCIÓN COMPLETA en el contexto de tu código:
+        const correoUsuario = esTrabajador ? correoInstitucional : `${numeroControl}@aguascalientes.tecnm.mx`;
+
+        console.log(`✅ Contraseña enviada correctamente a *${nombreCompleto}* - ${esTrabajador ? 'Correo' : 'Matrícula'}: *${identificacion}*`);
+
         await flowDynamic(
-          `*Instrucciones para acceder* \n\n *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* para poder configurar todo correctamente, despues del primer inicio de sesión ya puedes configurar tus aplicaciones \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${numeroControl}@aguascalientes.tecnm.mx \n Paso 4.- Ingresa la contraseña temporal: *SoporteCC1234$*  \n Paso 5.- Una vez que ingreses te va a solicitar que realices el cambio de tu contraseña. En contraseña actual es la contraseña temporal: *SoporteCC1234$* en los siguientes campos vas a generar tu nueva contraseña personalizada \n (Por recomendación de seguridad procura que tenga mínimo 11 caracteres, al menos debería de contener: Una mayúscula, una minúscula, un número y un carácter especial: %$#!&/-_.*+). \n Con esto terminaríamos el proceso total del cambio de contraseña.`
+          `*Instrucciones para acceder* \n\n *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* para poder configurar todo correctamente, después del primer inicio de sesión ya puedes configurar tus aplicaciones \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${correoUsuario} \n Paso 4.- Ingresa la contraseña temporal: *SoporteCC1234$*  \n Paso 5.- Una vez que ingreses te va a solicitar que realices el cambio de tu contraseña. En contraseña actual es la contraseña temporal: *SoporteCC1234$* en los siguientes campos vas a generar tu nueva contraseña personalizada \n (Por recomendación de seguridad procura que tenga mínimo 11 caracteres, al menos debería de contener: Una mayúscula, una minúscula, un número y un carácter especial: %$#!&/-_.*+). \n Con esto terminaríamos el proceso total del cambio de contraseña.`
         );
 
         await flowDynamic(
@@ -748,11 +927,9 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
         console.error('❌ Error enviando mensaje final:', error.message);
       }
 
-      // 🔓 LIBERAR ESTADO al finalizar
       await limpiarEstado(state);
     }, 30 * 60000);
 
-    // Guardar ID del timeout en el estado
     await state.update({
       estadoMetadata: {
         ...(await state.getMyState())?.estadoMetadata,
@@ -760,7 +937,6 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
       }
     });
   })
-  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow }) => {
@@ -769,45 +945,212 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo final de autenticador - CORREGIDO (SOLO cuando ya tiene datos) ====
+// ==== Flujo de captura para identificación oficial ====
+const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 3 minutos en identificación');
+        await flowDynamic('⏱️ No recibimos tu identificación. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 3 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaIdentificacion: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    [
+      '📸 *Verificación de Identidad* 📸',
+      '',
+      'Para continuar con el proceso, necesitamos verificar tu identidad.',
+      '',
+      '📋 **Por favor toma una foto CLARA de tu identificación oficial:**',
+      '• INE/IFE',
+      '• Licencia de conducir',
+      '• Pasaporte',
+      '• Credencial escolar con foto',
+      '',
+      '⚠️ **Asegúrate de que:**',
+      '• La foto sea legible',
+      '• Los datos sean visibles',
+      '• La imagen esté bien iluminada',
+      '',
+      '🔒 Tu información está protegida y será usada solo para verificación.'
+    ].join('\n'),
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      if (!esImagenValida(ctx)) {
+        await flowDynamic([
+          '❌ *No recibimos una imagen válida*',
+          '',
+          'Por favor envía una FOTO CLARA de tu identificación oficial:',
+          '',
+          '📷 Toma una foto de:',
+          '• INE/IFE por ambos lados',
+          '• Licencia de conducir',
+          '• Pasaporte',
+          '• Credencial escolar con foto',
+          '',
+          '⚠️ Asegúrate de que se vean claramente tus datos.'
+        ].join('\n'));
+        return gotoFlow(flowCapturaIdentificacion);
+      }
+
+      const infoImagen = obtenerInfoImagen(ctx);
+      const myState = await state.getMyState();
+      
+      await state.update({
+        identificacionSubida: true,
+        infoIdentificacion: infoImagen,
+        timestampIdentificacion: Date.now(),
+        imagenIdentificacion: ctx.message
+      });
+
+      await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
+
+      const userData = {
+        nombre: myState.nombreCompleto || 'Por confirmar',
+        identificacion: myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl,
+        tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
+      };
+
+      await enviarIdentificacionAlAdmin(provider, userData);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowContrasena);
+    }
+  );
+
+// ==== Flujo similar para autenticador ====
+const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 3 minutos en identificación - autenticador');
+        await flowDynamic('⏱️ No recibimos tu identificación. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 3 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaIdentificacion: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    [
+      '📸 *Verificación de Identidad* 📸',
+      '',
+      'Para continuar con la configuración del autenticador, necesitamos verificar tu identidad.',
+      '',
+      '📋 **Por favor toma una foto CLARA de tu identificación oficial:**',
+      '• INE/IFE',
+      '• Licencia de conducir',
+      '• Pasaporte',
+      '• Credencial escolar con foto',
+      '',
+      '⚠️ **Asegúrate de que:**',
+      '• La foto sea legible',
+      '• Los datos sean visibles',
+      '• La imagen esté bien iluminada'
+    ].join('\n'),
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      if (!esImagenValida(ctx)) {
+        await flowDynamic([
+          '❌ *No recibimos una imagen válida*',
+          '',
+          'Por favor envía una FOTO CLARA de tu identificación oficial.',
+          'Esto es necesario por seguridad para configurar tu autenticador.'
+        ].join('\n'));
+        return gotoFlow(flowCapturaIdentificacionAutenticador);
+      }
+
+      const infoImagen = obtenerInfoImagen(ctx);
+      const myState = await state.getMyState();
+      
+      await state.update({
+        identificacionSubida: true,
+        infoIdentificacion: infoImagen,
+        timestampIdentificacion: Date.now(),
+        imagenIdentificacion: ctx.message
+      });
+
+      await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
+
+      const userData = {
+        nombre: myState.nombreCompleto || 'Por confirmar',
+        identificacion: myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl,
+        tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
+      };
+
+      await enviarIdentificacionAlAdmin(provider, userData);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowAutenticador);
+    }
+  );
+
+// ==== Flujo final de autenticador ====
 const flowAutenticador = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, provider }) => {
-    // ⚡ Excluir administrador
+  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
     const myState = (await state.getMyState()) || {};
     const nombreCompleto = myState.nombreCompleto;
     const numeroControl = myState.numeroControl;
+    const correoInstitucional = myState.correoInstitucional;
+    const esTrabajador = myState.esTrabajador;
 
-    if (!nombreCompleto || !numeroControl) {
+    if (!nombreCompleto || (!numeroControl && !correoInstitucional)) {
       console.log('❌ Datos incompletos, redirigiendo a captura...');
       await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
-      return gotoFlow(flowCapturaNumeroControlAutenticador);
+      return gotoFlow(flowSubMenuAutenticador);
     }
 
-    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
     await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
       tipo: "🔑 Configuración de Autenticador",
-      inicio: Date.now()
+      inicio: Date.now(),
+      esTrabajador: esTrabajador || false
     });
 
     const phone = ctx.from;
+    const identificacion = esTrabajador ? correoInstitucional : numeroControl;
+    const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
-    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
     if (envioExitoso) {
-      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.');
+      await flowDynamic('⏳ Permítenos un momento, vamos a desconfigurar tu autenticador... \n\n Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.');
     } else {
       await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
     }
 
     let minutosRestantes = 30;
 
-    // Aviso cada 10 minutos
     const intervalId = setInterval(async () => {
       minutosRestantes -= 10;
       if (minutosRestantes > 0) {
@@ -815,7 +1158,6 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
       }
     }, 10 * 60000);
 
-    // Guardar ID del intervalo
     await state.update({
       estadoMetadata: {
         ...(await state.getMyState())?.estadoMetadata,
@@ -823,7 +1165,6 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
       }
     });
 
-    // Mensaje final después de 30 minutos
     const timeoutId = setTimeout(async () => {
       clearInterval(intervalId);
 
@@ -831,25 +1172,26 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
         await flowDynamic(
           '✅ Se desconfiguró correctamente el autenticador de dos factores'
         );
-        console.log(`✅ Autenticador desconfigurado correctamente para *${nombreCompleto}* con matrícula *${numeroControl}*`);
+
+        const correoUsuario = esTrabajador ? correoInstitucional : `${numeroControl}@aguascalientes.tecnm.mx`;
+
+        console.log(`✅ Autenticador desconfigurado correctamente para *${nombreCompleto}* - ${esTrabajador ? 'Correo' : 'Matrícula'}: *${identificacion}*`);
 
         await flowDynamic(
-          `*Es importante que estos pasos los realices en una computadora*,\nya que necesitarás tu celular y tu computadora para poder configurar el autenticador. \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${numeroControl}@aguascalientes.tecnm.mx \n Paso 4.- Tu contraseña con la que ingresas normalmente \n Paso 5.- Te va a aparecer una página en donde vas a reconfigurar tu autenticador, sigue los pasos que se te mostrarán en la pantalla. Necesitarás configurar la aplicación de autenticador y también debes de ingresar un número de teléfono.`
+          `*Es importante que estos pasos los realices en una computadora*,\nya que necesitarás tu celular y tu computadora para poder configurar el autenticador. \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${correoUsuario} \n Paso 4.- Tu contraseña con la que ingresas normalmente \n Paso 5.- Te va a aparecer una página en donde vas a reconfigurar tu autenticador, sigue los pasos que se te mostrarán en la pantalla. Necesitarás configurar la aplicación de autenticador y también debes de ingresar un número de teléfono.`
         );
 
         await flowDynamic(
-          '🔐 Por seguridad, por seguridad será necesario configurar un nuevo método de autenticación al iniciar sesión.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
+          '🔐 Por seguridad, será necesario configurar un nuevo método de autenticación al iniciar sesión.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
         );
 
       } catch (error) {
         console.error('❌ Error enviando mensaje final:', error.message);
       }
 
-      // 🔓 LIBERAR ESTADO al finalizar
       await limpiarEstado(state);
     }, 30 * 60000);
 
-    // Guardar ID del timeout
     await state.update({
       estadoMetadata: {
         ...(await state.getMyState())?.estadoMetadata,
@@ -857,7 +1199,6 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
       }
     });
   })
-  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow }) => {
@@ -866,13 +1207,11 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo final de SIE - CORREGIDO (SOLO cuando ya tiene datos) ====
+// ==== Flujo final de SIE ====
 const flowFinSIE = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, provider }) => {
-    // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
     const myState = (await state.getMyState()) || {};
     const nombreCompleto = myState.nombreCompleto;
     const numeroControl = myState.numeroControl;
@@ -883,7 +1222,6 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
       return gotoFlow(flowCapturaNumeroControlSIE);
     }
 
-    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
     await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
       tipo: "📊 Sincronización de Datos SIE",
       inicio: Date.now()
@@ -891,7 +1229,6 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
 
     const phone = ctx.from;
 
-    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
     const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE SINCRONIZACIÓN DE DATOS*\nNo le aparece el horario ni las materias en el SIE 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ Reacciona para validar que está listo`;
 
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
@@ -904,7 +1241,6 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
 
     let minutosRestantes = 30;
 
-    // Aviso cada 10 minutos
     const intervalId = setInterval(async () => {
       minutosRestantes -= 10;
       if (minutosRestantes > 0) {
@@ -912,7 +1248,6 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
       }
     }, 10 * 60000);
 
-    // Guardar ID del intervalo
     await state.update({
       estadoMetadata: {
         ...(await state.getMyState())?.estadoMetadata,
@@ -920,7 +1255,6 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
       }
     });
 
-    // Mensaje final después de 30 minutos
     const timeoutId = setTimeout(async () => {
       clearInterval(intervalId);
 
@@ -936,11 +1270,9 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
         console.error('❌ Error enviando mensaje final:', error.message);
       }
 
-      // 🔓 LIBERAR ESTADO al finalizar
       await limpiarEstado(state);
     }, 30 * 60000);
 
-    // Guardar ID del timeout
     await state.update({
       estadoMetadata: {
         ...(await state.getMyState())?.estadoMetadata,
@@ -948,7 +1280,6 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
       }
     });
   })
-  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow }) => {
@@ -957,292 +1288,7 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo de espera para menú principal ====
-const flowEsperaMenu = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⌛ Tiempo agotado en menú principal.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
-      await state.clear();
-    }, 5 * 60 * 1000);
-
-    await state.update({ timeoutMenu: timeout });
-  })
-  .addAnswer(
-    '🔙 Escribe *menú* para volver a ver el menú principal.',
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (/^men[uú]$/i.test(input)) {
-        clearTimeout(await state.get('timeoutMenu'));
-        await state.clear();
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (input === 'hola') {
-        clearTimeout(await state.get('timeoutMenu'));
-        await state.clear();
-        return gotoFlow(flowPrincipal);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *menú* para volver al menú principal.');
-      return gotoFlow(flowEsperaMenu);
-    }
-  );
-
-// ==== Flujo de espera para principal ====
-const flowEsperaPrincipal = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⌛ Tiempo agotado en flujo principal.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
-      await state.clear();
-    }, 5 * 60 * 1000);
-
-    await state.update({ timeoutPrincipal: timeout });
-  })
-  .addAnswer(
-    '🔙 Escribe *menú* para ver el menú principal.',
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (/^men[uú]$/i.test(input)) {
-        clearTimeout(await state.get('timeoutPrincipal'));
-        await state.clear();
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (input === 'hola') {
-        clearTimeout(await state.get('timeoutPrincipal'));
-        await state.clear();
-        return gotoFlow(flowPrincipal);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *menú* para ver el menú principal.');
-      return gotoFlow(flowEsperaPrincipal);
-    }
-  );
-
-// ==== Flujo de espera para SIE ====
-const flowEsperaSIE = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⌛ Tiempo agotado en proceso SIE.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
-      await state.clear();
-    }, 5 * 60 * 1000);
-
-    await state.update({ timeoutSIE: timeout });
-  })
-  .addAnswer(
-    '🔙 Escribe *menú* para regresar al menú principal.',
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (/^men[uú]$/i.test(input)) {
-        clearTimeout(await state.get('timeoutSIE'));
-        await state.clear();
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (input === 'hola') {
-        clearTimeout(await state.get('timeoutSIE'));
-        await state.clear();
-        return gotoFlow(flowPrincipal);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
-      return gotoFlow(flowEsperaSIE);
-    }
-  );
-
-// ==== Flujo de espera para restablecimiento de contraseña ====
-const flowEsperaContrasena = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⌛ Tiempo agotado en restablecimiento de contraseña.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
-      await state.clear();
-    }, 5 * 60 * 1000);
-
-    await state.update({ timeoutContrasena: timeout });
-  })
-  .addAnswer(
-    '🔙 Escribe *menú* para regresar al menú principal.',
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (/^men[uú]$/i.test(input)) {
-        clearTimeout(await state.get('timeoutContrasena'));
-        await state.clear();
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (input === 'hola') {
-        clearTimeout(await state.get('timeoutContrasena'));
-        await state.clear();
-        return gotoFlow(flowPrincipal);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
-      return gotoFlow(flowEsperaContrasena);
-    }
-  );
-
-// ==== Flujo de espera para restablecimiento de autenticador ====
-const flowEsperaAutenticador = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⌛ Tiempo agotado en restablecimiento de autenticador.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
-      await state.clear();
-    }, 5 * 60 * 1000);
-
-    await state.update({ timeoutAutenticador: timeout });
-  })
-  .addAnswer(
-    '🔙 Escribe *menú* para regresar al menú principal.',
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (/^men[uú]$/i.test(input)) {
-        clearTimeout(await state.get('timeoutAutenticador'));
-        await state.clear();
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (input === 'hola') {
-        clearTimeout(await state.get('timeoutAutenticador'));
-        await state.clear();
-        return gotoFlow(flowPrincipal);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
-      return gotoFlow(flowEsperaAutenticador);
-    }
-  );
-
-// ==== Flujo de espera para menú Educación a Distancia ====
-const flowEsperaMenuDistancia = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⌛ Tiempo agotado en espera de menú Educación a Distancia.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
-      await state.clear();
-    }, 5 * 60 * 1000);
-
-    await state.update({ timeoutMenuDistancia: timeout });
-  })
-  .addAnswer(
-    '🔙 Escribe *menú* para regresar al menú principal.',
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (/^men[uú]$/i.test(input)) {
-        clearTimeout(await state.get('timeoutMenuDistancia'));
-        await state.clear();
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (input === 'hola') {
-        clearTimeout(await state.get('timeoutMenuDistancia'));
-        await state.clear();
-        return gotoFlow(flowPrincipal);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
-      return gotoFlow(flowEsperaMenuDistancia);
-    }
-  );
-
-// ==== Flujo de espera para menú SIE ====
-const flowEsperaMenuSIE = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⌛ Tiempo agotado en espera de menú SIE.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
-      await state.clear();
-    }, 5 * 60 * 1000);
-
-    await state.update({ timeoutMenuSIE: timeout });
-  })
-  .addAnswer(
-    '🔙 Escribe *menú* para regresar al menú principal.',
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (/^men[uú]$/i.test(input)) {
-        clearTimeout(await state.get('timeoutMenuSIE'));
-        await state.clear();
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (input === 'hola') {
-        clearTimeout(await state.get('timeoutMenuSIE'));
-        await state.clear();
-        return gotoFlow(flowPrincipal);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
-      return gotoFlow(flowEsperaMenuSIE);
-    }
-  );
-
-// ==== Flujo de acceso al SIE - CORREGIDO ====
-const flowSIE = addKeyword(['sie']).addAnswer(
-  '📚 Acceso al SIE\n' +
-  'Por favor selecciona una opción:\n\n' +
-  '1️⃣ Restablecer contraseña de acceso\n' +
-  '2️⃣ No puedo ver mi horario o calificaciones\n\n' +
-  '🔙 Escribe *menú* para volver al menú principal.',
-  { capture: true },
-  async (ctx, { flowDynamic, gotoFlow, state }) => { // 🔧 AGREGAR state aquí
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    const opcion = ctx.body.trim().toLowerCase();
-
-    if (opcion === 'menu' || opcion === 'menú') {
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-    }
-
-    if (opcion === '1') {
-      await flowDynamic(
-        '🔐 Para restablecer tu contraseña de acceso al SIE, por favor comunícate con tu *Coordinador de Carrera*. Ellos podrán asistirte directamente con el restablecimiento.'
-      );
-      return gotoFlow(flowEsperaMenuSIE);
-    }
-
-    if (opcion === '2') {
-      return gotoFlow(flowrestablecerSIE);
-    }
-
-    await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
-    return gotoFlow(flowSIE);
-  }
-);
-
-// ==== Flujo de captura con timeout - CORREGIDO ====
+// ==== Flujo de captura con timeout ====
 const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1251,11 +1297,7 @@ const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
       try {
         console.log('⏱️ Timeout de 2 minutos en número de control');
         await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-
-        // 🔧 LIMPIAR ESTADO COMPLETAMENTE
         await limpiarEstado(state);
-
-        // 🔧 REDIRIGIR AL MENÚ PRINCIPAL
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       } catch (error) {
         console.error('❌ Error en timeout de captura:', error);
@@ -1273,7 +1315,6 @@ const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      // 🔧 LIMPIAR TIMEOUT INMEDIATAMENTE
       timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim().toLowerCase();
@@ -1296,7 +1337,6 @@ const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
       await state.update({ numeroControl: input });
       await flowDynamic(`✅ Recibimos tu número de control: *${input}*`);
 
-      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowCapturaNombre);
     }
@@ -1304,14 +1344,24 @@ const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
 
 // ==== Flujo de captura para autenticador ====
 const flowCapturaNumeroControlAutenticador = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic, gotoFlow }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⏱️ Timeout de 2 minutos en número de control - autenticador');
-      await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en número de control - autenticador');
+        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
     }, 2 * 60 * 1000);
 
-    await state.update({ timeoutCaptura: timeout });
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
   })
   .addAnswer(
     '📝 Por favor escribe tu *número de control*:',
@@ -1319,7 +1369,7 @@ const flowCapturaNumeroControlAutenticador = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      clearTimeout(await state.get('timeoutCaptura'));
+      timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim().toLowerCase();
 
@@ -1345,14 +1395,24 @@ const flowCapturaNumeroControlAutenticador = addKeyword(EVENTS.ACTION)
 
 // ==== Flujo de captura para SIE ====
 const flowCapturaNumeroControlSIE = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic, gotoFlow }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⏱️ Timeout de 2 minutos en número de control - SIE');
-      await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en número de control - SIE');
+        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
     }, 2 * 60 * 1000);
 
-    await state.update({ timeoutCaptura: timeout });
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
   })
   .addAnswer(
     '📝 Por favor escribe tu *número de control*:',
@@ -1360,7 +1420,7 @@ const flowCapturaNumeroControlSIE = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      clearTimeout(await state.get('timeoutCaptura'));
+      timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim();
 
@@ -1385,27 +1445,22 @@ const flowCapturaNumeroControlSIE = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo de captura para nombre (contraseña) ====
-const flowCapturaNombre = addKeyword(EVENTS.ACTION)
+// ==== Flujo de captura para nombre (TRABAJADOR) ====
+const flowCapturaNombreTrabajador = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
     const timeout = timeoutManager.setTimeout(userPhone, async () => {
       try {
-        console.log('⏱️ Timeout de 2 minutos en nombre completo - contraseña');
+        console.log('⏱️ Timeout de 2 minutos en nombre trabajador');
         await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-
-        // 🔧 LIMPIAR ESTADO COMPLETAMENTE
         await limpiarEstado(state);
-
-        // 🔧 REDIRIGIR AL MENÚ PRINCIPAL
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       } catch (error) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
 
-    // Guardar el timeout ID en el estado
     await state.update({
       timeoutCapturaNombre: timeout,
       ultimaInteraccion: Date.now()
@@ -1417,7 +1472,120 @@ const flowCapturaNombre = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      // 🔧 LIMPIAR TIMEOUT INMEDIATAMENTE
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNombreTrabajador);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowCapturaNombreTrabajador);
+      }
+
+      if (input.length < 3) {
+        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
+        return gotoFlow(flowCapturaNombreTrabajador);
+      }
+
+      const myState = (await state.getMyState()) || {};
+      const correoInstitucional = myState.correoInstitucional;
+
+      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu correo institucional: *${correoInstitucional}*`);
+      await state.update({ nombreCompleto: input });
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaIdentificacion);
+    }
+  );
+
+// ==== Flujo de captura para nombre (TRABAJADOR - AUTENTICADOR) ====
+const flowCapturaNombreTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre trabajador - autenticador');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+      }
+
+      if (input.length < 3) {
+        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
+        return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+      }
+
+      const myState = (await state.getMyState()) || {};
+      const correoInstitucional = myState.correoInstitucional;
+
+      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu correo institucional: *${correoInstitucional}*`);
+      await state.update({ nombreCompleto: input });
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaIdentificacionAutenticador);
+    }
+  );
+
+// ==== Flujo de captura para nombre (contraseña) ====
+const flowCapturaNombre = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre completo - contraseña');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
       timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim();
@@ -1443,22 +1611,31 @@ const flowCapturaNombre = addKeyword(EVENTS.ACTION)
       await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu número de control: *${numeroControl}*`);
       await state.update({ nombreCompleto: input });
 
-      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
       timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowContrasena);
+      return gotoFlow(flowCapturaIdentificacion);
     }
   );
 
 // ==== Flujo de captura para nombre (autenticador) ====
 const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic, gotoFlow }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⏱️ Timeout de 2 minutos en nombre completo - autenticador');
-      await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre completo - autenticador');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
     }, 2 * 60 * 1000);
 
-    await state.update({ timeoutCaptura: timeout });
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
   })
   .addAnswer(
     '📝 Por favor escribe tu *nombre completo*:',
@@ -1466,7 +1643,7 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      clearTimeout(await state.get('timeoutCaptura'));
+      timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim();
 
@@ -1490,20 +1667,30 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
 
       await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu número de control: *${numeroControl}*`);
       await state.update({ nombreCompleto: input });
-      return gotoFlow(flowAutenticador);
+      return gotoFlow(flowCapturaIdentificacionAutenticador);
     }
   );
 
 // ==== Flujo de captura para nombre (SIE) ====
 const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
-  .addAction(async (_, { state, flowDynamic, gotoFlow }) => {
-    const timeout = setTimeout(async () => {
-      console.log('⏱️ Timeout de 2 minutos en nombre completo - SIE');
-      await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre completo - SIE');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
     }, 2 * 60 * 1000);
 
-    await state.update({ timeoutCaptura: timeout });
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
   })
   .addAnswer(
     '📝 Por favor escribe tu *nombre completo*:',
@@ -1511,7 +1698,7 @@ const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      clearTimeout(await state.get('timeoutCaptura'));
+      timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim();
 
@@ -1543,13 +1730,13 @@ const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
 const flowrestablecercontrase = addKeyword(['restablecer']).addAnswer(
   [
     '📄 Vamos a comenzar a restablecer la contraseña de tu correo institucional',
-    '\n🚨 Ahora necesitamos tu número de control para continuar.',
+    '\n👥 Primero necesitamos saber tu tipo de usuario.',
     '\n🔙 Escribe *menú* para volver a ver el menú.'
   ],
   null,
   async (ctx, { gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
-    return gotoFlow(flowCapturaNumeroControl);
+    return gotoFlow(flowSubMenuContrasena);
   }
 );
 
@@ -1557,13 +1744,13 @@ const flowrestablecercontrase = addKeyword(['restablecer']).addAnswer(
 const flowrestablecerautenti = addKeyword(['autenticador']).addAnswer(
   [
     '📄 Vamos a comenzar a configurar tu autenticador',
-    '\n🚨 Ahora necesitamos tu número de control para continuar.',
+    '\n👥 Primero necesitamos saber tu tipo de usuario.',
     '\n🔙 Escribe *menú* para volver a ver el menú.'
   ],
   null,
   async (ctx, { gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
-    return gotoFlow(flowCapturaNumeroControlAutenticador);
+    return gotoFlow(flowSubMenuAutenticador);
   }
 );
 
@@ -1618,44 +1805,40 @@ const flowDistancia = addKeyword(['Moodle'])
     return gotoFlow(flowEsperaMenuDistancia);
   });
 
-// ==== Función auxiliar para detectar saludos - NUEVA ====
-function esSaludoValido(texto) {
-  if (!texto || typeof texto !== 'string') return false;
+// ==== Flujo de acceso al SIE ====
+const flowSIE = addKeyword(['sie']).addAnswer(
+  '📚 Acceso al SIE\n' +
+  'Por favor selecciona una opción:\n\n' +
+  '1️⃣ Restablecer contraseña de acceso\n' +
+  '2️⃣ No puedo ver mi horario o calificaciones\n\n' +
+  '🔙 Escribe *menú* para volver al menú principal.',
+  { capture: true },
+  async (ctx, { flowDynamic, gotoFlow, state }) => {
+    if (ctx.from === CONTACTO_ADMIN) return;
 
-  const textoLimpio = texto.toLowerCase().trim();
-  const saludos = [
-    'hola', 'ole', 'alo', 'inicio', 'Inicio', 'comenzar', 'empezar',
-    'buenos días', 'buenas tardes', 'buenas noches',
-    'buenos dias', 'buenas tardes', 'buenas noches',
-    'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.',
-    'buenos días, tengo un problema', 'buenas tardes, tengo un problema',
-    'buenas noches, tengo un problema', 'buenos días tengo un problema',
-    'buenas tardes tengo un problema', 'buenas noches tengo un problema',
-    'tengo un problema', 'necesito ayuda', 'ayuda', 'tengo un problema con mi cuenta',
-    'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso',
-    'Hola buenas tardes necesito restablecer contraseña del correo institucional',
-    'Hola buenas noches necesito restablecer contraseña del correo institucional',
-    'Hola buenos días necesito restablecer contraseña del correo institucional',
-    'Hola buenas tardes necesito restablecer autenticador',
-    'Hola buenas noches necesito restablecer autenticador',
-    'Hola buenos días necesito restablecer autenticador',
-    'Hola buenas tardes mi cuenta me está solicitando un código de seguridad',
-    'Hola buenas noches mi cuenta me está solicitando un código de seguridad',
-    'Hola buenos días mi cuenta me está solicitando un código de seguridad',
-    'Hola buenas tardes no puedo acceder a mi cuenta',
-    'Hola buenas noches no puedo acceder a mi cuenta',
-    'Hola buenos dias, cambie de celular y no puedo acceder a mi cuenta',
-    'Hola buenas tardes, cambie de celular y no puedo acceder a mi cuenta',
-    'Hola buenas noches, cambie de celular y no puedo acceder a mi cuenta',
-    'Hola buenas tardes, tengo un problema con mi cuenta',
-    'Hola buenas noches, tengo un problema con mi cuenta',
-    'Hola buenos días, tengo un problema con mi cuenta'
-  ];
+    const opcion = ctx.body.trim().toLowerCase();
 
-  return saludos.some(saludo => textoLimpio.includes(saludo));
-}
+    if (opcion === 'menu' || opcion === 'menú') {
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+    }
 
-// ==== Flujo principal (CORREGIDO) ====
+    if (opcion === '1') {
+      await flowDynamic(
+        '🔐 Para restablecer tu contraseña de acceso al SIE, por favor comunícate con tu *Coordinador de Carrera*. Ellos podrán asistirte directamente con el restablecimiento.'
+      );
+      return gotoFlow(flowEsperaMenuSIE);
+    }
+
+    if (opcion === '2') {
+      return gotoFlow(flowrestablecerSIE);
+    }
+
+    await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+    return gotoFlow(flowSIE);
+  }
+);
+
+// ==== Flujo principal ====
 const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', 'Hola', '.', 'Buenas tardes, tengo un problema', 'Buenas noches, tengo un problema', 'Buenos días, tengo un problema', 'buenas tardes tengo un problema', 'buenas noches tengo un problema', 'buenos días tengo un problema'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -1698,11 +1881,6 @@ const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'e
 
       const opcion = ctx.body.trim()
 
-      /*
-      if (ctx.body.toLowerCase() === 'estado' || ctx.body.toLowerCase() === 'cancelar' || ctx.body.toLowerCase() === 'ayuda') {
-        return gotoFlow(flowComandosEspeciales);
-      }*/
-
       if (!isValidText(opcion) || !['1', '2', '3', '4'].includes(opcion)) {
         await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3* o *4*.')
         return gotoFlow(flowEsperaPrincipal)
@@ -1715,7 +1893,7 @@ const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'e
     }
   )
 
-// ==== Flujo de menú (CORREGIDO) ====
+// ==== Flujo de menú ====
 const flowMenu = addKeyword(['menu', 'menú'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -1764,11 +1942,11 @@ const flowMenu = addKeyword(['menu', 'menú'])
     }
   )
 
-// ==== Flujo para comandos especiales durante procesos (SIMPLIFICADO) ====
-const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
+// ==== Flujo para comandos especiales ====
+const flowComandosEspeciales = addKeyword(['estado'])
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
-    
+
     const myState = await state.getMyState();
     const comando = ctx.body.toLowerCase();
 
@@ -1778,7 +1956,7 @@ const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
         const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
         const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
         const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-        
+
         await flowDynamic([
           '📊 **Estado del Proceso**',
           '',
@@ -1795,16 +1973,83 @@ const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
     }
-    
-    // 🔧 Siempre regresar al flujo de bloqueo después de mostrar estado
+
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       return gotoFlow(flowBloqueoActivo);
     }
-    
+
     return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
   });
 
-// ==== VERIFICACIÓN DE LA BASE DE DATOS - SIMPLIFICADA ====
+// ==== Flujos de espera (simplificados) ====
+const crearFlujoEspera = (nombre, mensaje) => {
+  return addKeyword(EVENTS.ACTION)
+    .addAction(async (ctx, { state, flowDynamic }) => {
+      const timeout = setTimeout(async () => {
+        console.log(`⌛ Tiempo agotado en ${nombre}.`);
+        await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+        await limpiarEstado(state);
+      }, 5 * 60 * 1000);
+
+      await state.update({ [`timeout${nombre}`]: timeout });
+    })
+    .addAnswer(
+      mensaje,
+      { capture: true },
+      async (ctx, { gotoFlow, flowDynamic, state }) => {
+        if (ctx.from === CONTACTO_ADMIN) return;
+
+        const input = ctx.body.trim().toLowerCase();
+
+        if (/^men[uú]$/i.test(input)) {
+          clearTimeout(await state.get(`timeout${nombre}`));
+          await limpiarEstado(state);
+          return gotoFlow(flowMenu);
+        }
+
+        if (input === 'hola') {
+          clearTimeout(await state.get(`timeout${nombre}`));
+          await limpiarEstado(state);
+          return gotoFlow(flowPrincipal);
+        }
+
+        await flowDynamic('❌ Opción no válida. Escribe *menú* para volver al menú principal.');
+        return gotoFlow(flowEsperaMenu);
+      }
+    );
+};
+
+const flowEsperaPrincipal = crearFlujoEspera('Principal', '🔙 Escribe *menú* para ver el menú principal.');
+const flowEsperaMenu = crearFlujoEspera('Menu', '🔙 Escribe *menú* para volver a ver el menú principal.');
+const flowEsperaSIE = crearFlujoEspera('SIE', '🔙 Escribe *menú* para regresar al menú principal.');
+const flowEsperaContrasena = crearFlujoEspera('Contrasena', '🔙 Escribe *menú* para regresar al menú principal.');
+const flowEsperaAutenticador = crearFlujoEspera('Autenticador', '🔙 Escribe *menú* para regresar al menú principal.');
+const flowEsperaMenuDistancia = crearFlujoEspera('MenuDistancia', '🔙 Escribe *menú* para regresar al menú principal.');
+const flowEsperaMenuSIE = crearFlujoEspera('MenuSIE', '🔙 Escribe *menú* para regresar al menú principal.');
+
+// ==== Flujo para mensajes no entendidos ====
+const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+  if (ctx.from === CONTACTO_ADMIN) return;
+
+  await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
+
+  if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+    return;
+  }
+
+  await flowDynamic([
+    '🤖 No entiendo ese tipo de mensajes.',
+    '',
+    '💡 **Comandos disponibles:**',
+    '• *hola* - Reactivar el bot',
+    '• *menú* - Ver opciones principales',
+    '• *estado* - Ver progreso de procesos',
+    '',
+    '🔙 Escribe *hola* para comenzar de nuevo.'
+  ])
+});
+
+// ==== VERIFICACIÓN DE LA BASE DE DATOS ====
 async function verificarBaseDeDatos() {
   try {
     console.log('🔍 Verificando conexión a MySQL...');
@@ -1819,7 +2064,6 @@ async function verificarBaseDeDatos() {
       return false;
     }
 
-    // Verificar que la tabla existe
     try {
       const [tablas] = await connection.execute(`
         SELECT TABLE_NAME 
@@ -1860,95 +2104,59 @@ async function verificarBaseDeDatos() {
   }
 }
 
-// ==== Flujo para mensajes no entendidos - ACTUALIZADO ====
-const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
-  if (ctx.from === CONTACTO_ADMIN) return;
-
-  // Reiniciar inactividad incluso en mensajes no entendidos
-  await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
-
-  if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-    return;
-  }
-
-  await flowDynamic([
-    '🤖 No entiendo ese tipo de mensajes.',
-    '',
-    '💡 **Comandos disponibles:**',
-    '• *hola* - Reactivar el bot',
-    '• *menú* - Ver opciones principales',
-    '• *estado* - Ver progreso de procesos',
-    '',
-    '🔙 Escribe *hola* para comenzar de nuevo.'
-  ])
-});
-
-// ==== Inicialización CORREGIDA ====
+// ==== Inicialización ====
 const main = async () => {
   try {
     console.log('🚀 Iniciando bot de WhatsApp...');
 
-    // Verificar la base de datos antes de iniciar
     const dbOk = await verificarBaseDeDatos();
     if (!dbOk) {
       console.log('⚠️ Modo sin base de datos - Los estados no persistirán');
     } else {
       console.log('🎯 Base de datos lista - Estados persistirán correctamente');
-      // Inicializar nuestra conexión
       await inicializarMySQL();
     }
 
     const adapterFlow = createFlow([
-      // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN (PRIMERO) ====================
-      flowBlockAdmin,           // 1️⃣ Bloquea admin inmediatamente
-      flowInterceptorGlobal,    // 2️⃣ Maneja inactividad, restaura estados
-      flowComandosEspeciales,   // 3️⃣ Comandos globales (estado, cancelar, ayuda)
-
-      // ==================== 🎯 FLUJOS PRINCIPALES DE USUARIO ====================
-      flowPrincipal,            // 4️⃣ Saludos e inicio (hola, buenos días, etc.)
-      flowMenu,                 // 5️⃣ Menú principal
-
-      // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
-      flowCapturaNumeroControl, // 6️⃣ Captura número control (contraseña)
-      flowCapturaNombre,        // 7️⃣ Captura nombre (contraseña)
-      flowCapturaNumeroControlAutenticador, // 8️⃣ Captura número control (autenticador)
-      flowCapturaNombreAutenticador,        // 9️⃣ Captura nombre (autenticador)
-      flowCapturaNumeroControlSIE,          // 🔟 Captura número control (SIE)
-      flowCapturaNombreSIE,                 // 1️⃣1️⃣ Captura nombre (SIE)
-
-      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
-      flowDistancia,            // 1️⃣2️⃣ Educación a distancia (sin captura)
-      flowGracias,              // 1️⃣3️⃣ Agradecimiento
-      flowSIE,                  // 1️⃣4️⃣ Menú SIE
-
-      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
-      flowrestablecercontrase,  // 1️⃣5️⃣ Inicia proceso contraseña
-      flowrestablecerautenti,   // 1️⃣6️⃣ Inicia proceso autenticador
-      flowrestablecerSIE,       // 1️⃣7️⃣ Inicia proceso SIE
-
-      // ==================== ⏳ FLUJOS FINALES (BLOQUEAN USUARIO) ====================
-      flowContrasena,           // 1️⃣8️⃣ Proceso largo contraseña
-      flowAutenticador,         // 1️⃣9️⃣ Proceso largo autenticador
-      flowFinSIE,               // 2️⃣0️⃣ Proceso largo SIE
-      flowBloqueoActivo,        // 2️⃣1️⃣ Maneja estado bloqueado
-
-      // ==================== 🕒 FLUJOS DE ESPERA ====================
-      flowEsperaPrincipal,      // 2️⃣2️⃣ Espera después del flow principal
-      flowEsperaMenu,           // 2️⃣3️⃣ Espera después del menú
-      flowEsperaSIE,            // 2️⃣4️⃣ Espera después de SIE
-      flowEsperaContrasena,     // 2️⃣5️⃣ Espera después de contraseña
-      flowEsperaAutenticador,   // 2️⃣6️⃣ Espera después de autenticador
-      flowEsperaMenuDistancia,  // 2️⃣7️⃣ Espera después de educación distancia
-      flowEsperaMenuSIE,        // 2️⃣8️⃣ Espera después de menú SIE
-
-      // ==================== ❓ FLUJO POR DEFECTO (ÚLTIMO) ====================
-      flowDefault               // 2️⃣9️⃣ Mensajes no entendidos (SIEMPRE ÚLTIMO)
+      flowBlockAdmin,
+      flowInterceptorGlobal,
+      flowComandosEspeciales,
+      flowPrincipal,
+      flowMenu,
+      flowCapturaNumeroControl,
+      flowCapturaNombre,
+      flowCapturaNumeroControlAutenticador,
+      flowCapturaNombreAutenticador,
+      flowCapturaNumeroControlSIE,
+      flowCapturaNombreSIE,
+      flowCapturaCorreoTrabajador,
+      flowCapturaNombreTrabajador,
+      flowCapturaCorreoTrabajadorAutenticador,
+      flowCapturaNombreTrabajadorAutenticador,
+      flowCapturaIdentificacion,
+      flowCapturaIdentificacionAutenticador,
+      flowDistancia,
+      flowGracias,
+      flowSIE,
+      flowrestablecercontrase,
+      flowrestablecerautenti,
+      flowrestablecerSIE,
+      flowContrasena,
+      flowAutenticador,
+      flowFinSIE,
+      flowBloqueoActivo,
+      flowEsperaPrincipal,
+      flowEsperaMenu,
+      flowEsperaSIE,
+      flowEsperaContrasena,
+      flowEsperaAutenticador,
+      flowEsperaMenuDistancia,
+      flowEsperaMenuSIE,
+      flowDefault
     ])
 
-    // ==== MEJORA EN LA CONFIGURACIÓN DEL PROVIDER ====
     const adapterProvider = createProvider(BaileysProvider, {
       printQRInTerminal: true,
-      // 🔧 CONFIGURACIONES ADICIONALES DE ESTABILIDAD
       auth: {
         creds: {},
         keys: {}
@@ -1958,18 +2166,15 @@ const main = async () => {
       },
       markOnlineOnConnect: true,
       generateHighQualityLinkPreview: true,
-      // 🔧 CONFIGURACIONES DE RECONEXIÓN MEJORADAS
       reconnect: true,
       maxRetries: 10,
       connectTimeout: 30000,
       keepAliveInterval: 15000,
-      // Manejo de errores mejorado
       getMessage: async (key) => {
         return {
           conversation: 'mensaje no disponible'
         }
       },
-      // Configuración para evitar desconexiones
       emitOwnEvents: true,
       defaultQueryTimeoutMs: 60000
     });
