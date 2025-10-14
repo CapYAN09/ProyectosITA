@@ -452,7 +452,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   return false;
 }
 
-// ==== Función para enviar identificación al admin - MEJORADA ====
+// ==== Función para enviar identificación al admin - COMPLETAMENTE MEJORADA ====
 async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
   if (!provider || !ctx) {
     console.error('❌ Provider o contexto no disponible')
@@ -468,31 +468,100 @@ async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
     }
 
     // Enviar mensaje informativo primero
-    const mensajeInfo = `📸 IDENTIFICACIÓN RECIBIDA\n\n👤 Nombre: ${userData.nombre}\n📧 ${userData.tipo}: ${userData.identificacion}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n📱 Tipo de medio: ${ctx.message?.type || 'Desconocido'}`;
+    const mensajeInfo = `📸 IDENTIFICACIÓN RECIBIDA\n\n👤 Nombre: ${userData.nombre}\n📧 ${userData.tipo}: ${userData.identificacion}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}`;
     
     await sock.sendMessage(CONTACTO_ADMIN, {
       text: mensajeInfo
     });
 
-    // Intentar reenviar el medio
+    console.log('🔍 Intentando reenviar medio...');
+    console.log('📸 Contexto completo:', JSON.stringify(ctx, null, 2).substring(0, 1000));
+
+    // INTENTO 1: Reenviar usando forward
     try {
-      console.log('🔄 Intentando reenviar medio al administrador...');
+      console.log('🔄 Intento 1: Reenviando con forward...');
       await sock.sendMessage(CONTACTO_ADMIN, {
         forward: ctx.key
       });
-      console.log('✅ Medio reenviado correctamente al administrador');
+      console.log('✅ Medio reenviado correctamente con forward');
       return true;
     } catch (forwardError) {
-      console.error('❌ Error reenviando medio:', forwardError.message);
+      console.log('❌ Falló forward:', forwardError.message);
       
-      // Enviar mensaje de fallback
+      // INTENTO 2: Si es imageMessage, construir mensaje manualmente
+      if (ctx.message?.imageMessage) {
+        try {
+          console.log('🔄 Intento 2: Enviando imageMessage manualmente...');
+          await sock.sendMessage(CONTACTO_ADMIN, {
+            image: ctx.message.imageMessage,
+            caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`
+          });
+          console.log('✅ ImageMessage enviado manualmente');
+          return true;
+        } catch (imageError) {
+          console.log('❌ Falló imageMessage manual:', imageError.message);
+        }
+      }
+      
+      // INTENTO 3: Si es documentMessage con imagen
+      if (ctx.message?.documentMessage && ctx.message.documentMessage.mimetype?.startsWith('image/')) {
+        try {
+          console.log('🔄 Intento 3: Enviando documentMessage manualmente...');
+          await sock.sendMessage(CONTACTO_ADMIN, {
+            document: ctx.message.documentMessage,
+            caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`,
+            mimetype: ctx.message.documentMessage.mimetype
+          });
+          console.log('✅ DocumentMessage enviado manualmente');
+          return true;
+        } catch (docError) {
+          console.log('❌ Falló documentMessage manual:', docError.message);
+        }
+      }
+      
+      // INTENTO 4: Enviar como mensaje multimedia genérico
+      try {
+        console.log('🔄 Intento 4: Enviando como multimedia genérico...');
+        const mediaMessage = {
+          ...ctx.message
+        };
+        
+        await sock.sendMessage(CONTACTO_ADMIN, mediaMessage, {
+          quoted: null
+        });
+        console.log('✅ Medio enviado como multimedia genérico');
+        return true;
+      } catch (mediaError) {
+        console.log('❌ Falló multimedia genérico:', mediaError.message);
+      }
+
+      // INTENTO 5: Descargar y reenviar el medio
+      try {
+        console.log('🔄 Intento 5: Descargando y reenviando medio...');
+        const stream = await sock.downloadMediaMessage(ctx.message);
+        if (stream) {
+          await sock.sendMessage(CONTACTO_ADMIN, {
+            [ctx.message.type === 'image' ? 'image' : 'document']: stream,
+            caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`,
+            mimetype: ctx.message.mimetype || 'image/jpeg'
+          });
+          console.log('✅ Medio descargado y reenviado');
+          return true;
+        }
+      } catch (downloadError) {
+        console.log('❌ Falló descarga y reenvío:', downloadError.message);
+      }
+
+      // Si todo falla, enviar mensaje de error detallado
+      console.log('❌ Todos los métodos fallaron, enviando mensaje de error...');
       await sock.sendMessage(CONTACTO_ADMIN, {
-        text: `❌ No se pudo reenviar el medio. Tipo: ${ctx.message?.type || 'Desconocido'}, Mimetype: ${ctx.message?.mimetype || 'N/A'}`
+        text: `❌ NO SE PUDO ENVIAR LA IDENTIFICACIÓN\n\n👤 Usuario: ${userData.nombre}\n📧 ${userData.identificacion}\n\n🔍 Detalles técnicos:\n• Tipo: ${ctx.message?.type || 'Desconocido'}\n• Mimetype: ${ctx.message?.mimetype || 'N/A'}\n• Tiene imageMessage: ${!!ctx.message?.imageMessage}\n• Tiene documentMessage: ${!!ctx.message?.documentMessage}\n\n⚠️ Por favor contactar manualmente al usuario.`
       });
+      
       return false;
     }
   } catch (error) {
-    console.error('❌ Error enviando identificación al admin:', error.message);
+    console.error('❌ Error crítico enviando identificación al admin:', error.message);
     return false;
   }
 }
@@ -882,7 +951,7 @@ async function obtenerUrlImagen(message) {
   }
 }
 
-// ==== Función mejorada para verificar imágenes - COMPLETAMENTE REESCRITA ====
+// ==== Función mejorada para verificar imágenes - MÁS FLEXIBLE ====
 function esImagenValida(ctx) {
   if (!ctx || !ctx.message) {
     console.log('❌ No hay contexto o mensaje');
@@ -892,61 +961,33 @@ function esImagenValida(ctx) {
   try {
     const message = ctx.message;
     
-    console.log('🔍 ANALIZANDO MENSAJE:');
-    console.log('📸 Tipo de mensaje:', message.type);
-    console.log('📸 Mimetype:', message.mimetype);
-    console.log('📸 Tiene imageMessage:', !!message.imageMessage);
-    console.log('📸 Tiene documentMessage:', !!message.documentMessage);
-    console.log('📸 Tiene stickerMessage:', !!message.stickerMessage);
+    console.log('🔍 ANALIZANDO MENSAJE COMPLETO:');
+    console.log('📸 Keys del mensaje:', Object.keys(message));
     
-    // 1. Verificar si es imagen directa (tipo 'image')
-    if (message.type === 'image') {
-      console.log('✅ Imagen válida - tipo: image');
-      return true;
-    }
+    // Verificar cualquier propiedad que indique que es un medio
+    const tieneMedio = 
+      message.type === 'image' ||
+      message.type === 'sticker' ||
+      message.type === 'document' ||
+      message.mimetype ||
+      message.imageMessage ||
+      message.documentMessage ||
+      message.stickerMessage ||
+      message.jpegThumbnail ||
+      message.mediaKey ||
+      message.url ||
+      message.directPath;
+
+    console.log('📸 Tiene medio:', tieneMedio);
     
-    // 2. Verificar si es sticker (tipo 'sticker')
-    if (message.type === 'sticker') {
-      console.log('✅ Imagen válida - tipo: sticker');
-      return true;
-    }
-    
-    // 3. Verificar si es documento con imagen
-    if (message.type === 'document' && message.mimetype) {
-      const isImage = message.mimetype.startsWith('image/');
-      console.log('✅ Imagen válida - tipo: document, mimetype:', message.mimetype);
-      return isImage;
-    }
-    
-    // 4. Verificar si tiene imageMessage (imágenes de cámara de WhatsApp)
-    if (message.imageMessage) {
-      console.log('✅ Imagen válida - tiene imageMessage');
-      return true;
-    }
-    
-    // 5. Verificar si tiene documentMessage con imagen
-    if (message.documentMessage && message.documentMessage.mimetype) {
-      const isImage = message.documentMessage.mimetype.startsWith('image/');
-      console.log('✅ Imagen válida - tiene documentMessage, mimetype:', message.documentMessage.mimetype);
-      return isImage;
-    }
-    
-    // 6. Verificar si tiene stickerMessage
-    if (message.stickerMessage) {
-      console.log('✅ Imagen válida - tiene stickerMessage');
+    if (tieneMedio) {
+      console.log('✅ Medio detectado - procediendo como válido');
       return true;
     }
 
-    // 7. Verificar mensajes de cámara de WhatsApp (pueden venir sin type específico pero con imageMessage)
-    if (message.mimetype && message.mimetype.startsWith('image/')) {
-      console.log('✅ Imagen válida - mimetype directo:', message.mimetype);
-      return true;
-    }
-
-    console.log('❌ No se reconoció como imagen válida');
-    console.log('❌ Mensaje completo:', JSON.stringify(message, null, 2).substring(0, 500));
-    
+    console.log('❌ No se detectó medio válido');
     return false;
+    
   } catch (error) {
     console.error('❌ Error verificando imagen:', error);
     return false;
@@ -1095,7 +1136,7 @@ function obtenerInfoImagen(ctx) {
   }
 }
 
-// ==== Flujo de captura para identificación oficial - CON VALIDACIÓN TEMPORAL DESACTIVADA ====
+// ==== Flujo de captura para identificación oficial - SIMPLIFICADO ====
 const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1128,14 +1169,16 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
       '• Pasaporte',
       '• Credencial escolar con foto',
       '',
-      '⚠️ **Asegúrate de que:**',
-      '• La foto sea legible',
-      '• Los datos sean visibles',
-      '• La imagen esté bien iluminada',
+      '📱 **Instrucciones:**',
+      '1. Toca el ícono de 📎',
+      '2. Selecciona "Cámara" 📸', 
+      '3. Toma una foto CLARA de tu identificación',
+      '4. Envía la foto',
       '',
-      '📱 **Puedes:**',
-      '• Tomar una foto directamente con la cámara de WhatsApp ✅',
-      '• Enviar una imagen desde tu galería ✅',
+      '⚠️ **Asegúrate de que:**',
+      '• Se vean todos tus datos claramente',
+      '• La imagen no esté borrosa', 
+      '• La iluminación sea buena',
       '',
       '🔒 Tu información está protegida y será usada solo para verificación.'
     ].join('\n'),
@@ -1145,30 +1188,14 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      // 🔧 TEMPORALMENTE ACEPTAR CUALQUIER TIPO DE MEDIO PARA PRUEBAS
-      console.log('🔍 ANALIZANDO MEDIO RECIBIDO:');
-      console.log('📸 Tipo:', ctx.message?.type);
-      console.log('📸 Mimetype:', ctx.message?.mimetype);
-      console.log('📸 Tiene imageMessage:', !!ctx.message?.imageMessage);
-      console.log('📸 Tiene documentMessage:', !!ctx.message?.documentMessage);
+      // ACEPTAR CUALQUIER MEDIO (para pruebas)
+      console.log('🎯 MEDIO RECIBIDO - ACEPTANDO TODO PARA PRUEBAS');
       
-      // TEMPORAL: Aceptar cualquier medio para ver qué está llegando
-      const esValida = esImagenValida(ctx);
-      
-      if (!esValida) {
-        console.log('⚠️ Medio no reconocido como imagen, pero procediendo igual para pruebas');
-        // TEMPORAL: Continuar aunque no sea reconocido como imagen
-        // await flowDynamic('❌ No recibimos una imagen válida. Por favor intenta de nuevo.');
-        // return gotoFlow(flowCapturaIdentificacion);
-      }
-
-      // Guardar información de la imagen en el estado
-      const infoImagen = obtenerInfoImagen(ctx);
+      // Guardar información en el estado
       const myState = await state.getMyState();
       
       await state.update({
         identificacionSubida: true,
-        infoIdentificacion: infoImagen,
         timestampIdentificacion: Date.now(),
         imagenContext: {
           key: ctx.key,
@@ -1179,21 +1206,15 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
 
-      // 🔧 ENVIAR IDENTIFICACIÓN AL ADMINISTRADOR
+      // Enviar identificación al admin
       const userData = {
         nombre: myState.nombreCompleto || 'Por confirmar',
         identificacion: myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl,
         tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
       };
 
-      // Enviar la imagen inmediatamente al admin
-      const envioExitoso = await enviarIdentificacionAlAdmin(provider, ctx, userData);
-      
-      if (!envioExitoso) {
-        await flowDynamic('⚠️ Hemos recibido tu identificación pero hubo un problema al enviarla. Continuaremos con el proceso.');
-      }
+      await enviarIdentificacionAlAdmin(provider, ctx, userData);
 
-      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowContrasena);
     }
