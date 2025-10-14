@@ -452,7 +452,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   return false;
 }
 
-// ==== Función para enviar identificación al admin - USANDO relayMessage ====
+// ==== Función SIMPLIFICADA para enviar identificación al admin ====
 async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
   if (!provider || !ctx) {
     console.error('❌ Provider o contexto no disponible')
@@ -467,121 +467,34 @@ async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
       return false
     }
 
-    // Enviar mensaje informativo primero
-    const mensajeInfo = `📸 IDENTIFICACIÓN RECIBIDA\n\n👤 Nombre: ${userData.nombre}\n📧 ${userData.tipo}: ${userData.identificacion}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}`;
+    console.log('🔄 Enviando identificación al admin...');
+
+    // MÉTODO 1: Enviar información del usuario primero
+    const mensajeInfo = `📸 *NUEVA IDENTIFICACIÓN RECIBIDA*\n\n👤 *Nombre:* ${userData.nombre}\n📧 *${userData.tipo}:* ${userData.identificacion}\n📞 *Teléfono:* ${ctx.from}\n⏰ *Hora:* ${new Date().toLocaleString('es-MX')}\n\n_El usuario ha enviado una identificación. Si no ves la imagen a continuación, contacta manualmente._`;
     
-    await sock.sendMessage(CONTACTO_ADMIN, {
-      text: mensajeInfo
-    });
+    await sock.sendMessage(CONTACTO_ADMIN, { text: mensajeInfo });
 
-    console.log('🔍 Analizando tipo de medio...');
-    console.log('📸 Tipo de mensaje:', ctx.message?.type);
-    console.log('📸 Tiene imageMessage:', !!ctx.message?.imageMessage);
-    console.log('📸 Tiene documentMessage:', !!ctx.message?.documentMessage);
-    console.log('📸 Key:', ctx.key);
-
-    // MÉTODO 1: Usar relayMessage (más confiable para reenviar medios)
+    // MÉTODO 2: Intentar reenvío directo (más confiable)
     try {
-      console.log('🔄 MÉTODO 1: Usando relayMessage...');
-      
-      // relayMessage es específico de Baileys y funciona mejor para reenviar
-      await sock.relayMessage(CONTACTO_ADMIN, {
-        forward: ctx.message,
-        message: ctx.message
-      }, {
-        messageId: ctx.key.id
+      console.log('📤 Intentando reenvío directo...');
+      await sock.sendMessage(CONTACTO_ADMIN, { 
+        forward: ctx.key 
       });
-      
-      console.log('✅ Medio reenviado con relayMessage');
-      
-      // Enviar caption por separado
-      await sock.sendMessage(CONTACTO_ADMIN, {
-        text: `📝 Captión: ${userData.nombre} - ${userData.identificacion}`
-      });
-      
+      console.log('✅ Reenvío directo exitoso');
       return true;
-      
-    } catch (relayError) {
-      console.log('❌ relayMessage falló:', relayError.message);
-    }
-
-    // MÉTODO 2: Usar forwardingContext (método nativo de WhatsApp)
-    try {
-      console.log('🔄 MÉTODO 2: Usando forwardingContext...');
-      
-      await sock.sendMessage(CONTACTO_ADMIN, {
-        ...ctx.message,
-        forwardingScore: 1,
-        isForwarded: true,
-        caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`
-      });
-      
-      console.log('✅ Medio reenviado con forwardingContext');
-      return true;
-      
     } catch (forwardError) {
-      console.log('❌ forwardingContext falló:', forwardError.message);
+      console.log('❌ Reenvío directo falló:', forwardError.message);
     }
 
-    // MÉTODO 3: Descargar y reenviar manualmente
-    try {
-      console.log('🔄 MÉTODO 3: Descargando y reenviando manualmente...');
-      
-      let buffer;
-      let mimetype = 'image/jpeg';
-      
-      // Intentar descargar de diferentes maneras
-      if (ctx.message?.imageMessage) {
-        buffer = await downloadMedia(ctx.message.imageMessage, sock);
-        mimetype = ctx.message.imageMessage.mimetype || 'image/jpeg';
-      } else if (ctx.message?.documentMessage) {
-        buffer = await downloadMedia(ctx.message.documentMessage, sock);
-        mimetype = ctx.message.documentMessage.mimetype || 'image/jpeg';
-      } else {
-        buffer = await sock.downloadMediaMessage(ctx.message);
-        mimetype = ctx.message?.mimetype || 'image/jpeg';
-      }
-      
-      if (buffer) {
-        await sock.sendMessage(CONTACTO_ADMIN, {
-          image: buffer,
-          caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`,
-          mimetype: mimetype
-        });
-        console.log('✅ Medio descargado y reenviado manualmente');
-        return true;
-      }
-      
-    } catch (downloadError) {
-      console.log('❌ Descarga manual falló:', downloadError.message);
-    }
-
-    // MÉTODO 4: Enviar como mensaje citado
-    try {
-      console.log('🔄 MÉTODO 4: Enviando como mensaje citado...');
-      
-      await sock.sendMessage(CONTACTO_ADMIN, {
-        ...ctx.message,
-        caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`
-      });
-      
-      console.log('✅ Medio enviado como mensaje citado');
-      return true;
-      
-    } catch (quoteError) {
-      console.log('❌ Mensaje citado falló:', quoteError.message);
-    }
-
-    // MÉTODO 5: Enviar solo la información y pedir contacto manual
-    console.log('❌ Todos los métodos fallaron, enviando información para contacto manual...');
+    // MÉTODO 3: Si el reenvío falla, enviar instrucciones para contacto manual
     await sock.sendMessage(CONTACTO_ADMIN, {
-      text: `📞 CONTACTAR MANUALMENTE\n\n👤 Usuario: ${userData.nombre}\n📧 ${userData.tipo}: ${userData.identificacion}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n🔍 El usuario envió una identificación pero no se pudo reenviar automáticamente. Por favor contactar manualmente para solicitar la identificación.`
+      text: `📞 *CONTACTO MANUAL REQUERIDO*\n\nPor favor contacta manualmente al usuario:\n👤 ${userData.nombre}\n📞 ${ctx.from}\n\nPara solicitar que reenvíe la identificación directamente a este chat.`
     });
 
     return false;
 
   } catch (error) {
-    console.error('❌ Error crítico enviando identificación al admin:', error.message);
+    console.error('❌ Error enviando identificación:', error.message);
     return false;
   }
 }
@@ -1068,27 +981,22 @@ function esImagenValida(ctx) {
   }
 }
 
-// ==== Flujo final de contraseña - SIMPLIFICADO ====
+// ==== Flujo final de contraseña - ACTUALIZADO ====
 const flowContrasena = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-    // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
     const myState = (await state.getMyState()) || {};
     const nombreCompleto = myState.nombreCompleto;
     const numeroControl = myState.numeroControl;
     const correoInstitucional = myState.correoInstitucional;
     const esTrabajador = myState.esTrabajador;
 
-    // 🔧 VALIDACIÓN CORREGIDA - aceptar número de control O correo
     if (!nombreCompleto || (!numeroControl && !correoInstitucional)) {
-      console.log('❌ Datos incompletos, redirigiendo a captura...');
       await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
       return gotoFlow(flowSubMenuContrasena);
     }
 
-    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
     await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
       tipo: "🔐 Restablecimiento de Contraseña",
       inicio: Date.now(),
@@ -1099,72 +1007,39 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     const identificacion = esTrabajador ? correoInstitucional : numeroControl;
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
-    // ✅ ENVIAR SOLO INFORMACIÓN AL ADMINISTRADOR (la imagen ya se envió antes)
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
+    // ✅ ENVIAR SOLO INFORMACIÓN TEXTUAL AL ADMINISTRADOR
+    const mensajeAdmin = `🔔 *SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ RECIBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal: *SoporteCC1234$*\n\n💡 *La identificación se envió previamente. Verificar chat.*`;
 
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+    await enviarAlAdmin(provider, mensajeAdmin);
 
-    if (envioExitoso) {
-      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
-    } else {
-      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
-    }
+    await flowDynamic('⏳ *Procesando tu solicitud...*\n\n🔐 **Contraseña temporal asignada:** *SoporteCC1234$*\n\n📱 Por favor no envíes mensajes durante este proceso (aprox. 30 minutos).');
 
-    let minutosRestantes = 30;
-
-    // Aviso cada 10 minutos
-    const intervalId = setInterval(async () => {
-      minutosRestantes -= 10;
-      if (minutosRestantes > 0) {
-        await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
-      }
-    }, 10 * 60000);
-
-    // Guardar ID del intervalo en el estado
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        intervalId: intervalId
-      }
-    });
-
-    // Mensaje final después de 30 minutos
-    const timeoutId = setTimeout(async () => {
-      clearInterval(intervalId);
-
+    // Simular proceso de 2 minutos para pruebas (en producción sería 30 minutos)
+    setTimeout(async () => {
       try {
-        await flowDynamic(`✅ Se restableció correctamente tu contraseña.\nTu nueva contraseña temporal es: *SoporteCC1234$*`);
+        await flowDynamic(`✅ *Proceso completado*\n\nSe restableció correctamente tu contraseña.`);
 
-        // 🔧 CORREGIR: Obtener el correo correcto según el tipo de usuario
         const correoUsuario = esTrabajador ? correoInstitucional : `${numeroControl}@aguascalientes.tecnm.mx`;
 
-        console.log(`✅ Contraseña enviada correctamente a *${nombreCompleto}* - ${esTrabajador ? 'Correo' : 'Matrícula'}: *${identificacion}*`);
-
         await flowDynamic(
-          `*Instrucciones para acceder* \n\n *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* para poder configurar todo correctamente, después del primer inicio de sesión ya puedes configurar tus aplicaciones \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${correoUsuario} \n Paso 4.- Ingresa la contraseña temporal: *SoporteCC1234$*  \n Paso 5.- Una vez que ingreses te va a solicitar que realices el cambio de tu contraseña. En contraseña actual es la contraseña temporal: *SoporteCC1234$* en los siguientes campos vas a generar tu nueva contraseña personalizada \n (Por recomendación de seguridad procura que tenga mínimo 11 caracteres, al menos debería de contener: Una mayúscula, una minúscula, un número y un carácter especial: %$#!&/-_.*+). \n Con esto terminaríamos el proceso total del cambio de contraseña.`
+          `*📝 Instrucciones para acceder:*\n\n` +
+          `1. Ve a: https://office.com\n` +
+          `2. Ingresa tu correo: ${correoUsuario}\n` +
+          `3. Usa la contraseña: *SoporteCC1234$*\n` +
+          `4. Cambia tu contraseña inmediatamente\n\n` +
+          `💡 *Recomendación:* Realiza el primer inicio desde una computadora.`
         );
 
-        await flowDynamic(
-          '🔐 Por seguridad, *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* y de esta manera poder cambiar tu contraseña de una manera más cómoda.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
-        );
+        await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
 
+        await limpiarEstado(state);
       } catch (error) {
-        console.error('❌ Error enviando mensaje final:', error.message);
+        console.error('❌ Error en proceso final:', error.message);
       }
+    }, 2 * 60 * 1000); // 2 minutos para pruebas
 
-      // 🔓 LIBERAR ESTADO al finalizar
-      await limpiarEstado(state);
-    }, 30 * 60000);
-
-    // Guardar ID del timeout en el estado
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        timeoutId: timeoutId
-      }
-    });
+    return gotoFlow(flowBloqueoActivo);
   })
-  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow }) => {
@@ -1210,7 +1085,7 @@ function obtenerInfoImagen(ctx) {
   }
 }
 
-// ==== Flujo de captura para identificación oficial - CON MÉTODO ALTERNATIVO ====
+// ==== Flujo de captura para identificación oficial - SIMPLIFICADO ====
 const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1263,54 +1138,33 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
       timeoutManager.clearTimeout(ctx.from);
 
       console.log('🎯 MEDIO RECIBIDO - PROCESANDO...');
-      console.log('📸 Tipo:', ctx.message?.type);
-      console.log('📸 Mimetype:', ctx.message?.mimetype);
-      console.log('📸 Key:', ctx.key);
 
-      // Guardar en estado
+      // ACEPTAR LA IMAGEN INMEDIATAMENTE SIN VALIDACIONES COMPLEJAS
       const myState = await state.getMyState();
       
       await state.update({
         identificacionSubida: true,
-        timestampIdentificacion: Date.now(),
-        imagenContext: ctx // Guardar contexto completo
+        timestampIdentificacion: Date.now()
       });
 
-      await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
+      await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.\n\n📤 _Enviando para verificación..._');
 
-      // Enviar identificación al admin - PRIMERO INTENTAR MÉTODO SIMPLE
+      // Enviar identificación al admin
       const userData = {
         nombre: myState.nombreCompleto || 'Por confirmar',
         identificacion: myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl,
         tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
       };
 
-      let envioExitoso = false;
-      
-      // Intentar método simple primero
-      try {
-        const sock = provider.vendor;
-        await sock.sendMessage(CONTACTO_ADMIN, {
-          text: `🔔 NUEVA IDENTIFICACIÓN\n\n👤 ${userData.nombre}\n📧 ${userData.identificacion}\n📞 ${ctx.from}`
-        });
-        
-        // Reenviar mensaje simple
-        await sock.sendMessage(CONTACTO_ADMIN, {
-          forward: ctx.key
-        });
-        
-        envioExitoso = true;
-        console.log('✅ Método simple funcionó');
-      } catch (simpleError) {
-        console.log('❌ Método simple falló, intentando método completo...');
-        envioExitoso = await enviarIdentificacionAlAdmin(provider, ctx, userData);
-      }
+      // Enviar de forma asíncrona para no bloquear el flujo
+      enviarIdentificacionAlAdmin(provider, ctx, userData).then(exitoso => {
+        if (!exitoso) {
+          console.log('⚠️ No se pudo enviar la imagen al admin, pero el proceso continúa');
+        }
+      });
 
-      if (envioExitoso) {
-        await flowDynamic('📤 Identificación enviada para verificación. Continuando con el proceso...');
-      } else {
-        await flowDynamic('⚠️ Hemos recibido tu identificación. Continuaremos con el proceso.');
-      }
+      // Pequeña pausa para que el usuario vea el mensaje
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowContrasena);
