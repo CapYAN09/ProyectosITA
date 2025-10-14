@@ -452,7 +452,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   return false;
 }
 
-// ==== Función para enviar identificación al admin ====
+// ==== Función MODIFICADA para NO enviar identificación al admin ====
 async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
   if (!provider || !ctx) {
     console.error('❌ Provider o contexto no disponible')
@@ -467,22 +467,17 @@ async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
       return false
     }
 
-    // Verificar si es una imagen válida
+    // 🔧 MODIFICACIÓN: SOLO registrar en logs, NO enviar al admin
     if (esImagenValida(ctx)) {
-      // 🔧 REENVIAR EL MENSAJE ORIGINAL CON LA IMAGEN
-      await sock.sendMessage(CONTACTO_ADMIN, {
-        forward: ctx.key, // Reenviar el mensaje original
-        caption: `📸 IDENTIFICACIÓN - ${userData.nombre} (${userData.identificacion})`
-      });
-      
-      console.log('✅ Identificación enviada al administrador correctamente');
+      console.log('📸 Identificación recibida correctamente - NO enviada al administrador');
+      console.log(`👤 Usuario: ${userData.nombre} (${userData.identificacion})`);
       return true;
     } else {
-      console.log('⚠️ No se pudo enviar identificación: mensaje no contiene imagen válida');
+      console.log('⚠️ No se pudo validar identificación: mensaje no contiene imagen válida');
       return false;
     }
   } catch (error) {
-    console.error('❌ Error enviando identificación al admin:', error.message);
+    console.error('❌ Error procesando identificación:', error.message);
     return false;
   }
 }
@@ -872,23 +867,33 @@ async function obtenerUrlImagen(message) {
   }
 }
 
-// ==== Función mejorada para verificar imágenes ====
-function esImagenValida(message) {
-  if (!message) return false;
+// ==== Función CORREGIDA para verificar imágenes ====
+function esImagenValida(ctx) {
+  if (!ctx || !ctx.message) return false;
 
-  // Verificar si es imagen, sticker, o documento con imagen
-  const esImagen = message.type === 'image' ||
-    message.type === 'sticker' ||
-    (message.type === 'document' &&
-      message.mimetype &&
-      message.mimetype.startsWith('image/'));
+  // Verificar si es mensaje con imagen
+  const message = ctx.message;
+  
+  // Para Baileys provider, las imágenes vienen en message.imageMessage
+  if (message.imageMessage) {
+    return true;
+  }
+  
+  // Para documentos que son imágenes
+  if (message.documentMessage && 
+      message.documentMessage.mimetype && 
+      message.documentMessage.mimetype.startsWith('image/')) {
+    return true;
+  }
+  
+  // Para stickers (aunque no son ideales para identificación)
+  if (message.stickerMessage) {
+    return true;
+  }
 
-  // 🔧 ADICIONAL: Verificar que tenga datos de imagen
-  if (esImagen) {
-    const tieneDatos = message.imageMessage || 
-                      message.documentMessage ||
-                      message.stickerMessage;
-    return tieneDatos;
+  // Verificar por tipo de mensaje
+  if (ctx.type === 'image') {
+    return true;
   }
 
   return false;
@@ -1115,12 +1120,13 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
 
+      /*
       // 🔧 ENVIAR IDENTIFICACIÓN AL ADMINISTRADOR
       const userData = {
         nombre: myState.nombreCompleto || 'Por confirmar',
         identificacion: myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl,
         tipo: myState.esTrabajador ? 'Trabajador' : 'Alumno'
-      };
+      };*/
 
       await enviarIdentificacionAlAdmin(provider, ctx, userData);
 
