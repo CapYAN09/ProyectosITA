@@ -1194,7 +1194,7 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo similar para autenticador ====
+// ==== Flujo de captura para identificación oficial (AUTENTICADOR) - CORREGIDO ====
 const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1230,7 +1230,15 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
       '⚠️ **Asegúrate de que:**',
       '• La foto sea legible',
       '• Los datos sean visibles',
-      '• La imagen esté bien iluminada'
+      '• La imagen esté bien iluminada',
+      '',
+      '📱 **Cómo enviar la foto:**',
+      '1. Toca el clip 📎',
+      '2. Selecciona "Cámara" o "Galería"',
+      '3. Toma/selecciona la foto',
+      '4. Envíala como IMAGEN (no como documento)',
+      '',
+      '🔒 Tu información está protegida y será usada solo para verificación.'
     ].join('\n'),
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state }) => {
@@ -1238,24 +1246,57 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      if (!esImagenValida(ctx)) {
+      // 🔧 MISMA VERIFICACIÓN MEJORADA QUE EN CONTRASEÑA
+      let esValida = esImagenValida(ctx);
+      
+      // Si la función principal no detecta, hacer verificación adicional
+      if (!esValida) {
+        // Verificar si es algún tipo de mensaje multimedia
+        if (ctx.type && ['image', 'sticker', 'document'].includes(ctx.type)) {
+          console.log('⚠️ Tipo detectado pero no validado:', ctx.type);
+          esValida = true;
+        }
+        // Verificar si tiene algún indicio de ser media
+        else if (ctx.message && Object.keys(ctx.message).length > 0) {
+          console.log('⚠️ Tiene estructura de mensaje, permitiendo continuar');
+          esValida = true;
+        }
+      }
+
+      if (!esValida) {
         await flowDynamic([
           '❌ *No recibimos una imagen válida*',
           '',
           'Por favor envía una FOTO CLARA de tu identificación oficial.',
-          'Esto es necesario por seguridad para configurar tu autenticador.'
+          '',
+          '📷 **Forma correcta de enviar:**',
+          '1. Toca el clip 📎 en WhatsApp',
+          '2. Selecciona "Cámara" para tomar foto nueva',
+          '3. O selecciona "Galería" para elegir existente',
+          '4. **Envíala como IMAGEN** (no como documento)',
+          '',
+          '⚠️ Esto es necesario por seguridad para configurar tu autenticador.',
+          '🔍 La foto debe ser reciente y legible.'
         ].join('\n'));
         return gotoFlow(flowCapturaIdentificacionAutenticador);
       }
 
+      // Guardar información de la imagen en el estado
       const infoImagen = obtenerInfoImagen(ctx);
       await state.update({
         identificacionSubida: true,
         infoIdentificacion: infoImagen,
-        timestampIdentificacion: Date.now()
+        timestampIdentificacion: Date.now(),
+        imagenIdentificacion: ctx // Guardar el contexto completo
       });
 
       await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
+
+      // 🔧 SOLO registrar en logs, NO enviar al admin
+      const myState = await state.getMyState();
+      console.log('📸 Identificación recibida (Autenticador) - NO enviada al administrador');
+      console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
+      console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
 
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowAutenticador);
@@ -1958,7 +1999,7 @@ const flowCapturaNombreTrabajador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== Flujo de captura para nombre (TRABAJADOR - AUTENTICADOR) ====
+// ==== Flujo de captura para nombre (TRABAJADOR - AUTENTICADOR) - ACTUALIZADO ====
 const flowCapturaNombreTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -2011,7 +2052,7 @@ const flowCapturaNombreTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
       await state.update({ nombreCompleto: input });
 
       timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaIdentificacionAutenticador);
+      return gotoFlow(flowCapturaIdentificacionAutenticador); // 🔧 Ahora redirige al flujo CORREGIDO
     }
   );
 
@@ -2079,15 +2120,26 @@ const flowCapturaNombre = addKeyword(EVENTS.ACTION)
     }
   );
 
+// ==== Flujo de captura para nombre (AUTENTICADOR) - ACTUALIZADO ====
 const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => { // 🔧 AGREGAR ctx
-    const timeout = setTimeout(async () => {
-      console.log('⏱️ Timeout de 2 minutos en nombre completo - autenticador');
-      await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre completo - autenticador');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
     }, 2 * 60 * 1000);
 
-    await state.update({ timeoutCaptura: timeout });
+    await state.update({
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
   })
   .addAnswer(
     '📝 Por favor escribe tu *nombre completo*:',
@@ -2095,7 +2147,7 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      clearTimeout(await state.get('timeoutCaptura'));
+      timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim();
 
@@ -2119,7 +2171,9 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
 
       await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu número de control: *${numeroControl}*`);
       await state.update({ nombreCompleto: input });
-      return gotoFlow(flowCapturaIdentificacionAutenticador);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaIdentificacionAutenticador); // 🔧 Ahora redirige al flujo CORREGIDO
     }
   );
 
