@@ -49,7 +49,7 @@ class TimeoutManager {
 
 const timeoutManager = new TimeoutManager();
 
-// ==== Función para manejar inactividad - NUEVA ====
+// ==== Función para manejar inactividad - CORREGIDA ====
 async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
   if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -72,7 +72,7 @@ async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
           '',
           '💡 **Para reactivar el bot, escribe:**',
           '• *hola* - Para reiniciar la conversación',
-          '• *menú* - Para ver las opciones disponibles',
+          '• *inicio* - Para volver al menú principal',
           '',
           '¡Estoy aquí para ayudarte! 🐦'
         ].join('\n'));
@@ -552,7 +552,7 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-/// ==== FLUJO INTERCEPTOR GLOBAL - MEJORADO ====
+//// ==== FLUJO INTERCEPTOR GLOBAL - MEJORADO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
@@ -585,6 +585,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
             'Para comenzar a usar el bot, escribe la palabra:',
             '',
             '🌟 *hola*',
+            '🌟 *inicio*',
             '',
             '¡Estaré encantado de ayudarte! 🐦'
           ].join('\n'));
@@ -1536,7 +1537,16 @@ const flowEsperaPrincipal = addKeyword(EVENTS.ACTION)
   .addAction(async (_, { state, flowDynamic }) => {
     const timeout = setTimeout(async () => {
       console.log('⌛ Tiempo agotado en flujo principal.');
-      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+      await flowDynamic([
+        '⏱️ *Tiempo agotado*',
+        '',
+        'Para continuar usando el bot, escribe:',
+        '',
+        '🌟 *hola* - Para reiniciar',
+        '🌟 *inicio* - Para volver al menú',
+        '',
+        '¡Te espero! 🐦'
+      ].join('\n'));
       await state.clear();
     }, 5 * 60 * 1000);
 
@@ -1556,7 +1566,7 @@ const flowEsperaPrincipal = addKeyword(EVENTS.ACTION)
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
 
-      if (input === 'hola') {
+      if (input === 'hola' || input === 'inicio') {
         clearTimeout(await state.get('timeoutPrincipal'));
         await state.clear();
         return gotoFlow(flowPrincipal);
@@ -2308,7 +2318,7 @@ function esSaludoValido(texto) {
     'hola', 'ole', 'alo', 'inicio', 'Inicio', 'comenzar', 'empezar',
     'buenos días', 'buenas tardes', 'buenas noches',
     'buenos dias', 'buenas tardes', 'buenas noches',
-    'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.',
+    'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.', 'Inicio',
     'buenos días, tengo un problema', 'buenas tardes, tengo un problema',
     'buenas noches, tengo un problema', 'buenos días tengo un problema',
     'buenas tardes tengo un problema', 'buenas noches tengo un problema',
@@ -2345,7 +2355,10 @@ function esSaludoValido(texto) {
     'hola buenos días, disculpa, no me deja ingresar a mi correo institucional por mi contraseña como lo puedo restablecer?',
     'Hola buenas tardes, necesito ayuda con el acceso a mi cuenta',
     'Hola buenas noches, necesito ayuda con el acceso a mi cuenta',
-    'Hola buenos días, necesito ayuda con el acceso a mi cuenta'
+    'Hola buenos días, necesito ayuda con el acceso a mi cuenta',
+    'Problemas con el autenticador', 'Problema con el autenticador',
+    'problemas con la contraseña', 'problema con la contraseña',
+    'problemas con el acceso', 'problema con el acceso'
   ];
 
   return saludos.some(saludo => textoLimpio.includes(saludo));
@@ -2396,10 +2409,10 @@ const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'e
 
       if (!isValidText(opcion) || !['1', '2', '3', '4'].includes(opcion)) {
         await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3* o *4*.')
-        return gotoFlow(flowEsperaPrincipal)
+        return gotoFlow(flowPrincipal) // 🔧 CORREGIDO: Volver al mismo flujo, no a espera
       }
 
-      // 🔧 CORRECCIÓN: Usar las palabras clave correctas
+      // 🔧 CORRECCIÓN: Redirigir directamente a los flujos específicos
       if (opcion === '1') return gotoFlow(flowrestablecercontrase)
       if (opcion === '2') return gotoFlow(flowrestablecerautenti)
       if (opcion === '3') return gotoFlow(flowDistancia)
@@ -2441,10 +2454,10 @@ const flowMenu = addKeyword(['menu', 'menú'])
 
       if (!isValidText(opcion) || !['1', '2', '3', '4', '5'].includes(opcion)) {
         await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3*, *4* o *5*.')
-        return gotoFlow(flowEsperaMenu)
+        return gotoFlow(flowMenu) // 🔧 CORREGIDO: Volver al mismo flujo, no a espera
       }
 
-      // 🔧 CORRECCIÓN: Usar las palabras clave correctas
+      // 🔧 CORRECCIÓN: Redirigir directamente a los flujos específicos
       if (opcion === '1') return gotoFlow(flowrestablecercontrase)
       if (opcion === '2') return gotoFlow(flowrestablecerautenti)
       if (opcion === '3') return gotoFlow(flowDistancia)
