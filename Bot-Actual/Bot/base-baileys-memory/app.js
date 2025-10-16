@@ -2429,7 +2429,7 @@ function esSaludoValido(texto) {
 }
 
 // ==== FLUJO PRINCIPAL - VERSIÓN HÍBRIDA (MÁS ROBUSTA) ====
-const flowPrincipal = addKeyword(['hola', 'Hola', 'HOLA', 'inicio', 'Inicio'])
+const flowPrincipal = addKeyword(['hola', 'Hola', 'HOLA', 'Holi', 'holi', 'holis', 'Holis', 'holaa', 'Holaa', 'holaaa', 'Holaaa','.'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
     
