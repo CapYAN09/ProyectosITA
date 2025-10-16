@@ -430,7 +430,7 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
     `⏳ Tiempo restante: ${minutosRestantes} minutos`,
     '',
     '🔄 **Estamos trabajando en tu solicitud...**',
-    '📱 Por favor espera, este proceso toma aproximadamente 30 minutos',
+    '📱 Por favor espera, *este proceso toma aproximadamente 30 minutos*',
     '',
     '💡 **Para ver el progreso actual escribe:**',
     '*estado*',
@@ -1362,7 +1362,7 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
     if (envioExitoso) {
-      await flowDynamic('⏳ Permítenos un momento, vamos a desconfigurar tu autenticador... \n\n Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.');
+      await flowDynamic('⏳ Permítenos un momento, vamos a desconfigurar tu autenticador... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
     } else {
       await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
     }
@@ -1463,7 +1463,7 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
     if (envioExitoso) {
-      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.');
+      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
     } else {
       await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
     }
@@ -2349,7 +2349,9 @@ function esSaludoValido(texto) {
     'hola', 'ole', 'alo', 'inicio', 'Inicio', 'comenzar', 'empezar',
     'buenos días', 'buenas tardes', 'buenas noches',
     'buenos dias', 'buenas tardes', 'buenas noches',
-    'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.', 'Inicio',
+    'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.', 'Holi', 'holi', 'holis', 'Holis', 'holaa', 'Holaa', 'holaaa', 'Holaaa',
+    'holaaaa', 'Holaaaa', 'holaaaaa', 'Holaaaaa', 'holaaaaaa', 'Holaaaaaa',
+    'holaaaaaaa', 'Holaaaaaaa', 'holaaaaaaaa', 'Holaaaaaaaa', 'Holi!', 'Holi.', 'Holi?', 'holi!', 'holi.', 'holi?',
     'buenos días, tengo un problema', 'buenas tardes, tengo un problema',
     'buenas noches, tengo un problema', 'buenos días tengo un problema',
     'buenas tardes tengo un problema', 'buenas noches tengo un problema',
@@ -2392,16 +2394,43 @@ function esSaludoValido(texto) {
     'problemas con el acceso', 'problema con el acceso'
   ];
 
-  return saludos.some(saludo => textoLimpio.includes(saludo));
+  // 🔧 BÚSQUEDA MÁS INTELIGENTE
+  return saludos.some(saludo => {
+    const saludoLimpio = saludo.toLowerCase().trim();
+    
+    // Coincidencia exacta
+    if (textoLimpio === saludoLimpio) return true;
+    
+    // Coincidencia parcial (el saludo está contenido en el texto)
+    if (textoLimpio.includes(saludoLimpio)) return true;
+    
+    // Para textos largos, verificar si contiene las palabras clave principales
+    if (saludoLimpio.length > 10) {
+      const palabrasClave = ['hola', 'problema', 'ayuda', 'cuenta', 'acceso', 'contraseña', 'autenticador'];
+      return palabrasClave.some(palabra => textoLimpio.includes(palabra));
+    }
+    
+    return false;
+  });
 }
 
-// ==== Flujo principal (VERSIÓN MEJORADA) ====
-const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', 'ayuda', 'necesito ayuda', 'tengo un problema', 'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso', '.', 'Hola'])
+// ==== Flujo principal (VERSIÓN MEJORADA Y CORREGIDA) ====
+const flowPrincipal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    console.log(`🔍 Nuevo usuario: ${ctx.from}`);
+    console.log(`🔍 Nuevo usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
+
+    // 🔧 VERIFICAR SI ES UN SALUDO VÁLIDO usando la función esSaludoValido
+    const input = ctx.body?.toLowerCase().trim();
+    
+    if (!esSaludoValido(input)) {
+      console.log('❌ No es un saludo válido, ignorando mensaje');
+      return; // 🔧 NO hacer nada si no es saludo válido
+    }
+
+    console.log(`✅ Saludo válido detectado: "${input}"`);
 
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
@@ -2411,21 +2440,16 @@ const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buen
     await limpiarEstado(state);
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    // 🔧 ENVIAR IMAGEN DE BIENVENIDA SOLO SI ES UN SALUDO INICIAL
-    const input = ctx.body?.toLowerCase().trim();
-    const esSaludoInicial = ['hola', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', '.', 'hola'].includes(input);
-
-    if (esSaludoInicial) {
-      try {
-        await flowDynamic([{
-          body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
-          media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
-        }]);
-        console.log('✅ Imagen de bienvenida enviada');
-      } catch (error) {
-        console.error('❌ Error enviando imagen:', error.message);
-        await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
-      }
+    // 🔧 ENVIAR IMAGEN DE BIENVENIDA PARA TODOS LOS SALUDOS VÁLIDOS
+    try {
+      await flowDynamic([{
+        body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
+        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
+      }]);
+      console.log(`✅ Imagen de bienvenida enviada para saludo: "${input}"`);
+    } catch (error) {
+      console.error('❌ Error enviando imagen:', error.message);
+      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
     }
 
     // 🔧 REDIRIGIR DIRECTAMENTE AL MENÚ
@@ -2472,7 +2496,7 @@ async function mostrarOpcionesMenu(flowDynamic) {
     '2️⃣ 🔑 Restablecer autenticador', 
     '3️⃣ 🎓 Educación a Distancia (Moodle)',
     '4️⃣ 📊 Sistema SIE',
-    '5️⃣ 🙏 Agradecimiento',
+    '5️⃣ 🙏 Información CC',
     '',
     '💡 *Escribe solo el número (1-5)*'
   ].join('\n'));
@@ -2484,14 +2508,14 @@ async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   
   switch (opcion) {
     case '1':
-      await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña...');
+      await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña... \n\n En este proceso podrás restablecer la contraseña con la que ingresas a tu cuenta institucional, recuerda que tu contraseña es tu primer nivel de seguridad ante un hackeo.');
       console.log('🚀 Redirigiendo a flowSubMenuContrasena');
       // 🔧 LIMPIAR ESTADO ANTES DE COMENZAR NUEVO PROCESO
       await limpiarEstado(state);
       return gotoFlow(flowSubMenuContrasena);
 
     case '2':
-      await flowDynamic('🔑 Iniciando proceso de autenticador...');
+      await flowDynamic('🔑 Iniciando proceso de autenticador... \n\n En este proceso podrás restablecer el autenticador (Número de teléfono o aplicación de autenticación) con la que ingresas a tu cuenta institucional, recuerda que tu contraseña es tu segundo nivel de seguridad ante un hackeo.');
       console.log('🚀 Redirigiendo a flowSubMenuAutenticador');
       // 🔧 LIMPIAR ESTADO ANTES DE COMENZAR NUEVO PROCESO
       await limpiarEstado(state);
