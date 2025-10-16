@@ -2699,14 +2699,15 @@ const main = async () => {
     }
 
     const adapterFlow = createFlow([
- // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN ====================
+  // ==================== 🛡️ FLUJOS DE SEGURIDAD ====================
   flowBlockAdmin,
-  //flowInterceptorGlobal,
-  flowComandosEspeciales,
 
   // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
-  flowPrincipal,
-  flowMenu,  // 🔧 EL MENÚ DEBE ESTAR ANTES que los subflujos
+  flowPrincipal,  // 🔧 PRIMERO - captura todos los saludos
+  flowMenu,       // 🔧 SEGUNDO - maneja el menú principal
+
+  // ==================== 🔄 COMANDOS ESPECIALES ====================
+  flowComandosEspeciales,
 
   // ==================== 🎪 SUBMENÚS ====================
   flowSubMenuContrasena,
@@ -2735,9 +2736,9 @@ const main = async () => {
   flowGracias,
   flowSIE,
 
-  // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS (AHORA DESPUÉS) ====================
-  flowrestablecercontrase,  // 🔧 MOVIDO: Después de submenús
-  flowrestablecerautenti,   // 🔧 MOVIDO: Después de submenús
+  // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
+  flowrestablecercontrase,
+  flowrestablecerautenti,
   
   // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
   flowrestablecerSIE,
