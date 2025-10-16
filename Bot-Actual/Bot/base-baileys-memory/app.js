@@ -2227,7 +2227,7 @@ const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
   );
 
 // ==== Flujo de restablecimiento de contraseña (MODIFICADO) ====
-const flowrestablecercontrase = addKeyword(['1', 'restablecer contraseña', 'contraseña'])
+const flowrestablecercontrase = addKeyword(['restablecer_contraseña_opcion1']) // 🔧 CAMBIADO: Palabra clave única
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
     
@@ -2243,7 +2243,7 @@ const flowrestablecercontrase = addKeyword(['1', 'restablecer contraseña', 'con
   });
 
 // ==== Flujo de restablecimiento de autenticador (MODIFICADO) ====
-const flowrestablecerautenti = addKeyword(['2', 'restablecer autenticador', 'autenticador'])
+const flowrestablecerautenti = addKeyword(['restablecer_autenticador_opcion2']) // 🔧 CAMBIADO: Palabra clave única
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
     
@@ -2407,20 +2407,28 @@ const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'e
 
       const opcion = ctx.body.trim()
 
+      console.log(`🔍 Opción recibida en flowPrincipal: "${opcion}"`); // 🔧 DEBUG
+
       if (!isValidText(opcion) || !['1', '2', '3', '4'].includes(opcion)) {
         await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3* o *4*.')
-        return gotoFlow(flowPrincipal) // 🔧 CORREGIDO: Volver al mismo flujo, no a espera
+        return gotoFlow(flowPrincipal)
       }
 
-      // 🔧 CORRECCIÓN: Redirigir directamente a los flujos específicos
-      if (opcion === '1') return gotoFlow(flowrestablecercontrase)
-      if (opcion === '2') return gotoFlow(flowrestablecerautenti)
+      // 🔧 CORRECCIÓN: Usar endFlow para evitar conflictos
+      if (opcion === '1') {
+        await flowDynamic(['🔐 *Restablecimiento de Contraseña* 🔐', '', 'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
+        return gotoFlow(flowSubMenuContrasena);
+      }
+      if (opcion === '2') {
+        await flowDynamic(['🔑 *Configuración de Autenticador* 🔑', '', 'Vamos a ayudarte a configurar tu autenticador.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
+        return gotoFlow(flowSubMenuAutenticador);
+      }
       if (opcion === '3') return gotoFlow(flowDistancia)
       if (opcion === '4') return gotoFlow(flowSIE)
     }
   )
 
-// ==== Flujo de menú (CORREGIDO) ====
+// ==== Flujo de menú (COMPLETAMENTE CORREGIDO) ====
 const flowMenu = addKeyword(['menu', 'menú'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -2452,14 +2460,22 @@ const flowMenu = addKeyword(['menu', 'menú'])
 
       const opcion = ctx.body.trim()
 
+      console.log(`🔍 Opción recibida en flowMenu: "${opcion}"`); // 🔧 DEBUG
+
       if (!isValidText(opcion) || !['1', '2', '3', '4', '5'].includes(opcion)) {
         await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3*, *4* o *5*.')
-        return gotoFlow(flowMenu) // 🔧 CORREGIDO: Volver al mismo flujo, no a espera
+        return gotoFlow(flowMenu)
       }
 
-      // 🔧 CORRECCIÓN: Redirigir directamente a los flujos específicos
-      if (opcion === '1') return gotoFlow(flowrestablecercontrase)
-      if (opcion === '2') return gotoFlow(flowrestablecerautenti)
+      // 🔧 CORRECCIÓN: Redirigir directamente SIN usar palabras clave conflictivas
+      if (opcion === '1') {
+        await flowDynamic(['🔐 *Restablecimiento de Contraseña* 🔐', '', 'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
+        return gotoFlow(flowSubMenuContrasena);
+      }
+      if (opcion === '2') {
+        await flowDynamic(['🔑 *Configuración de Autenticador* 🔑', '', 'Vamos a ayudarte a configurar tu autenticador.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
+        return gotoFlow(flowSubMenuAutenticador);
+      }
       if (opcion === '3') return gotoFlow(flowDistancia)
       if (opcion === '4') return gotoFlow(flowSIE)
       if (opcion === '5') return gotoFlow(flowGracias)
@@ -2610,11 +2626,7 @@ const main = async () => {
   flowPrincipal,
   flowMenu,
 
-  // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
-  flowrestablecercontrase,  // 🔧 ESTE DEBE ESTAR ANTES DE LOS SUBMENÚS
-  flowrestablecerautenti,   // 🔧 ESTE DEBE ESTAR ANTES DE LOS SUBMENÚS
-  
-  // ==================== 🎪 SUBMENÚS ====================
+  // ==================== 🎪 SUBMENÚS (AHORA PRIMERO) ====================
   flowSubMenuContrasena,    // 🔧 SUBMENÚ CONTRASEÑA
   flowSubMenuAutenticador,  // 🔧 SUBMENÚ AUTENTICADOR
 
@@ -2641,6 +2653,10 @@ const main = async () => {
   flowGracias,
   flowSIE,
 
+  // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS (AHORA DESPUÉS) ====================
+  flowrestablecercontrase,  // 🔧 MOVIDO: Después de submenús
+  flowrestablecerautenti,   // 🔧 MOVIDO: Después de submenús
+  
   // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
   flowrestablecerSIE,
 
