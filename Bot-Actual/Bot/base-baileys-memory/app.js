@@ -2428,29 +2428,31 @@ function esSaludoValido(texto) {
   return false;
 }
 
-// ==== FLUJO PRINCIPAL SIMPLIFICADO - GARANTIZADO QUE FUNCIONE ====
+// ==== FLUJO PRINCIPAL - VERSIÓN DEFINITIVA QUE FUNCIONA ====
 const flowPrincipal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
+    
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
-    console.log(`🔍 Nuevo mensaje de ${ctx.from}: "${ctx.body}"`);
+    console.log(`🔍 FLOW PRINCIPAL - Mensaje de ${ctx.from}: "${ctx.body}"`);
 
     const input = ctx.body?.toLowerCase().trim();
     
-    // 🔧 ACEPTAR CUALQUIER MENSAJE COMO ACTIVACIÓN
+    // 🔧 ACEPTAR CUALQUIER TIPO DE MENSAJE COMO ACTIVACIÓN
     if (!input) {
+      console.log('❌ Mensaje vacío, ignorando...');
       return endFlow();
     }
 
-    // 🔧 SI ES UN MENSAJE VÁLIDO, PROCEDER
-    console.log(`✅ Mensaje recibido: "${input}" - Activando bot...`);
+    console.log(`✅ Activando bot con mensaje: "${input}"`);
 
+    // Verificar si el usuario está bloqueado en un proceso
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
     }
 
-    // 🔧 LIMPIAR ESTADO AL INICIAR
+    // 🔧 LIMPIAR ESTADO COMPLETAMENTE AL INICIAR
     await limpiarEstado(state);
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
@@ -2466,7 +2468,8 @@ const flowPrincipal = addKeyword(EVENTS.WELCOME)
       await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
     }
 
-    // 🔧 REDIRIGIR AL MENÚ
+    // 🔧 REDIRIGIR DIRECTAMENTE AL MENÚ PRINCIPAL
+    console.log('🚀 Redirigiendo al menú principal...');
     return gotoFlow(flowMenu);
   });
 
