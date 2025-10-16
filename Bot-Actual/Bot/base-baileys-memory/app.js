@@ -557,7 +557,7 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-//// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO ====
+// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO DEFINITIVAMENTE ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowInterceptorGlobal');
@@ -575,25 +575,23 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
       return gotoFlow(flowBloqueoActivo);
     }
 
-    // 🔧 CORRECCIÓN CRÍTICA: PERMITIR OPCIONES NUMÉRICAS DEL MENÚ
+    // 🔧 CORRECCIÓN CRÍTICA: PERMITIR OPCIONES NUMÉRICAS DEL MENÚ Y COMANDOS ESPECIALES
     const input = ctx.body?.toLowerCase().trim();
 
-    // 🔧 SI ES UNA OPCIÓN DEL MENÚ (1,2,3,4,5), DEJAR PASAR
-    if (['1', '2', '3', '4', '5'].includes(input)) {
-      console.log('✅ Opción de menú detectada, permitiendo pasar...');
-      return endFlow(); // 🔧 DEJAR QUE OTROS FLUJOS MANEJEN LA OPCIÓN
-    }
+    // 🔧 LISTA DE COMANDOS QUE DEBEN PASAR DIRECTAMENTE
+    const comandosPermitidos = [
+      '1', '2', '3', '4', '5',           // Opciones del menú
+      'menu', 'menú',                    // Comando menú
+      'estado',                          // Comando estado
+      'hola', 'inicio', 'comenzar', 'empezar', // Comandos de inicio
+      'buenos días', 'buenas tardes', 'buenas noches', // Saludos
+      'ayuda', 'necesito ayuda', 'tengo un problema'   // Comandos de ayuda
+    ];
 
-    // 🔧 SI ES "menú", DEJAR PASAR
-    if (input === 'menu' || input === 'menú') {
-      console.log('✅ Comando menú detectado, permitiendo pasar...');
-      return endFlow();
-    }
-
-    // 🔧 SI ES "estado", DEJAR PASAR  
-    if (input === 'estado') {
-      console.log('✅ Comando estado detectado, permitiendo pasar...');
-      return endFlow();
+    // 🔧 SI ES UN COMANDO PERMITIDO, DEJAR PASAR
+    if (comandosPermitidos.some(comando => input === comando)) {
+      console.log(`✅ Comando permitido detectado: "${input}", permitiendo pasar...`);
+      return endFlow(); // 🔧 DEJAR QUE OTROS FLUJOS MANEJEN EL COMANDO
     }
 
     // Solo bloquear si NO es saludo válido Y el usuario no tiene estado activo
@@ -2397,8 +2395,8 @@ function esSaludoValido(texto) {
   return saludos.some(saludo => textoLimpio.includes(saludo));
 }
 
-// ==== Flujo principal (VERSIÓN CORREGIDA) ====
-const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', 'ayuda', 'necesito ayuda', 'tengo un problema', 'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso', '.', 'Hola']) // 🔧 PALABRA CLAVE SIMPLIFICADA
+// ==== Flujo principal (VERSIÓN MEJORADA) ====
+const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', 'ayuda', 'necesito ayuda', 'tengo un problema', 'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso', '.', 'Hola'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -2413,15 +2411,21 @@ const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buen
     await limpiarEstado(state);
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    try {
-      await flowDynamic([{
-        body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
-        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
-      }]);
-      console.log('✅ Imagen de bienvenida enviada');
-    } catch (error) {
-      console.error('❌ Error enviando imagen:', error.message);
-      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
+    // 🔧 ENVIAR IMAGEN DE BIENVENIDA SOLO SI ES UN SALUDO INICIAL
+    const input = ctx.body?.toLowerCase().trim();
+    const esSaludoInicial = ['hola', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', '.', 'hola'].includes(input);
+
+    if (esSaludoInicial) {
+      try {
+        await flowDynamic([{
+          body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
+          media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
+        }]);
+        console.log('✅ Imagen de bienvenida enviada');
+      } catch (error) {
+        console.error('❌ Error enviando imagen:', error.message);
+        await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
+      }
     }
 
     // 🔧 REDIRIGIR DIRECTAMENTE AL MENÚ
@@ -2429,13 +2433,17 @@ const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buen
   });
 
 // ==== FLUJO MENÚ SUPER SIMPLE ====
+// ==== FLUJO MENÚ PRINCIPAL - CORREGIDO ====
 const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
-  .addAction(async (ctx, { flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body);
     
     if (ctx.from === CONTACTO_ADMIN) return;
 
     const opcion = ctx.body.trim();
+
+    // 🔧 ACTUALIZAR ESTADO AL ESTAR EN MENÚ
+    await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
     // Si es un comando de menú, mostrar opciones
     if (opcion === 'menu' || opcion === 'menú') {
@@ -2445,7 +2453,7 @@ const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
 
     // Si es una opción numérica, procesarla
     if (['1', '2', '3', '4', '5'].includes(opcion)) {
-      await procesarOpcionMenu(opcion, flowDynamic, gotoFlow);
+      await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
       return;
     }
 
@@ -2470,19 +2478,23 @@ async function mostrarOpcionesMenu(flowDynamic) {
   ].join('\n'));
 }
 
-// ==== FUNCIÓN PARA PROCESAR OPCIONES ====
-async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow) {
+// ==== FUNCIÓN PARA PROCESAR OPCIONES - ACTUALIZADA ====
+async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   console.log('🎯 Procesando opción:', opcion);
   
   switch (opcion) {
     case '1':
       await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña...');
       console.log('🚀 Redirigiendo a flowSubMenuContrasena');
+      // 🔧 LIMPIAR ESTADO ANTES DE COMENZAR NUEVO PROCESO
+      await limpiarEstado(state);
       return gotoFlow(flowSubMenuContrasena);
 
     case '2':
       await flowDynamic('🔑 Iniciando proceso de autenticador...');
       console.log('🚀 Redirigiendo a flowSubMenuAutenticador');
+      // 🔧 LIMPIAR ESTADO ANTES DE COMENZAR NUEVO PROCESO
+      await limpiarEstado(state);
       return gotoFlow(flowSubMenuAutenticador);
 
     case '3':
@@ -2645,7 +2657,7 @@ const main = async () => {
     const adapterFlow = createFlow([
  // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN ====================
   flowBlockAdmin,
-  //flowInterceptorGlobal,
+  flowInterceptorGlobal,
   flowComandosEspeciales,
 
   // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
