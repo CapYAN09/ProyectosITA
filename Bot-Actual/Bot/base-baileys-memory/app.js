@@ -466,7 +466,7 @@ async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
 
   try {
     const sock = provider.vendor
-    
+
     if (!sock) {
       console.error('❌ Socket de Baileys no disponible')
       return false
@@ -557,12 +557,20 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO DEFINITIVAMENTE ====
+// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowInterceptorGlobal');
-    
+
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
+
+    const input = ctx.body?.toLowerCase().trim();
+
+    // 🔧 DETECCIÓN MEJORADA DE SALUDOS - PERMITIR QUE PASEN AL FLOW PRINCIPAL
+    if (esSaludoValido(input)) {
+      console.log(`✅ Saludo válido detectado en interceptor: "${input}", permitiendo pasar...`);
+      return endFlow(); // 🔧 DEJAR QUE EL FLOW PRINCIPAL MANEJE EL SALUDO
+    }
 
     // Reiniciar contador de inactividad en cada mensaje
     await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
@@ -574,9 +582,6 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
       await mostrarEstadoBloqueado(flowDynamic, await state.getMyState());
       return gotoFlow(flowBloqueoActivo);
     }
-
-    // 🔧 CORRECCIÓN CRÍTICA: PERMITIR OPCIONES NUMÉRICAS DEL MENÚ Y COMANDOS ESPECIALES
-    const input = ctx.body?.toLowerCase().trim();
 
     // 🔧 LISTA DE COMANDOS QUE DEBEN PASAR DIRECTAMENTE
     const comandosPermitidos = [
@@ -591,28 +596,26 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     // 🔧 SI ES UN COMANDO PERMITIDO, DEJAR PASAR
     if (comandosPermitidos.some(comando => input === comando)) {
       console.log(`✅ Comando permitido detectado: "${input}", permitiendo pasar...`);
-      return endFlow(); // 🔧 DEJAR QUE OTROS FLUJOS MANEJEN EL COMANDO
+      return endFlow();
     }
 
-    // Solo bloquear si NO es saludo válido Y el usuario no tiene estado activo
-    if (!esSaludoValido(input)) {
-      const myState = await state.getMyState();
-      if (!myState?.estadoUsuario || myState.estadoUsuario === ESTADOS_USUARIO.LIBRE) {
-        const ultimaInteraccion = myState?.ultimaInteraccion || 0;
-        const tiempoInactivo = Date.now() - ultimaInteraccion;
+    // Solo mostrar mensaje de inactividad si no hay estado activo
+    const myState = await state.getMyState();
+    if (!myState?.estadoUsuario || myState.estadoUsuario === ESTADOS_USUARIO.LIBRE) {
+      const ultimaInteraccion = myState?.ultimaInteraccion || 0;
+      const tiempoInactivo = Date.now() - ultimaInteraccion;
 
-        if (tiempoInactivo > 60000) {
-          await flowDynamic([
-            '🔒 *Bot Inactivo*',
-            '',
-            'Para comenzar a usar el bot, escribe la palabra:',
-            '',
-            '🌟 *hola*',
-            '🌟 *inicio*',
-            '',
-            '¡Estaré encantado de ayudarte! 🐦'
-          ].join('\n'));
-        }
+      if (tiempoInactivo > 60000) { // 1 minuto de inactividad
+        await flowDynamic([
+          '🔒 *Bot Inactivo*',
+          '',
+          'Para comenzar a usar el bot, escribe la palabra:',
+          '',
+          '🌟 *hola*',
+          '🌟 *inicio*',
+          '',
+          '¡Estaré encantado de ayudarte! 🐦'
+        ].join('\n'));
         return endFlow();
       }
     }
@@ -877,16 +880,16 @@ async function obtenerUrlImagen(message) {
     // Esto es un ejemplo - necesitas adaptarlo según cómo Baileys maneja los medios
     if (message.imageMessage) {
       // Para imágenes normales
-      return message.imageMessage.url || 
-             (message.imageMessage.mimetype ? 
-              `data:${message.imageMessage.mimetype};base64,${message.imageMessage.fileSha256}` : 
-              null);
+      return message.imageMessage.url ||
+        (message.imageMessage.mimetype ?
+          `data:${message.imageMessage.mimetype};base64,${message.imageMessage.fileSha256}` :
+          null);
     } else if (message.documentMessage && message.documentMessage.mimetype.startsWith('image/')) {
       // Para documentos que son imágenes
-      return message.documentMessage.url || 
-             (message.documentMessage.mimetype ? 
-              `data:${message.documentMessage.mimetype};base64,${message.documentMessage.fileSha256}` : 
-              null);
+      return message.documentMessage.url ||
+        (message.documentMessage.mimetype ?
+          `data:${message.documentMessage.mimetype};base64,${message.documentMessage.fileSha256}` :
+          null);
     }
     return null;
   } catch (error) {
@@ -988,9 +991,9 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
         tipo: tipoUsuario
       };
       // Reenviar la identificación al admin
-      await enviarIdentificacionAlAdmin(provider, { 
-        message: myState.imagenIdentificacion, 
-        key: ctx.key 
+      await enviarIdentificacionAlAdmin(provider, {
+        message: myState.imagenIdentificacion,
+        key: ctx.key
       }, userData);
     }
 
@@ -1162,7 +1165,7 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       // 🔧 VERIFICACIÓN MEJORADA - Más flexible
       let esValida = esImagenValida(ctx);
-      
+
       // Si la función principal no detecta, hacer verificación adicional
       if (!esValida) {
         // Verificar si es algún tipo de mensaje multimedia
@@ -1198,7 +1201,7 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
       // Guardar información de la imagen en el estado
       const infoImagen = obtenerInfoImagen(ctx);
       const myState = await state.getMyState();
-      
+
       await state.update({
         identificacionSubida: true,
         infoIdentificacion: infoImagen,
@@ -1270,7 +1273,7 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
 
       // 🔧 MISMA VERIFICACIÓN MEJORADA QUE EN CONTRASEÑA
       let esValida = esImagenValida(ctx);
-      
+
       // Si la función principal no detecta, hacer verificación adicional
       if (!esValida) {
         // Verificar si es algún tipo de mensaje multimedia
@@ -1927,7 +1930,7 @@ const flowCapturaNumeroControlAutenticador = addKeyword(EVENTS.ACTION)
 
       await state.update({ numeroControl: input });
       await flowDynamic(`✅ Recibimos tu número de control: *${input}*`);
-      
+
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowCapturaNombreAutenticador);
     }
@@ -2259,7 +2262,7 @@ const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
 const flowrestablecercontrase = addKeyword(['restablecer_contraseña_opcion1']) // 🔧 CAMBIADO: Palabra clave única
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
-    
+
     await flowDynamic([
       '🔐 *Restablecimiento de Contraseña* 🔐',
       '',
@@ -2267,7 +2270,7 @@ const flowrestablecercontrase = addKeyword(['restablecer_contraseña_opcion1']) 
       '',
       'Primero necesitamos saber tu tipo de usuario:'
     ].join('\n'));
-    
+
     return gotoFlow(flowSubMenuContrasena);
   });
 
@@ -2275,7 +2278,7 @@ const flowrestablecercontrase = addKeyword(['restablecer_contraseña_opcion1']) 
 const flowrestablecerautenti = addKeyword(['restablecer_autenticador_opcion2']) // 🔧 CAMBIADO: Palabra clave única
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     if (ctx.from === CONTACTO_ADMIN) return;
-    
+
     await flowDynamic([
       '🔑 *Configuración de Autenticador* 🔑',
       '',
@@ -2283,7 +2286,7 @@ const flowrestablecerautenti = addKeyword(['restablecer_autenticador_opcion2']) 
       '',
       'Primero necesitamos saber tu tipo de usuario:'
     ].join('\n'));
-    
+
     return gotoFlow(flowSubMenuAutenticador);
   });
 
@@ -2397,19 +2400,19 @@ function esSaludoValido(texto) {
   // 🔧 BÚSQUEDA MÁS FLEXIBLE Y ROBUSTA
   for (const saludo of saludos) {
     const saludoLimpio = saludo.toLowerCase().trim();
-    
+
     // Coincidencia exacta
     if (textoLimpio === saludoLimpio) {
       console.log(`✅ Coincidencia exacta: "${textoLimpio}"`);
       return true;
     }
-    
+
     // Coincidencia parcial (el saludo está contenido en el texto)
     if (textoLimpio.includes(saludoLimpio)) {
       console.log(`✅ Coincidencia parcial: "${textoLimpio}" contiene "${saludoLimpio}"`);
       return true;
     }
-    
+
     // Para saludos más largos, verificar si contiene las palabras clave principales
     if (saludoLimpio.length > 10) {
       const palabrasClave = ['hola', 'problema', 'ayuda', 'cuenta', 'acceso', 'contraseña', 'autenticador', 'disculpa'];
@@ -2434,7 +2437,7 @@ const flowPrincipal = addKeyword(EVENTS.WELCOME)
 
     // 🔧 VERIFICAR SI ES UN SALUDO VÁLIDO
     const input = ctx.body?.toLowerCase().trim();
-    
+
     if (!esSaludoValido(input)) {
       console.log('❌ No es un saludo válido, ignorando mensaje');
       return endFlow(); // 🔧 Terminar si no es saludo válido
@@ -2471,7 +2474,7 @@ const flowPrincipal = addKeyword(EVENTS.WELCOME)
 const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body);
-    
+
     if (ctx.from === CONTACTO_ADMIN) return;
 
     const opcion = ctx.body.trim();
@@ -2503,7 +2506,7 @@ async function mostrarOpcionesMenu(flowDynamic) {
     'Selecciona una opción:',
     '',
     '1️⃣ 🔐 Restablecer contraseña',
-    '2️⃣ 🔑 Restablecer autenticador', 
+    '2️⃣ 🔑 Restablecer autenticador',
     '3️⃣ 🎓 Educación a Distancia (Moodle)',
     '4️⃣ 📊 Sistema SIE',
     '5️⃣ 🙏 Información CC',
@@ -2515,7 +2518,7 @@ async function mostrarOpcionesMenu(flowDynamic) {
 // ==== FUNCIÓN PARA PROCESAR OPCIONES - ACTUALIZADA ====
 async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   console.log('🎯 Procesando opción:', opcion);
-  
+
   switch (opcion) {
     case '1':
       await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña... \n\n En este proceso podrás restablecer la contraseña con la que ingresas a tu cuenta institucional, recuerda que tu contraseña es tu primer nivel de seguridad ante un hackeo.');
@@ -2662,7 +2665,7 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
   }
 
   const input = ctx.body?.toLowerCase().trim();
-  
+
   // 🔧 SI ES UN SALUDO VÁLIDO PERO NO FUE CAPTURADO, REDIRIGIR AL FLOW PRINCIPAL
   if (esSaludoValido(input)) {
     console.log(`🔄 Saludo válido detectado en flowDefault: "${input}", redirigiendo al flowPrincipal...`);
@@ -2674,7 +2677,7 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     '',
     '💡 **Comandos disponibles:**',
     '• *hola* - Reactivar el bot',
-    '• *inicio* - Comenzar conversación', 
+    '• *inicio* - Comenzar conversación',
     '• *ayuda* - Obtener asistencia',
     '• *menú* - Ver opciones principales',
     '• *estado* - Ver progreso de procesos',
@@ -2699,68 +2702,71 @@ const main = async () => {
     }
 
     const adapterFlow = createFlow([
-  // ==================== 🛡️ FLUJOS DE SEGURIDAD ====================
-  flowBlockAdmin,
+      // ==================== 🛡️ FLUJOS DE SEGURIDAD ====================
+      flowBlockAdmin,
 
-  // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
-  flowPrincipal,  // 🔧 PRIMERO - captura todos los saludos
-  flowMenu,       // 🔧 SEGUNDO - maneja el menú principal
+      // ==================== 🔄 INTERCEPTOR GLOBAL (PRIMERO) ====================
+      flowInterceptorGlobal,  // 🔧 PRIMERO - maneja inactividad pero permite saludos
 
-  // ==================== 🔄 COMANDOS ESPECIALES ====================
-  flowComandosEspeciales,
+      // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
+      flowPrincipal,  // 🔧 PRIMERO - captura todos los saludos
+      flowMenu,       // 🔧 SEGUNDO - maneja el menú principal
 
-  // ==================== 🎪 SUBMENÚS ====================
-  flowSubMenuContrasena,
-  flowSubMenuAutenticador,
+      // ==================== 🔄 COMANDOS ESPECIALES ====================
+      flowComandosEspeciales,
 
-  // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
-  flowCapturaNumeroControl,
-  flowCapturaNombre,
-  flowCapturaNumeroControlAutenticador,
-  flowCapturaNombreAutenticador,
-  flowCapturaNumeroControlSIE,
-  flowCapturaNombreSIE,
+      // ==================== 🎪 SUBMENÚS ====================
+      flowSubMenuContrasena,
+      flowSubMenuAutenticador,
 
-  // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
-  flowCapturaCorreoTrabajador,
-  flowCapturaNombreTrabajador,
-  flowCapturaCorreoTrabajadorAutenticador,
-  flowCapturaNombreTrabajadorAutenticador,
+      // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
+      flowCapturaNumeroControl,
+      flowCapturaNombre,
+      flowCapturaNumeroControlAutenticador,
+      flowCapturaNombreAutenticador,
+      flowCapturaNumeroControlSIE,
+      flowCapturaNombreSIE,
 
-  // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
-  flowCapturaIdentificacion,
-  flowCapturaIdentificacionAutenticador,
+      // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
+      flowCapturaCorreoTrabajador,
+      flowCapturaNombreTrabajador,
+      flowCapturaCorreoTrabajadorAutenticador,
+      flowCapturaNombreTrabajadorAutenticador,
 
-  // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
-  flowDistancia,
-  flowGracias,
-  flowSIE,
+      // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
+      flowCapturaIdentificacion,
+      flowCapturaIdentificacionAutenticador,
 
-  // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
-  flowrestablecercontrase,
-  flowrestablecerautenti,
-  
-  // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
-  flowrestablecerSIE,
+      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
+      flowDistancia,
+      flowGracias,
+      flowSIE,
 
-  // ==================== ⏳ FLUJOS FINALES (BLOQUEAN USUARIO) ====================
-  flowContrasena,
-  flowAutenticador,
-  flowFinSIE,
-  flowBloqueoActivo,
+      // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
+      flowrestablecercontrase,
+      flowrestablecerautenti,
 
-  // ==================== 🕒 FLUJOS DE ESPERA ====================
-  flowEsperaPrincipal,
-  flowEsperaMenu,
-  flowEsperaSIE,
-  flowEsperaContrasena,
-  flowEsperaAutenticador,
-  flowEsperaMenuDistancia,
-  flowEsperaMenuSIE,
+      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
+      flowrestablecerSIE,
 
-  // ==================== ❓ FLUJO POR DEFECTO (ÚLTIMO) ====================
-  flowDefault
-])
+      // ==================== ⏳ FLUJOS FINALES (BLOQUEAN USUARIO) ====================
+      flowContrasena,
+      flowAutenticador,
+      flowFinSIE,
+      flowBloqueoActivo,
+
+      // ==================== 🕒 FLUJOS DE ESPERA ====================
+      flowEsperaPrincipal,
+      flowEsperaMenu,
+      flowEsperaSIE,
+      flowEsperaContrasena,
+      flowEsperaAutenticador,
+      flowEsperaMenuDistancia,
+      flowEsperaMenuSIE,
+
+      // ==================== ❓ FLUJO POR DEFECTO (ÚLTIMO) ====================
+      flowDefault
+    ])
 
     // ==== CONFIGURACIÓN DEL PROVIDER - VERSIÓN CORREGIDA Y OPTIMIZADA ====
     const adapterProvider = createProvider(BaileysProvider, {
