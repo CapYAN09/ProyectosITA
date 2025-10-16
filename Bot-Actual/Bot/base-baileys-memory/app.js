@@ -557,6 +557,7 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
+/*
 // ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
@@ -621,7 +622,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     }
 
     return endFlow();
-  });
+  });*/
 
 // ==== Flujo de Bloqueo Activo - CORREGIDO ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
@@ -2427,23 +2428,23 @@ function esSaludoValido(texto) {
   return false;
 }
 
-// ==== Flujo principal (VERSIÓN MEJORADA Y FUNCIONAL) ====
+// ==== FLUJO PRINCIPAL SIMPLIFICADO - GARANTIZADO QUE FUNCIONE ====
 const flowPrincipal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
-    console.log(`🔍 Nuevo usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
+    console.log(`🔍 Nuevo mensaje de ${ctx.from}: "${ctx.body}"`);
 
-    // 🔧 VERIFICAR SI ES UN SALUDO VÁLIDO
     const input = ctx.body?.toLowerCase().trim();
-
-    if (!esSaludoValido(input)) {
-      console.log('❌ No es un saludo válido, ignorando mensaje');
-      return endFlow(); // 🔧 Terminar si no es saludo válido
+    
+    // 🔧 ACEPTAR CUALQUIER MENSAJE COMO ACTIVACIÓN
+    if (!input) {
+      return endFlow();
     }
 
-    console.log(`✅ Saludo válido detectado: "${input}"`);
+    // 🔧 SI ES UN MENSAJE VÁLIDO, PROCEDER
+    console.log(`✅ Mensaje recibido: "${input}" - Activando bot...`);
 
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
@@ -2453,19 +2454,19 @@ const flowPrincipal = addKeyword(EVENTS.WELCOME)
     await limpiarEstado(state);
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    // 🔧 ENVIAR IMAGEN DE BIENVENIDA PARA TODOS LOS SALUDOS VÁLIDOS
+    // ENVIAR BIENVENIDA
     try {
       await flowDynamic([{
         body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
         media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
       }]);
-      console.log(`✅ Imagen de bienvenida enviada para saludo: "${input}"`);
+      console.log(`✅ Bienvenida enviada para: "${input}"`);
     } catch (error) {
       console.error('❌ Error enviando imagen:', error.message);
       await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
     }
 
-    // 🔧 REDIRIGIR DIRECTAMENTE AL MENÚ
+    // 🔧 REDIRIGIR AL MENÚ
     return gotoFlow(flowMenu);
   });
 
@@ -2706,7 +2707,7 @@ const main = async () => {
       flowBlockAdmin,
 
       // ==================== 🔄 INTERCEPTOR GLOBAL (PRIMERO) ====================
-      flowInterceptorGlobal,  // 🔧 PRIMERO - maneja inactividad pero permite saludos
+      //flowInterceptorGlobal,  // 🔧 PRIMERO - maneja inactividad pero permite saludos
 
       // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
       flowPrincipal,  // 🔧 PRIMERO - captura todos los saludos
