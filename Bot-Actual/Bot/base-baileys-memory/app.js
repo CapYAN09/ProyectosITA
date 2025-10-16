@@ -2635,7 +2635,7 @@ const main = async () => {
     const adapterFlow = createFlow([
  // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN ====================
   flowBlockAdmin,
-  flowInterceptorGlobal,
+  //flowInterceptorGlobal,
   flowComandosEspeciales,
 
   // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
