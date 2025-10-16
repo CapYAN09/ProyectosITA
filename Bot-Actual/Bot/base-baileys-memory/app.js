@@ -3,6 +3,11 @@ const QRPortalWeb = require('@bot-whatsapp/portal')
 const BaileysProvider = require('@bot-whatsapp/provider/baileys')
 const MySQLAdapter = require('@bot-whatsapp/database/mysql')
 
+// ==== Función para debuggear flujos ====
+async function debugFlujo(ctx, nombreFlujo) {
+  console.log(`🔍 [DEBUG] ${nombreFlujo} - Usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
+}
+
 // Contacto específico donde se enviará la información
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
 
@@ -555,6 +560,7 @@ function validarNumeroControl(numeroControl) {
 //// ==== FLUJO INTERCEPTOR GLOBAL - MEJORADO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
+    await debugFlujo(ctx, 'flowInterceptorGlobal');
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
     // Reiniciar contador de inactividad en cada mensaje
@@ -600,6 +606,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
 // ==== Flujo de Bloqueo Activo - CORREGIDO ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    await debugFlujo(ctx, 'flowBloqueoActivo');
     if (ctx.from === CONTACTO_ADMIN) return;
 
     const myState = await state.getMyState();
@@ -663,6 +670,7 @@ const flowSubMenuContrasena = addKeyword(EVENTS.ACTION)
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state }) => {
+      await debugFlujo(ctx, 'flowSubMenuContrasena');
       if (ctx.from === CONTACTO_ADMIN) return;
 
       const opcion = ctx.body.trim().toLowerCase();
@@ -819,6 +827,7 @@ const flowSubMenuAutenticador = addKeyword(EVENTS.ACTION)
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state }) => {
+      await debugFlujo(ctx, 'flowSubMenuAutenticador');
       if (ctx.from === CONTACTO_ADMIN) return;
 
       const opcion = ctx.body.trim().toLowerCase();
@@ -1766,6 +1775,7 @@ const flowSIE = addKeyword(['sie']).addAnswer(
   '🔙 Escribe *menú* para volver al menú principal.',
   { capture: true },
   async (ctx, { flowDynamic, gotoFlow, state }) => { // 🔧 AGREGAR state aquí
+    await debugFlujo(ctx, 'flowSIE');
     if (ctx.from === CONTACTO_ADMIN) return;
 
     const opcion = ctx.body.trim().toLowerCase();
@@ -1793,6 +1803,7 @@ const flowSIE = addKeyword(['sie']).addAnswer(
 // ==== Flujo de captura con timeout - CORREGIDO ====
 const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    await debugFlujo(ctx, 'flowCapturaNumeroControl');
     const userPhone = ctx.from;
 
     const timeout = timeoutManager.setTimeout(userPhone, async () => {
@@ -2275,6 +2286,7 @@ const flowrestablecerSIE = addKeyword(EVENTS.ACTION).addAnswer(
 // ==== Flujo de agradecimiento ====
 const flowGracias = addKeyword(EVENTS.ACTION).addAction(
   async (ctx, { flowDynamic }) => {
+    await debugFlujo(ctx, 'flowGracias');
     if (ctx.from === CONTACTO_ADMIN) return;
 
     await flowDynamic(
@@ -2289,6 +2301,7 @@ const flowGracias = addKeyword(EVENTS.ACTION).addAction(
 // ==== Flujo de Educación a Distancia ====
 const flowDistancia = addKeyword(['Moodle'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    await debugFlujo(ctx, 'flowDistancia');
     if (ctx.from === CONTACTO_ADMIN) return;
 
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
@@ -2364,127 +2377,136 @@ function esSaludoValido(texto) {
   return saludos.some(saludo => textoLimpio.includes(saludo));
 }
 
-// ==== Flujo principal (CORREGIDO) ====
-const flowPrincipal = addKeyword(['hola', 'ole', 'alo', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', 'Hola', '.', 'Buenas tardes, tengo un problema', 'Buenas noches, tengo un problema', 'Buenos días, tengo un problema', 'buenas tardes tengo un problema', 'buenas noches tengo un problema', 'buenos días tengo un problema'])
+// ==== Flujo principal (VERSIÓN CORREGIDA) ====
+const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buenos días', 'buenas tardes', 'buenas noches', 'ayuda', 'necesito ayuda', 'tengo un problema', 'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso', '.', 'Hola']) // 🔧 PALABRA CLAVE SIMPLIFICADA
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+    await debugFlujo(ctx, 'flowPrincipal');
     if (ctx.from === CONTACTO_ADMIN) return;
+
+    console.log(`🔍 Nuevo usuario: ${ctx.from}`);
 
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
     }
 
+    // 🔧 LIMPIAR ESTADO AL INICIAR
+    await limpiarEstado(state);
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
     try {
       await flowDynamic([{
         body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
         media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
-      }])
-      console.log('✅ Imagen de bienvenida enviada correctamente \n')
+      }]);
+      console.log('✅ Imagen de bienvenida enviada');
     } catch (error) {
-      console.error('❌ Error enviando imagen:', error.message)
-      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!')
+      console.error('❌ Error enviando imagen:', error.message);
+      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
     }
 
-    await flowDynamic(
-      '🙌 Hola, bienvenido al *Nido de Willy* 🐦 el dia de hoy te encuentras hablando con Willy en Centro de Cómputo\n\n' +
-      '📋 Menú principal:\n' +
-      '1️⃣ Restablecer contraseña\n' +
-      '2️⃣ Restablecer autenticador\n' +
-      '3️⃣ Restablecer contraseña de Moodle\n' +
-      '4️⃣ Acceso al SIE'
-    )
-  })
-  .addAnswer(
-    "Ingresa el número de la opción en la que necesitas apoyo",
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
+    // 🔧 REDIRIGIR DIRECTAMENTE AL MENÚ
+    return gotoFlow(flowMenu);
+  });
 
-      if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-        return;
-      }
-
-      const opcion = ctx.body.trim()
-
-      console.log(`🔍 Opción recibida en flowPrincipal: "${opcion}"`); // 🔧 DEBUG
-
-      if (!isValidText(opcion) || !['1', '2', '3', '4'].includes(opcion)) {
-        await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3* o *4*.')
-        return gotoFlow(flowPrincipal)
-      }
-
-      // 🔧 CORRECCIÓN: Usar endFlow para evitar conflictos
-      if (opcion === '1') {
-        await flowDynamic(['🔐 *Restablecimiento de Contraseña* 🔐', '', 'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
-        return gotoFlow(flowSubMenuContrasena);
-      }
-      if (opcion === '2') {
-        await flowDynamic(['🔑 *Configuración de Autenticador* 🔑', '', 'Vamos a ayudarte a configurar tu autenticador.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
-        return gotoFlow(flowSubMenuAutenticador);
-      }
-      if (opcion === '3') return gotoFlow(flowDistancia)
-      if (opcion === '4') return gotoFlow(flowSIE)
-    }
-  )
-
-// ==== Flujo de menú (COMPLETAMENTE CORREGIDO) ====
+// ==== Flujo de menú (VERSIÓN CORREGIDA) ====
 const flowMenu = addKeyword(['menu', 'menú'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+    await debugFlujo(ctx, 'flowMenu');
     if (ctx.from === CONTACTO_ADMIN) return;
 
+    // 🔧 VERIFICAR SI ESTÁ BLOQUEADO PRIMERO
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
     }
 
+    // 🔧 LIMPIAR ESTADO ANTES DE MOSTRAR MENÚ
+    await limpiarEstado(state);
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    await flowDynamic(
-      '📋 Menú principal:\n' +
-      '1️⃣ Restablecer contraseña\n' +
-      '2️⃣ Restablecer autenticador\n' +
-      '3️⃣ Restablecer contraseña de Moodle\n' +
-      '4️⃣ Acceso al SIE\n' +
-      '5️⃣ Agradecimiento'
-    )
+    console.log(`🔍 Usuario ${ctx.from} accedió al menú`);
+
+    await flowDynamic([
+      '📋 *MENÚ PRINCIPAL* 📋',
+      '',
+      'Selecciona una opción:',
+      '',
+      '1️⃣ 🔐 Restablecer contraseña',
+      '2️⃣ 🔑 Restablecer autenticador', 
+      '3️⃣ 🎓 Restablecer contraseña de Moodle',
+      '4️⃣ 📊 Acceso al SIE',
+      '5️⃣ 🙏 Agradecimiento',
+      '',
+      '💡 *Escribe solo el número de la opción*'
+    ].join('\n'));
   })
   .addAnswer(
-    "Ingresa el número de la opción en la que necesitas apoyo",
     { capture: true },
     async (ctx, { gotoFlow, flowDynamic, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
+      const opcion = ctx.body.trim();
+      console.log(`🔍 Opción seleccionada en menu: "${opcion}"`);
+
+      // 🔧 VERIFICAR BLOQUEO NUEVAMENTE
       if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
         return;
       }
 
-      const opcion = ctx.body.trim()
+      // 🔧 MANEJO EXPLÍCITO DE OPCIONES
+      switch (opcion) {
+        case '1':
+          console.log('✅ Usuario seleccionó: Restablecer contraseña');
+          await flowDynamic([
+            '🔐 *Restablecimiento de Contraseña* 🔐',
+            '',
+            'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.',
+            '',
+            'Primero necesitamos saber tu tipo de usuario:'
+          ].join('\n'));
+          return gotoFlow(flowSubMenuContrasena);
 
-      console.log(`🔍 Opción recibida en flowMenu: "${opcion}"`); // 🔧 DEBUG
+        case '2':
+          console.log('✅ Usuario seleccionó: Restablecer autenticador');
+          await flowDynamic([
+            '🔑 *Configuración de Autenticador* 🔑',
+            '',
+            'Vamos a ayudarte a configurar tu autenticador.',
+            '',
+            'Primero necesitamos saber tu tipo de usuario:'
+          ].join('\n'));
+          return gotoFlow(flowSubMenuAutenticador);
 
-      if (!isValidText(opcion) || !['1', '2', '3', '4', '5'].includes(opcion)) {
-        await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3*, *4* o *5*.')
-        return gotoFlow(flowMenu)
-      }
+        case '3':
+          console.log('✅ Usuario seleccionó: Moodle');
+          return gotoFlow(flowDistancia);
 
-      // 🔧 CORRECCIÓN: Redirigir directamente SIN usar palabras clave conflictivas
-      if (opcion === '1') {
-        await flowDynamic(['🔐 *Restablecimiento de Contraseña* 🔐', '', 'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
-        return gotoFlow(flowSubMenuContrasena);
+        case '4':
+          console.log('✅ Usuario seleccionó: SIE');
+          return gotoFlow(flowSIE);
+
+        case '5':
+          console.log('✅ Usuario seleccionó: Agradecimiento');
+          return gotoFlow(flowGracias);
+
+        default:
+          console.log(`❌ Opción inválida: "${opcion}"`);
+          await flowDynamic([
+            '❌ *Opción no válida*',
+            '',
+            'Por favor escribe solo el *número* de la opción:',
+            '1, 2, 3, 4 o 5',
+            '',
+            '🔁 Intentemos de nuevo...'
+          ].join('\n'));
+          return gotoFlow(flowMenu);
       }
-      if (opcion === '2') {
-        await flowDynamic(['🔑 *Configuración de Autenticador* 🔑', '', 'Vamos a ayudarte a configurar tu autenticador.', '', 'Primero necesitamos saber tu tipo de usuario:'].join('\n'));
-        return gotoFlow(flowSubMenuAutenticador);
-      }
-      if (opcion === '3') return gotoFlow(flowDistancia)
-      if (opcion === '4') return gotoFlow(flowSIE)
-      if (opcion === '5') return gotoFlow(flowGracias)
     }
-  )
+  );
 
 // ==== Flujo para comandos especiales durante procesos (SIMPLIFICADO) ====
 const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    await debugFlujo(ctx, 'flowComandosEspeciales');
     if (ctx.from === CONTACTO_ADMIN) return;
 
     const myState = await state.getMyState();
@@ -2580,6 +2602,7 @@ async function verificarBaseDeDatos() {
 
 // ==== Flujo para mensajes no entendidos - ACTUALIZADO ====
 const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+  await debugFlujo(ctx, 'flowDefault');
   if (ctx.from === CONTACTO_ADMIN) return;
 
   // Reiniciar inactividad incluso en mensajes no entendidos
@@ -2617,18 +2640,18 @@ const main = async () => {
     }
 
     const adapterFlow = createFlow([
-  // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN (PRIMERO) ====================
+ // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN ====================
   flowBlockAdmin,
   flowInterceptorGlobal,
   flowComandosEspeciales,
 
-  // ==================== 🎯 FLUJOS PRINCIPALES DE USUARIO ====================
+  // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
   flowPrincipal,
-  flowMenu,
+  flowMenu,  // 🔧 EL MENÚ DEBE ESTAR ANTES que los subflujos
 
-  // ==================== 🎪 SUBMENÚS (AHORA PRIMERO) ====================
-  flowSubMenuContrasena,    // 🔧 SUBMENÚ CONTRASEÑA
-  flowSubMenuAutenticador,  // 🔧 SUBMENÚ AUTENTICADOR
+  // ==================== 🎪 SUBMENÚS ====================
+  flowSubMenuContrasena,
+  flowSubMenuAutenticador,
 
   // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
   flowCapturaNumeroControl,
