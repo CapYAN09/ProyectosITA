@@ -2429,7 +2429,7 @@ function esSaludoValido(texto) {
 }
 
 // ==== FLUJO PRINCIPAL - VERSIÓN HÍBRIDA (MÁS ROBUSTA) ====
-const flowPrincipal = addKeyword(['hola', 'Hola', 'HOLA', 'Holi', 'holi', 'holis', 'Holis', 'holaa', 'Holaa', 'holaaa', 'Holaaa','.'])
+const flowPrincipal = addKeyword(['hola', 'Hola', 'Hola!' , 'HOLA', 'Holi', 'holi', 'holis', 'Holis', 'holaa', 'Holaa', 'holaaa', 'Holaaa','.'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
     
@@ -2502,6 +2502,7 @@ async function mostrarOpcionesMenu(flowDynamic) {
   await flowDynamic([
     '📋 *MENÚ PRINCIPAL* 📋',
     '',
+    'Te recomiendo que tengas tu credencial a la mano para agilizar el proceso. Se te solicitará para validar tu identidad al momento de restablecer tu contraseña o autenticador.',
     'Selecciona una opción:',
     '',
     '1️⃣ 🔐 Restablecer contraseña',
