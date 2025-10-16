@@ -2428,23 +2428,43 @@ function esSaludoValido(texto) {
   return false;
 }
 
-// ==== FLUJO PRINCIPAL - VERSIÓN EXTREMA (GARANTIZADO) ====
-const flowPrincipal = addKeyword(['hola', 'Hola', 'HOLA', '.'])
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
-    console.log(`🎉 BOT ACTIVADO por: "${ctx.body}"`);
+// ==== FLUJO PRINCIPAL - VERSIÓN HÍBRIDA (MÁS ROBUSTA) ====
+const flowPrincipal = addKeyword(['hola', 'Hola', 'HOLA', 'inicio', 'Inicio'])
+  .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
+    await debugFlujo(ctx, 'flowPrincipal');
     
-    if (ctx.from === CONTACTO_ADMIN) return;
+    if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
-    // Limpiar estado completamente
+    const input = ctx.body?.toLowerCase().trim();
+    console.log(`🔍 FLOW PRINCIPAL - Mensaje: "${input}"`);
+
+    // 🔧 VERIFICACIÓN ADICIONAL CON esSaludoValido (para mayor seguridad)
+    if (!esSaludoValido(input)) {
+      console.log(`⚠️ Mensaje no reconocido como saludo: "${input}"`);
+      // Pero como llegó aquí por palabra clave, procedemos igual
+    }
+
+    console.log(`✅ BOT ACTIVADO por: "${input}"`);
+
+    // Verificar si el usuario está en proceso bloqueado
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+      return;
+    }
+
+    // LIMPIAR ESTADO Y PROCEDER
     await limpiarEstado(state);
+    await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    // Enviar bienvenida
-    await flowDynamic([{
-      body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
-      media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
-    }]);
+    // ENVIAR BIENVENIDA
+    try {
+      await flowDynamic([{
+        body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
+        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
+      }]);
+    } catch (error) {
+      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
+    }
 
-    // Redirigir inmediatamente al menú
     return gotoFlow(flowMenu);
   });
 
