@@ -2394,40 +2394,50 @@ function esSaludoValido(texto) {
     'problemas con el acceso', 'problema con el acceso'
   ];
 
-  // 🔧 BÚSQUEDA MÁS INTELIGENTE
-  return saludos.some(saludo => {
+  // 🔧 BÚSQUEDA MÁS FLEXIBLE Y ROBUSTA
+  for (const saludo of saludos) {
     const saludoLimpio = saludo.toLowerCase().trim();
     
     // Coincidencia exacta
-    if (textoLimpio === saludoLimpio) return true;
-    
-    // Coincidencia parcial (el saludo está contenido en el texto)
-    if (textoLimpio.includes(saludoLimpio)) return true;
-    
-    // Para textos largos, verificar si contiene las palabras clave principales
-    if (saludoLimpio.length > 10) {
-      const palabrasClave = ['hola', 'problema', 'ayuda', 'cuenta', 'acceso', 'contraseña', 'autenticador'];
-      return palabrasClave.some(palabra => textoLimpio.includes(palabra));
+    if (textoLimpio === saludoLimpio) {
+      console.log(`✅ Coincidencia exacta: "${textoLimpio}"`);
+      return true;
     }
     
-    return false;
-  });
+    // Coincidencia parcial (el saludo está contenido en el texto)
+    if (textoLimpio.includes(saludoLimpio)) {
+      console.log(`✅ Coincidencia parcial: "${textoLimpio}" contiene "${saludoLimpio}"`);
+      return true;
+    }
+    
+    // Para saludos más largos, verificar si contiene las palabras clave principales
+    if (saludoLimpio.length > 10) {
+      const palabrasClave = ['hola', 'problema', 'ayuda', 'cuenta', 'acceso', 'contraseña', 'autenticador', 'disculpa'];
+      const contienePalabraClave = palabrasClave.some(palabra => textoLimpio.includes(palabra));
+      if (contienePalabraClave) {
+        console.log(`✅ Contiene palabra clave: "${textoLimpio}"`);
+        return true;
+      }
+    }
+  }
+  console.log(`❌ No es saludo válido: "${textoLimpio}"`);
+  return false;
 }
 
-// ==== Flujo principal (VERSIÓN MEJORADA Y CORREGIDA) ====
+// ==== Flujo principal (VERSIÓN MEJORADA Y FUNCIONAL) ====
 const flowPrincipal = addKeyword(EVENTS.WELCOME)
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+  .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
-    if (ctx.from === CONTACTO_ADMIN) return;
+    if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
     console.log(`🔍 Nuevo usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
 
-    // 🔧 VERIFICAR SI ES UN SALUDO VÁLIDO usando la función esSaludoValido
+    // 🔧 VERIFICAR SI ES UN SALUDO VÁLIDO
     const input = ctx.body?.toLowerCase().trim();
     
     if (!esSaludoValido(input)) {
       console.log('❌ No es un saludo válido, ignorando mensaje');
-      return; // 🔧 NO hacer nada si no es saludo válido
+      return endFlow(); // 🔧 Terminar si no es saludo válido
     }
 
     console.log(`✅ Saludo válido detectado: "${input}"`);
@@ -2639,7 +2649,7 @@ async function verificarBaseDeDatos() {
   }
 }
 
-// ==== Flujo para mensajes no entendidos - ACTUALIZADO ====
+// ==== Flujo para mensajes no entendidos - MEJORADO ====
 const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
   await debugFlujo(ctx, 'flowDefault');
   if (ctx.from === CONTACTO_ADMIN) return;
@@ -2651,16 +2661,26 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     return;
   }
 
+  const input = ctx.body?.toLowerCase().trim();
+  
+  // 🔧 SI ES UN SALUDO VÁLIDO PERO NO FUE CAPTURADO, REDIRIGIR AL FLOW PRINCIPAL
+  if (esSaludoValido(input)) {
+    console.log(`🔄 Saludo válido detectado en flowDefault: "${input}", redirigiendo al flowPrincipal...`);
+    return gotoFlow(flowPrincipal);
+  }
+
   await flowDynamic([
     '🤖 No entiendo ese tipo de mensajes.',
     '',
     '💡 **Comandos disponibles:**',
     '• *hola* - Reactivar el bot',
+    '• *inicio* - Comenzar conversación', 
+    '• *ayuda* - Obtener asistencia',
     '• *menú* - Ver opciones principales',
     '• *estado* - Ver progreso de procesos',
     '',
     '🔙 Escribe *hola* para comenzar de nuevo.'
-  ])
+  ]);
 });
 
 // ==== Inicialización CORREGIDA ====
@@ -2681,7 +2701,7 @@ const main = async () => {
     const adapterFlow = createFlow([
  // ==================== 🛡️ FLUJOS DE INTERCEPTACIÓN ====================
   flowBlockAdmin,
-  flowInterceptorGlobal,
+  //flowInterceptorGlobal,
   flowComandosEspeciales,
 
   // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
