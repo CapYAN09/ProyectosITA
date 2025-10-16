@@ -2428,73 +2428,83 @@ const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buen
     return gotoFlow(flowMenu);
   });
 
-// ==== Flujo de menú (VERSIÓN MEJORADA) ====
-const flowMenu = addKeyword(['menu', 'menú'])
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
-    await debugFlujo(ctx, 'flowMenu - INICIO');
+// ==== FLUJO MENÚ SUPER SIMPLE ====
+const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
+  .addAction(async (ctx, { flowDynamic, gotoFlow }) => {
+    console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body);
+    
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    console.log(`🔍 Usuario en menú: ${ctx.from}, mensaje: "${ctx.body}"`);
+    const opcion = ctx.body.trim();
 
-    // 🔧 ACTUALIZAR ESTADO
-    await state.update({ 
-      estadoUsuario: ESTADOS_USUARIO.EN_MENU,
-      ultimaInteraccion: Date.now()
-    });
-
-    await flowDynamic([
-      '📋 *MENÚ PRINCIPAL* 📋',
-      '',
-      'Selecciona una opción:',
-      '',
-      '1️⃣ 🔐 Restablecer contraseña',
-      '2️⃣ 🔑 Restablecer autenticador', 
-      '3️⃣ 🎓 Educación a Distancia (Moodle)',
-      '4️⃣ 📊 Sistema SIE',
-      '5️⃣ 🙏 Agradecimiento',
-      '',
-      '💡 *Escribe solo el número (1-5)*'
-    ].join('\n'));
-  })
-  .addAnswer(
-    { capture: true },
-    async (ctx, { gotoFlow, flowDynamic, state }) => {
-      await debugFlujo(ctx, 'flowMenu - OPCION');
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim();
-      console.log(`🎯 Opción recibida: "${opcion}"`);
-
-      // 🔧 MANEJO SIMPLIFICADO DE OPCIONES
-      if (opcion === '1') {
-        console.log('🚀 Redirigiendo a restablecer contraseña...');
-        await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña...');
-        return gotoFlow(flowSubMenuContrasena);
-      }
-      else if (opcion === '2') {
-        console.log('🚀 Redirigiendo a autenticador...');
-        await flowDynamic('🔑 Iniciando proceso de autenticador...');
-        return gotoFlow(flowSubMenuAutenticador);
-      }
-      else if (opcion === '3') {
-        console.log('🚀 Redirigiendo a Moodle...');
-        return gotoFlow(flowDistancia);
-      }
-      else if (opcion === '4') {
-        console.log('🚀 Redirigiendo a SIE...');
-        return gotoFlow(flowSIE);
-      }
-      else if (opcion === '5') {
-        console.log('🚀 Redirigiendo a agradecimiento...');
-        return gotoFlow(flowGracias);
-      }
-      else {
-        console.log('❌ Opción inválida recibida:', opcion);
-        await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4* o *5*.');
-        return gotoFlow(flowMenu);
-      }
+    // Si es un comando de menú, mostrar opciones
+    if (opcion === 'menu' || opcion === 'menú') {
+      await mostrarOpcionesMenu(flowDynamic);
+      return; // Esperar la respuesta del usuario
     }
-  );
+
+    // Si es una opción numérica, procesarla
+    if (['1', '2', '3', '4', '5'].includes(opcion)) {
+      await procesarOpcionMenu(opcion, flowDynamic, gotoFlow);
+      return;
+    }
+
+    // Si no es ninguna de las anteriores, mostrar menú
+    await mostrarOpcionesMenu(flowDynamic);
+  });
+
+// ==== FUNCIÓN PARA MOSTRAR OPCIONES DEL MENÚ ====
+async function mostrarOpcionesMenu(flowDynamic) {
+  await flowDynamic([
+    '📋 *MENÚ PRINCIPAL* 📋',
+    '',
+    'Selecciona una opción:',
+    '',
+    '1️⃣ 🔐 Restablecer contraseña',
+    '2️⃣ 🔑 Restablecer autenticador', 
+    '3️⃣ 🎓 Educación a Distancia (Moodle)',
+    '4️⃣ 📊 Sistema SIE',
+    '5️⃣ 🙏 Agradecimiento',
+    '',
+    '💡 *Escribe solo el número (1-5)*'
+  ].join('\n'));
+}
+
+// ==== FUNCIÓN PARA PROCESAR OPCIONES ====
+async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow) {
+  console.log('🎯 Procesando opción:', opcion);
+  
+  switch (opcion) {
+    case '1':
+      await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña...');
+      console.log('🚀 Redirigiendo a flowSubMenuContrasena');
+      return gotoFlow(flowSubMenuContrasena);
+
+    case '2':
+      await flowDynamic('🔑 Iniciando proceso de autenticador...');
+      console.log('🚀 Redirigiendo a flowSubMenuAutenticador');
+      return gotoFlow(flowSubMenuAutenticador);
+
+    case '3':
+      await flowDynamic('🎓 Redirigiendo a Educación a Distancia...');
+      console.log('🚀 Redirigiendo a flowDistancia');
+      return gotoFlow(flowDistancia);
+
+    case '4':
+      await flowDynamic('📊 Redirigiendo al Sistema SIE...');
+      console.log('🚀 Redirigiendo a flowSIE');
+      return gotoFlow(flowSIE);
+
+    case '5':
+      await flowDynamic('🙏 Redirigiendo a agradecimiento...');
+      console.log('🚀 Redirigiendo a flowGracias');
+      return gotoFlow(flowGracias);
+
+    default:
+      await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4* o *5*.');
+      return gotoFlow(flowMenu);
+  }
+}
 
 // ==== Flujo para comandos especiales durante procesos (SIMPLIFICADO) ====
 const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
