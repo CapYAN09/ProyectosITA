@@ -2663,33 +2663,55 @@ const main = async () => {
   flowDefault
 ])
 
-    // ==== MEJORA EN LA CONFIGURACIÓN DEL PROVIDER ====
+    // ==== CONFIGURACIÓN DEL PROVIDER - VERSIÓN CORREGIDA Y OPTIMIZADA ====
     const adapterProvider = createProvider(BaileysProvider, {
       printQRInTerminal: true,
-      // 🔧 CONFIGURACIONES ADICIONALES DE ESTABILIDAD
-      auth: {
-        creds: {},
-        keys: {}
-      },
+
+      // 🔧 CONFIGURACIÓN DE AUTENTICACIÓN SIMPLIFICADA
+      // Dejar que Baileys maneje la autenticación automáticamente
+      // auth: {}, // 🔧 COMENTADO - Dejar que Baileys lo maneje
+
+      // 🔧 CONFIGURACIÓN DE LOGS OPTIMIZADA
       logger: {
-        level: 'silent'
+        level: 'fatal' // 🔧 CAMBIADO: 'fatal' en lugar de 'silent' para errores críticos únicamente
       },
+
+      // 🔧 CONFIGURACIONES DE CONEXIÓN
       markOnlineOnConnect: true,
       generateHighQualityLinkPreview: true,
-      // 🔧 CONFIGURACIONES DE RECONEXIÓN MEJORADAS
+
+      // 🔧 CONFIGURACIONES DE RECONEXIÓN (CORREGIDAS)
       reconnect: true,
-      maxRetries: 10,
-      connectTimeout: 30000,
-      keepAliveInterval: 15000,
-      // Manejo de errores mejorado
-      getMessage: async (key) => {
-        return {
-          conversation: 'mensaje no disponible'
-        }
+      maxRetries: 5, // 🔧 REDUCIDO: 5 intentos en lugar de 10
+      connectTimeoutMs: 30000, // 🔧 CORREGIDO: connectTimeoutMs en lugar de connectTimeout
+      keepAliveIntervalMs: 20000, // 🔧 CORREGIDO: keepAliveIntervalMs en lugar de keepAliveInterval
+
+      // 🔧 ELIMINAR configuración problemática de getMessage
+      // getMessage: async (key) => {
+      //   return {
+      //     conversation: 'mensaje no disponible'
+      //   }
+      // },
+
+      // 🔧 CONFIGURACIONES ADICIONALES DE ESTABILIDAD
+      emitOwnEvents: false, // 🔧 CAMBIADO: false para mejor estabilidad
+      defaultQueryTimeoutMs: 30000, // 🔧 REDUCIDO: 30 segundos en lugar de 60
+
+      // 🔧 NUEVAS CONFIGURACIONES PARA MEJOR ESTABILIDAD
+      fireInitQueries: true,
+      syncFullHistory: false,
+      linkPreviewImageThumbnailWidth: 192,
+      transactionOpts: {
+        maxRetries: 3,
+        delayInMs: 1000
       },
-      // Configuración para evitar desconexiones
-      emitOwnEvents: true,
-      defaultQueryTimeoutMs: 60000
+
+      // 🔧 CONFIGURACIÓN PARA MANEJO DE MEDIOS
+      downloadHistory: false,
+      mediaCache: {
+        maxItems: 50,
+        maxSize: 104857600 // 100MB
+      }
     });
 
     console.log('🔧 Creando bot...');
