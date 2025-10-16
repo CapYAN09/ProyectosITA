@@ -2428,48 +2428,23 @@ function esSaludoValido(texto) {
   return false;
 }
 
-// ==== FLUJO PRINCIPAL - VERSIÓN DEFINITIVA QUE FUNCIONA ====
-const flowPrincipal = addKeyword(EVENTS.WELCOME)
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
-    await debugFlujo(ctx, 'flowPrincipal');
+// ==== FLUJO PRINCIPAL - VERSIÓN EXTREMA (GARANTIZADO) ====
+const flowPrincipal = addKeyword(['hola', 'Hola', 'HOLA', '.'])
+  .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+    console.log(`🎉 BOT ACTIVADO por: "${ctx.body}"`);
     
-    if (ctx.from === CONTACTO_ADMIN) return endFlow();
+    if (ctx.from === CONTACTO_ADMIN) return;
 
-    console.log(`🔍 FLOW PRINCIPAL - Mensaje de ${ctx.from}: "${ctx.body}"`);
-
-    const input = ctx.body?.toLowerCase().trim();
-    
-    // 🔧 ACEPTAR CUALQUIER TIPO DE MENSAJE COMO ACTIVACIÓN
-    if (!input) {
-      console.log('❌ Mensaje vacío, ignorando...');
-      return endFlow();
-    }
-
-    console.log(`✅ Activando bot con mensaje: "${input}"`);
-
-    // Verificar si el usuario está bloqueado en un proceso
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
-
-    // 🔧 LIMPIAR ESTADO COMPLETAMENTE AL INICIAR
+    // Limpiar estado completamente
     await limpiarEstado(state);
-    await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    // ENVIAR BIENVENIDA
-    try {
-      await flowDynamic([{
-        body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
-        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
-      }]);
-      console.log(`✅ Bienvenida enviada para: "${input}"`);
-    } catch (error) {
-      console.error('❌ Error enviando imagen:', error.message);
-      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
-    }
+    // Enviar bienvenida
+    await flowDynamic([{
+      body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
+      media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
+    }]);
 
-    // 🔧 REDIRIGIR DIRECTAMENTE AL MENÚ PRINCIPAL
-    console.log('🚀 Redirigiendo al menú principal...');
+    // Redirigir inmediatamente al menú
     return gotoFlow(flowMenu);
   });
 
