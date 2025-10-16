@@ -557,10 +557,11 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-//// ==== FLUJO INTERCEPTOR GLOBAL - MEJORADO ====
+//// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowInterceptorGlobal');
+    
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
     // Reiniciar contador de inactividad en cada mensaje
@@ -574,10 +575,28 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
       return gotoFlow(flowBloqueoActivo);
     }
 
-    // 🔧 USAR la función de validación aquí en el interceptor
+    // 🔧 CORRECCIÓN CRÍTICA: PERMITIR OPCIONES NUMÉRICAS DEL MENÚ
     const input = ctx.body?.toLowerCase().trim();
 
-    // Si el mensaje NO es un saludo válido Y el usuario no tiene estado activo
+    // 🔧 SI ES UNA OPCIÓN DEL MENÚ (1,2,3,4,5), DEJAR PASAR
+    if (['1', '2', '3', '4', '5'].includes(input)) {
+      console.log('✅ Opción de menú detectada, permitiendo pasar...');
+      return endFlow(); // 🔧 DEJAR QUE OTROS FLUJOS MANEJEN LA OPCIÓN
+    }
+
+    // 🔧 SI ES "menú", DEJAR PASAR
+    if (input === 'menu' || input === 'menú') {
+      console.log('✅ Comando menú detectado, permitiendo pasar...');
+      return endFlow();
+    }
+
+    // 🔧 SI ES "estado", DEJAR PASAR  
+    if (input === 'estado') {
+      console.log('✅ Comando estado detectado, permitiendo pasar...');
+      return endFlow();
+    }
+
+    // Solo bloquear si NO es saludo válido Y el usuario no tiene estado activo
     if (!esSaludoValido(input)) {
       const myState = await state.getMyState();
       if (!myState?.estadoUsuario || myState.estadoUsuario === ESTADOS_USUARIO.LIBRE) {
