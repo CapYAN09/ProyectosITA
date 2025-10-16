@@ -655,6 +655,7 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
 // ==== FLUJO PARA BLOQUEAR AL ADMINISTRADOR ====
 const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { endFlow }) => {
+    await debugFlujo(ctx, 'flowBlockAdmin');
     if (ctx.from === CONTACTO_ADMIN) {
       console.log('🚫 Mensaje del administrador bloqueado - No se procesará')
       return endFlow()
@@ -2408,22 +2409,19 @@ const flowPrincipal = addKeyword(['hola', 'inicio', 'comenzar', 'empezar', 'buen
     return gotoFlow(flowMenu);
   });
 
-// ==== Flujo de menú (VERSIÓN CORREGIDA) ====
+// ==== Flujo de menú (VERSIÓN MEJORADA) ====
 const flowMenu = addKeyword(['menu', 'menú'])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
-    await debugFlujo(ctx, 'flowMenu');
+    await debugFlujo(ctx, 'flowMenu - INICIO');
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    // 🔧 VERIFICAR SI ESTÁ BLOQUEADO PRIMERO
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
+    console.log(`🔍 Usuario en menú: ${ctx.from}, mensaje: "${ctx.body}"`);
 
-    // 🔧 LIMPIAR ESTADO ANTES DE MOSTRAR MENÚ
-    await limpiarEstado(state);
-    await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
-
-    console.log(`🔍 Usuario ${ctx.from} accedió al menú`);
+    // 🔧 ACTUALIZAR ESTADO
+    await state.update({ 
+      estadoUsuario: ESTADOS_USUARIO.EN_MENU,
+      ultimaInteraccion: Date.now()
+    });
 
     await flowDynamic([
       '📋 *MENÚ PRINCIPAL* 📋',
@@ -2432,73 +2430,49 @@ const flowMenu = addKeyword(['menu', 'menú'])
       '',
       '1️⃣ 🔐 Restablecer contraseña',
       '2️⃣ 🔑 Restablecer autenticador', 
-      '3️⃣ 🎓 Restablecer contraseña de Moodle',
-      '4️⃣ 📊 Acceso al SIE',
+      '3️⃣ 🎓 Educación a Distancia (Moodle)',
+      '4️⃣ 📊 Sistema SIE',
       '5️⃣ 🙏 Agradecimiento',
       '',
-      '💡 *Escribe solo el número de la opción*'
+      '💡 *Escribe solo el número (1-5)*'
     ].join('\n'));
   })
   .addAnswer(
     { capture: true },
     async (ctx, { gotoFlow, flowDynamic, state }) => {
+      await debugFlujo(ctx, 'flowMenu - OPCION');
       if (ctx.from === CONTACTO_ADMIN) return;
 
       const opcion = ctx.body.trim();
-      console.log(`🔍 Opción seleccionada en menu: "${opcion}"`);
+      console.log(`🎯 Opción recibida: "${opcion}"`);
 
-      // 🔧 VERIFICAR BLOQUEO NUEVAMENTE
-      if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-        return;
+      // 🔧 MANEJO SIMPLIFICADO DE OPCIONES
+      if (opcion === '1') {
+        console.log('🚀 Redirigiendo a restablecer contraseña...');
+        await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña...');
+        return gotoFlow(flowSubMenuContrasena);
       }
-
-      // 🔧 MANEJO EXPLÍCITO DE OPCIONES
-      switch (opcion) {
-        case '1':
-          console.log('✅ Usuario seleccionó: Restablecer contraseña');
-          await flowDynamic([
-            '🔐 *Restablecimiento de Contraseña* 🔐',
-            '',
-            'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.',
-            '',
-            'Primero necesitamos saber tu tipo de usuario:'
-          ].join('\n'));
-          return gotoFlow(flowSubMenuContrasena);
-
-        case '2':
-          console.log('✅ Usuario seleccionó: Restablecer autenticador');
-          await flowDynamic([
-            '🔑 *Configuración de Autenticador* 🔑',
-            '',
-            'Vamos a ayudarte a configurar tu autenticador.',
-            '',
-            'Primero necesitamos saber tu tipo de usuario:'
-          ].join('\n'));
-          return gotoFlow(flowSubMenuAutenticador);
-
-        case '3':
-          console.log('✅ Usuario seleccionó: Moodle');
-          return gotoFlow(flowDistancia);
-
-        case '4':
-          console.log('✅ Usuario seleccionó: SIE');
-          return gotoFlow(flowSIE);
-
-        case '5':
-          console.log('✅ Usuario seleccionó: Agradecimiento');
-          return gotoFlow(flowGracias);
-
-        default:
-          console.log(`❌ Opción inválida: "${opcion}"`);
-          await flowDynamic([
-            '❌ *Opción no válida*',
-            '',
-            'Por favor escribe solo el *número* de la opción:',
-            '1, 2, 3, 4 o 5',
-            '',
-            '🔁 Intentemos de nuevo...'
-          ].join('\n'));
-          return gotoFlow(flowMenu);
+      else if (opcion === '2') {
+        console.log('🚀 Redirigiendo a autenticador...');
+        await flowDynamic('🔑 Iniciando proceso de autenticador...');
+        return gotoFlow(flowSubMenuAutenticador);
+      }
+      else if (opcion === '3') {
+        console.log('🚀 Redirigiendo a Moodle...');
+        return gotoFlow(flowDistancia);
+      }
+      else if (opcion === '4') {
+        console.log('🚀 Redirigiendo a SIE...');
+        return gotoFlow(flowSIE);
+      }
+      else if (opcion === '5') {
+        console.log('🚀 Redirigiendo a agradecimiento...');
+        return gotoFlow(flowGracias);
+      }
+      else {
+        console.log('❌ Opción inválida recibida:', opcion);
+        await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4* o *5*.');
+        return gotoFlow(flowMenu);
       }
     }
   );
