@@ -439,7 +439,7 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
   ].join('\n'));
 }
 
-// ==== Función de verificación MEJORADA ====
+// ==== Función de verificación MEJORADA - MÁS ROBUSTA ====
 async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   if (ctx.from === CONTACTO_ADMIN) return false;
 
@@ -447,7 +447,32 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
     const myState = await state.getMyState();
 
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-      await mostrarEstadoBloqueado(flowDynamic, myState);
+      console.log(`🔒 Bloqueando mensaje de ${ctx.from} - Proceso en curso`);
+      
+      const input = ctx.body?.toLowerCase().trim();
+      
+      // 🔧 SI ESCRIBE "estado", MOSTRAR INFORMACIÓN DETALLADA
+      if (input === 'estado') {
+        await mostrarEstadoBloqueado(flowDynamic, myState);
+      } else if (input && input !== 'estado') {
+        // 🔧 CUALQUIER OTRO MENSAJE RECIBE RESPUESTA GENÉRICA
+        await flowDynamic([
+          '⏳ *Proceso en curso* ⏳',
+          '',
+          '📋 Tu solicitud está siendo procesada activamente...',
+          '',
+          '🔄 **No es necesario que escribas nada**',
+          '⏰ El proceso continuará automáticamente',
+          '',
+          '💡 **Solo escribe:**',
+          '*estado* - Para ver el progreso actual',
+          '',
+          '¡Gracias por tu paciencia! 🙏'
+        ].join('\n'));
+      }
+      
+      // 🔧 REDIRIGIR AL FLUJO DE BLOQUEO
+      await gotoFlow(flowBloqueoActivo);
       return true;
     }
   } catch (error) {
@@ -557,121 +582,92 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
-/*
-// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO ====
+// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO Y MEJORADO ====
 const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowInterceptorGlobal');
 
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
-    const input = ctx.body?.toLowerCase().trim();
-
-    // 🔧 DETECCIÓN MEJORADA DE SALUDOS - PERMITIR QUE PASEN AL FLOW PRINCIPAL
-    if (esSaludoValido(input)) {
-      console.log(`✅ Saludo válido detectado en interceptor: "${input}", permitiendo pasar...`);
-      return endFlow(); // 🔧 DEJAR QUE EL FLOW PRINCIPAL MANEJE EL SALUDO
-    }
-
-    // Reiniciar contador de inactividad en cada mensaje
-    await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
-
-    // Intentar restaurar estado desde MySQL al iniciar
-    const estadoRestaurado = await restaurarEstadoInicial(ctx, state);
-
-    if (estadoRestaurado) {
-      await mostrarEstadoBloqueado(flowDynamic, await state.getMyState());
+    // 🔧 VERIFICAR PRIMERO SI ESTÁ EN PROCESO LARGO
+    const myState = await state.getMyState();
+    
+    if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      console.log(`🔒 Usuario ${ctx.from} está en proceso largo, redirigiendo a bloqueo`);
+      await mostrarEstadoBloqueado(flowDynamic, myState);
       return gotoFlow(flowBloqueoActivo);
     }
 
-    // 🔧 LISTA DE COMANDOS QUE DEBEN PASAR DIRECTAMENTE
+    const input = ctx.body?.toLowerCase().trim();
+
+    // 🔧 PERMITIR SOLO COMANDOS ESPECÍFICOS SI NO ESTÁ BLOQUEADO
     const comandosPermitidos = [
-      '1', '2', '3', '4', '5',           // Opciones del menú
-      'menu', 'menú',                    // Comando menú
-      'estado',                          // Comando estado
-      'hola', 'inicio', 'comenzar', 'empezar', // Comandos de inicio
-      'buenos días', 'buenas tardes', 'buenas noches', // Saludos
-      'ayuda', 'necesito ayuda', 'tengo un problema'   // Comandos de ayuda
+      'hola', 'inicio', 'menu', 'menú', 'estado', 'ayuda',
+      '1', '2', '3', '4', '5'
     ];
 
-    // 🔧 SI ES UN COMANDO PERMITIDO, DEJAR PASAR
-    if (comandosPermitidos.some(comando => input === comando)) {
-      console.log(`✅ Comando permitido detectado: "${input}", permitiendo pasar...`);
+    if (comandosPermitidos.includes(input)) {
+      console.log(`✅ Comando permitido: "${input}", permitiendo pasar...`);
       return endFlow();
     }
 
-    // Solo mostrar mensaje de inactividad si no hay estado activo
-    const myState = await state.getMyState();
+    // 🔧 SI NO ES COMANDO PERMITIDO Y NO ESTÁ BLOQUEADO, MOSTRAR MENSAJE
     if (!myState?.estadoUsuario || myState.estadoUsuario === ESTADOS_USUARIO.LIBRE) {
-      const ultimaInteraccion = myState?.ultimaInteraccion || 0;
-      const tiempoInactivo = Date.now() - ultimaInteraccion;
-
-      if (tiempoInactivo > 60000) { // 1 minuto de inactividad
-        await flowDynamic([
-          '🔒 *Bot Inactivo*',
-          '',
-          'Para comenzar a usar el bot, escribe la palabra:',
-          '',
-          '🌟 *hola*',
-          '🌟 *inicio*',
-          '',
-          '¡Estaré encantado de ayudarte! 🐦'
-        ].join('\n'));
-        return endFlow();
-      }
+      await flowDynamic([
+        '🔒 *Bot Inactivo*',
+        '',
+        'Para comenzar a usar el bot, escribe:',
+        '',
+        '🌟 *hola* - Para comenzar',
+        '🌟 *inicio* - Para volver al menú',
+        '',
+        '¡Estaré encantado de ayudarte! 🐦'
+      ].join('\n'));
+      return endFlow();
     }
 
     return endFlow();
-  });*/
+  });
 
-// ==== Flujo de Bloqueo Activo - CORREGIDO ====
+// ==== Flujo de Bloqueo Activo - MEJORADO ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowBloqueoActivo');
-    if (ctx.from === CONTACTO_ADMIN) return;
+    if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
     const myState = await state.getMyState();
 
+    // 🔧 VERIFICAR SI SIGUE EN ESTADO DE BLOQUEO
     if (!myState?.estadoUsuario || myState.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      console.log(`🔓 Usuario ${ctx.from} ya no está bloqueado, liberando...`);
       await limpiarEstado(state);
       return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
     }
 
-    // Solo mostrar el estado si el usuario escribe "estado"
     const input = ctx.body?.toLowerCase().trim();
 
+    // 🔧 MANEJAR DIFERENTES TIPOS DE MENSAJES
     if (input === 'estado') {
       await mostrarEstadoBloqueado(flowDynamic, myState);
-    } else if (input && input !== 'estado') {
-      // Si escribe cualquier otra cosa
+    } else if (input) {
+      // 🔧 CUALQUIER OTRO MENSAJE - RESPONDER Y MANTENER BLOQUEO
       await flowDynamic([
-        '⏳ *Proceso en curso*',
+        '🔒 *Proceso en Curso* 🔒',
         '',
-        'Tu solicitud está siendo procesada...',
+        'Tu solicitud sigue siendo procesada...',
         '',
-        '💡 **Para ver el progreso actual escribe:**',
-        '*estado*',
+        '⚠️ **No es necesario que interactúes**',
+        'El proceso continuará automáticamente',
         '',
-        '🔄 El proceso continuará automáticamente.'
+        '📊 Para ver el progreso escribe: *estado*',
+        '',
+        '⏰ Por favor espera pacientemente'
       ].join('\n'));
     }
-  })
-  .addAnswer(
-    { capture: true },
-    async (ctx, { gotoFlow }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
 
-      const input = ctx.body.toLowerCase().trim();
-
-      // 🔧 SOLO "estado" redirige a comandos especiales
-      if (input === 'estado') {
-        return gotoFlow(flowComandosEspeciales);
-      }
-
-      // 🔧 Cualquier otra cosa vuelve al flujo de bloqueo
-      return gotoFlow(flowBloqueoActivo);
-    }
-  );
+    // 🔧 MANTENERSE EN ESTE FLUJO INDEFINIDAMENTE
+    return gotoFlow(flowBloqueoActivo);
+  });
 
 // ==== FLUJO PARA BLOQUEAR AL ADMINISTRADOR ====
 const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
@@ -687,8 +683,8 @@ const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
 const flowSubMenuContrasena = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '👥 *Selecciona tu tipo de usuario:*\n\n' +
-    '1️⃣ ¿Eres un alumno?\n' +
-    '2️⃣ ¿Eres un trabajador?\n\n' +
+    '1️⃣ ¿Eres un estudiante?\n' +
+    '2️⃣ ¿Eres un trabajador o docente?\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state }) => {
@@ -844,8 +840,8 @@ const flowCapturaCorreoTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
 const flowSubMenuAutenticador = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '👥 *Selecciona tu tipo de usuario:*\n\n' +
-    '1️⃣ ¿Eres un alumno?\n' +
-    '2️⃣ ¿Eres un trabajador?\n\n' +
+    '1️⃣ ¿Eres un estudiante?\n' +
+    '2️⃣ ¿Eres un trabajador o docente?\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state }) => {
@@ -2435,6 +2431,11 @@ const flowPrincipal = addKeyword(['hola', 'Hola', 'Hola!' , 'HOLA', 'Holi', 'hol
     
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
+    // 🔧 VERIFICAR BLOQUEO PRIMERO
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+      return endFlow();
+    }
+
     const input = ctx.body?.toLowerCase().trim();
     console.log(`🔍 FLOW PRINCIPAL - Mensaje: "${input}"`);
 
@@ -2446,10 +2447,11 @@ const flowPrincipal = addKeyword(['hola', 'Hola', 'Hola!' , 'HOLA', 'Holi', 'hol
 
     console.log(`✅ BOT ACTIVADO por: "${input}"`);
 
+    /*
     // Verificar si el usuario está en proceso bloqueado
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
-    }
+    }*/
 
     // LIMPIAR ESTADO Y PROCEDER
     await limpiarEstado(state);
@@ -2468,13 +2470,17 @@ const flowPrincipal = addKeyword(['hola', 'Hola', 'Hola!' , 'HOLA', 'Holi', 'hol
     return gotoFlow(flowMenu);
   });
 
-// ==== FLUJO MENÚ SUPER SIMPLE ====
 // ==== FLUJO MENÚ PRINCIPAL - CORREGIDO ====
 const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body);
 
     if (ctx.from === CONTACTO_ADMIN) return;
+
+    // 🔧 VERIFICAR BLOQUEO PRIMERO
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+      return;
+    }
 
     const opcion = ctx.body.trim();
 
@@ -2706,7 +2712,7 @@ const main = async () => {
       flowBlockAdmin,
 
       // ==================== 🔄 INTERCEPTOR GLOBAL (PRIMERO) ====================
-      //flowInterceptorGlobal,  // 🔧 PRIMERO - maneja inactividad pero permite saludos
+      flowInterceptorGlobal,  // 🔧 PRIMERO - maneja inactividad pero permite saludos
 
       // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
       flowPrincipal,  // 🔧 PRIMERO - captura todos los saludos
@@ -2837,3 +2843,4 @@ const main = async () => {
 }
 
 main();
+//final de app.js
