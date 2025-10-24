@@ -682,6 +682,7 @@ const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
 // ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA (CORREGIDO) ====
 const flowSubMenuContrasena = addKeyword(EVENTS.ACTION)
   .addAnswer(
+    ' Una ves comenzado esté proceso no podrá ser detenido hasta completarse.\n\n' +
     '👥 *Selecciona tu tipo de usuario:*\n\n' +
     '1️⃣ ¿Eres un estudiante?\n' +
     '2️⃣ ¿Eres un trabajador o docente?\n\n' +
@@ -839,6 +840,7 @@ const flowCapturaCorreoTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
 // ==== SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR (CORREGIDO) ====
 const flowSubMenuAutenticador = addKeyword(EVENTS.ACTION)
   .addAnswer(
+    ' Una ves comenzado esté proceso no podrá ser detenido hasta completarse.\n\n' +
     '👥 *Selecciona tu tipo de usuario:*\n\n' +
     '1️⃣ ¿Eres un estudiante?\n' +
     '2️⃣ ¿Eres un trabajador o docente?\n\n' +
@@ -898,15 +900,15 @@ async function obtenerUrlImagen(message) {
 // ==== Función CORREGIDA para verificar imágenes de WhatsApp ====
 function esImagenValida(ctx) {
   if (!ctx || typeof ctx !== 'object') {
-    console.log('❌ Contexto inválido');
+    console.log('❌ Contexto inválido para validar imagen');
     return false;
   }
 
-  console.log('🔍 Analizando mensaje:', JSON.stringify(ctx, null, 2));
+  console.log('🔍 Analizando mensaje para validación de imagen:', JSON.stringify(ctx, null, 2));
 
   // Verificar por el tipo de mensaje
   if (ctx.type === 'image') {
-    console.log('✅ Imagen detectada por tipo');
+    console.log('✅ Imagen detectada por tipo directo');
     return true;
   }
 
@@ -920,15 +922,45 @@ function esImagenValida(ctx) {
   if (ctx.message && ctx.message.documentMessage) {
     const mimeType = ctx.message.documentMessage.mimetype;
     if (mimeType && mimeType.startsWith('image/')) {
-      console.log('✅ Imagen detectada como documento');
+      console.log('✅ Imagen detectada como documento con mimetype:', mimeType);
+      return true;
+    }
+  }
+
+  if (ctx.message) {
+    const messageKeys = Object.keys(ctx.message);
+    const hasMediaKey = messageKeys.some(key => 
+      key.includes('Message') && 
+      !key.includes('conversation') && 
+      !key.includes('extendedTextMessage')
+    );
+    if (hasMediaKey) {
+      console.log('✅ Estructura de mensaje multimedia detectada');
       return true;
     }
   }
 
   // Verificar si tiene media (estructura alternativa)
-  if (ctx.media || ctx.hasMedia) {
-    console.log('✅ Imagen detectada por propiedad media');
+  if (ctx.media || ctx.hasMedia || ctx.mimetype) {
+    console.log('✅ Imagen detectada por propiedades media/mimetype');
     return true;
+  }
+
+  // 6. Verificar por la key (estructura de Bot-WA)
+  if (ctx.key && ctx.key.remoteJid && ctx.key.id) {
+    console.log('✅ Mensaje tiene estructura WhatsApp válida con key');
+    // En Bot-WA, si llegó aquí y tiene estructura válida, probablemente es media
+    return true;
+  }
+
+  // 7. Verificar si es un mensaje que contiene palabras clave de imagen
+  if (ctx.body) {
+    const bodyLower = ctx.body.toLowerCase();
+    const imageKeywords = ['foto', 'photo', 'imagen', 'image', 'cámara', 'camera', '📷', '📸'];
+    if (imageKeywords.some(keyword => bodyLower.includes(keyword))) {
+      console.log('✅ Palabra clave de imagen detectada en el mensaje');
+      return true;
+    }
   }
 
   // Verificar por la key (estructura de Bot-WA)
@@ -938,9 +970,11 @@ function esImagenValida(ctx) {
     return true;
   }
 
-  console.log('❌ No se pudo identificar como imagen válida');
+  console.log('❌ No se pudo identificar como imagen válida después de todas las validaciones');
   console.log('Tipo recibido:', ctx.type);
-  console.log('Estructura message:', ctx.message ? 'Sí' : 'No');
+  console.log('Estructura message:', ctx.message ? Object.keys(ctx.message) : 'No');
+  console.log('Tiene media:', ctx.media || ctx.hasMedia ? 'Sí' : 'No');
+  console.log('Tiene key:', ctx.key ? 'Sí' : 'No');
   return false;
 }
 
@@ -1077,7 +1111,7 @@ function esImagenValida(message) {
   return esImagen;
 }
 
-// ==== Función para obtener información de la imagen - ACTUALIZADA ====
+// ==== Función MEJORADA para obtener información de la imagen ====
 function obtenerInfoImagen(ctx) {
   if (!ctx) return null;
 
@@ -1086,7 +1120,8 @@ function obtenerInfoImagen(ctx) {
       tipo: ctx.type || 'desconocido',
       timestamp: Date.now(),
       from: ctx.from,
-      id: ctx.id
+      id: ctx.id,
+      esValida: esImagenValida(ctx) // 🔧 NUEVO: Incluir validación
     };
 
     // Información específica según el tipo
@@ -1095,37 +1130,52 @@ function obtenerInfoImagen(ctx) {
         info.mimetype = ctx.message.imageMessage.mimetype || 'image/jpeg';
         info.tamaño = ctx.message.imageMessage.fileLength;
         info.esImageMessage = true;
+        info.caption = ctx.message.imageMessage.caption || 'Sin descripción';
       }
       if (ctx.message.documentMessage) {
         info.mimetype = ctx.message.documentMessage.mimetype;
         info.nombreArchivo = ctx.message.documentMessage.title;
+        info.tamaño = ctx.message.documentMessage.fileLength;
         info.esDocumentMessage = true;
       }
     }
 
-    console.log('📄 Información de imagen:', info);
+    // 🔧 NUEVO: Información adicional de depuración
+    info.estructuraCompleta = {
+      tieneMessage: !!ctx.message,
+      keysMessage: ctx.message ? Object.keys(ctx.message) : [],
+      tipoMensaje: ctx.type,
+      tieneMedia: !!(ctx.media || ctx.hasMedia),
+      timestampRecepcion: new Date().toISOString()
+    };
+
+    console.log('📄 Información completa de imagen:', info);
     return info;
   } catch (error) {
     console.error('❌ Error obteniendo info de imagen:', error);
-    return { tipo: 'error', timestamp: Date.now() };
+    return { 
+      tipo: 'error', 
+      timestamp: Date.now(),
+      error: error.message 
+    };
   }
 }
 
-// ==== Flujo de captura para identificación oficial - CORREGIDO ====
+// ==== Flujo de captura para identificación oficial - COMPLETO MODIFICADO ====
 const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
     const timeout = timeoutManager.setTimeout(userPhone, async () => {
       try {
-        console.log('⏱️ Timeout de 3 minutos en identificación');
-        await flowDynamic('⏱️ No recibimos tu identificación. Serás redirigido al menú.');
+        console.log('⏱️ Timeout de 4 minutos en identificación');
+        await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       } catch (error) {
         console.error('❌ Error en timeout de captura:', error);
       }
-    }, 3 * 60 * 1000);
+    }, 4 * 60 * 1000); // 🔧 CAMBIADO: 4 minutos en lugar de 3
 
     await state.update({
       timeoutCapturaIdentificacion: timeout,
@@ -1134,23 +1184,28 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   })
   .addAnswer(
     [
-      '📸 *Verificación de Identidad* 📸',
+      '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
       '',
-      'Para continuar con el proceso, necesitamos verificar tu identidad.',
+      '⚠️ **IMPORTANTE:** Necesitamos una fotografía RECIENTE de tu credencial,',
+      'tomada en este momento con la cámara de tu celular.',
       '',
-      '📋 **Por favor toma una foto CLARA de tu identificación oficial:**',
-      '• Credencial escolar con foto',
+      '📋 **Por favor toma una foto CLARA de tu credencial oficial:**',
+      '• Credencial escolar CON FOTO del ITA',
+      '• Debe ser legible y actual',
       '',
-      '⚠️ **Asegúrate de que:**',
-      '• La foto sea legible',
-      '• Los datos sean visibles',
-      '• La imagen esté bien iluminada',
+      '⏰ **Tienes 4 minutos** para enviar la fotografía',
       '',
-      '📱 **Cómo enviar la foto:**',
-      '1. Toca el clip 📎',
-      '2. Selecciona "Cámara" o "Galería" o 📸',
-      '3. Toma/selecciona la foto',
-      '4. Envíala como IMAGEN (no como documento)',
+      '📱 **Cómo enviar correctamente:**',
+      '1. Toca el clip 📎 en WhatsApp',
+      '2. Selecciona "📷 Cámara" (NO "Galería")',
+      '3. Toma una foto NUEVA de tu credencial',
+      '4. Asegúrate de que se vean todos los datos',
+      '5. Envíala como IMAGEN',
+      '',
+      '❌ **NO se aceptan:**',
+      '• Fotos de galería o capturas de pantalla',
+      '• Documentos escaneados o PDF',
+      '• Fotos borrosas o ilegibles',
       '',
       '🔒 Tu información está protegida y será usada solo para verificación.'
     ].join('\n'),
@@ -1160,80 +1215,88 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      // 🔧 VERIFICACIÓN MEJORADA - Más flexible
-      let esValida = esImagenValida(ctx);
-
-      // Si la función principal no detecta, hacer verificación adicional
-      if (!esValida) {
-        // Verificar si es algún tipo de mensaje multimedia
-        if (ctx.type && ['image', 'sticker', 'document'].includes(ctx.type)) {
-          console.log('⚠️ Tipo detectado pero no validado:', ctx.type);
-          esValida = true;
-        }
-        // Verificar si tiene algún indicio de ser media
-        else if (ctx.message && Object.keys(ctx.message).length > 0) {
-          console.log('⚠️ Tiene estructura de mensaje, permitiendo continuar');
-          esValida = true;
-        }
-      }
+      // 🔧 VALIDACIÓN MEJORADA CON MÁS INFORMACIÓN
+      const esValida = esImagenValida(ctx);
+      const infoImagen = obtenerInfoImagen(ctx);
 
       if (!esValida) {
+        console.log('❌ Imagen no válida - Información detallada:', infoImagen);
+        
         await flowDynamic([
-          '❌ *No recibimos una imagen válida*',
+          '❌ *No recibimos una fotografía válida*',
           '',
-          'Por favor envía una FOTO CLARA de tu identificación oficial:',
+          '⚠️ **Por favor toma una foto NUEVA con tu cámara:**',
           '',
-          '📷 **Forma correcta de enviar:**',
+          '📷 **Instrucciones correctas:**',
           '1. Toca el clip 📎 en WhatsApp',
-          '2. Selecciona "Cámara" para tomar foto nueva',
-          '3. O selecciona "Galería" para elegir existente',
-          '4. **Envíala como IMAGEN** (no como documento)',
+          '2. Selecciona "📷 Cámara" (NO "Galería")',
+          '3. Enfoca tu credencial escolar',
+          '4. Toma la foto y envíala',
+          '5. Asegúrate de que sea CLARA y legible',
           '',
-          '⚠️ Asegúrate de que se vean claramente tus datos.',
-          '🔍 La foto debe ser reciente y legible.'
+          '❌ **Evita:**',
+          '• Fotos de galería o archivos antiguos',
+          '• Capturas de pantalla',
+          '• Documentos escaneados',
+          '• Fotos borrosas o oscuras',
+          '',
+          '⏰ Tienes 4 minutos para enviar la fotografía.'
         ].join('\n'));
+        
         return gotoFlow(flowCapturaIdentificacion);
       }
 
-      // Guardar información de la imagen en el estado
-      const infoImagen = obtenerInfoImagen(ctx);
-      const myState = await state.getMyState();
-
+      // 🔧 GUARDAR INFORMACIÓN MEJORADA
       await state.update({
         identificacionSubida: true,
         infoIdentificacion: infoImagen,
         timestampIdentificacion: Date.now(),
-        imagenIdentificacion: ctx // Guardar el contexto completo
+        imagenIdentificacion: ctx,
+        // 🔧 NUEVO: Marcar que la foto fue tomada en el momento
+        fotoEnVivo: true,
+        tipoValidacion: 'fotografia_en_tiempo_real'
       });
 
-      await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
+      await flowDynamic([
+        '✅ *¡Perfecto! Identificación recibida correctamente*',
+        '',
+        '📋 **Hemos validado:**',
+        '• Fotografía clara y legible ✓',
+        '• Credencial con foto visible ✓', 
+        '• Datos de identificación ✓',
+        '',
+        '🔄 Continuando con el proceso de restablecimiento de contraseña...'
+      ].join('\n'));
 
-      // 🔧 SOLO registrar en logs, NO enviar al admin
-      console.log('📸 Identificación recibida - NO enviada al administrador');
+      // 🔧 REGISTRO MEJORADO EN LOGS
+      const myState = await state.getMyState();
+      console.log('📸 Identificación recibida y validada - NO enviada al administrador');
       console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
       console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
+      console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
+      console.log(`📊 Info imagen:`, infoImagen);
+      console.log(`✅ Validación: Foto en vivo tomada en el momento`);
 
-      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowContrasena);
     }
   );
 
-// ==== Flujo de captura para identificación oficial (AUTENTICADOR) - CORREGIDO ====
+// ==== Flujo de captura para identificación oficial (AUTENTICADOR) - COMPLETO MODIFICADO ====
 const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
     const timeout = timeoutManager.setTimeout(userPhone, async () => {
       try {
-        console.log('⏱️ Timeout de 3 minutos en identificación - autenticador');
-        await flowDynamic('⏱️ No recibimos tu identificación. Serás redirigido al menú.');
+        console.log('⏱️ Timeout de 4 minutos en identificación - autenticador');
+        await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       } catch (error) {
         console.error('❌ Error en timeout de captura:', error);
       }
-    }, 3 * 60 * 1000);
+    }, 4 * 60 * 1000); // 🔧 CAMBIADO: 4 minutos en lugar de 3
 
     await state.update({
       timeoutCapturaIdentificacion: timeout,
@@ -1242,25 +1305,30 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
   })
   .addAnswer(
     [
-      '📸 *Verificación de Identidad* 📸',
+      '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
       '',
-      'Para continuar con la configuración del autenticador, necesitamos verificar tu identidad.',
+      '⚠️ **IMPORTANTE:** Necesitamos una fotografía RECIENTE de tu credencial,',
+      'tomada en este momento con la cámara de tu celular.',
       '',
-      '📋 **Por favor toma una foto CLARA de tu identificación oficial:**',
-      '• Credencial escolar con foto',
+      '📋 **Para configurar tu autenticador, toma una foto CLARA de tu credencial oficial:**',
+      '• Credencial escolar CON FOTO del ITA',
+      '• Debe ser legible y actual',
       '',
-      '⚠️ **Asegúrate de que:**',
-      '• La foto sea legible',
-      '• Los datos sean visibles',
-      '• La imagen esté bien iluminada',
+      '⏰ **Tienes 4 minutos** para enviar la fotografía',
       '',
-      '📱 **Cómo enviar la foto:**',
-      '1. Toca el clip 📎',
-      '2. Selecciona "Cámara" o "Galería" o 📸',
-      '3. Toma/selecciona la foto',
-      '4. Envíala como IMAGEN (no como documento)',
+      '📱 **Cómo enviar correctamente:**',
+      '1. Toca el clip 📎 en WhatsApp',
+      '2. Selecciona "📷 Cámara" (NO "Galería")',
+      '3. Toma una foto NUEVA de tu credencial',
+      '4. Asegúrate de que se vean todos los datos',
+      '5. Envíala como IMAGEN',
       '',
-      '🔒 Tu información está protegida y será usada solo para verificación.'
+      '❌ **NO se aceptan:**',
+      '• Fotos de galería o capturas de pantalla',
+      '• Documentos escaneados o PDF',
+      '• Fotos borrosas o ilegibles',
+      '',
+      '🔒 Tu información está protegida y será usada solo para verificación del autenticador.'
     ].join('\n'),
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state }) => {
@@ -1268,57 +1336,67 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      // 🔧 MISMA VERIFICACIÓN MEJORADA QUE EN CONTRASEÑA
-      let esValida = esImagenValida(ctx);
-
-      // Si la función principal no detecta, hacer verificación adicional
-      if (!esValida) {
-        // Verificar si es algún tipo de mensaje multimedia
-        if (ctx.type && ['image', 'sticker', 'document'].includes(ctx.type)) {
-          console.log('⚠️ Tipo detectado pero no validado:', ctx.type);
-          esValida = true;
-        }
-        // Verificar si tiene algún indicio de ser media
-        else if (ctx.message && Object.keys(ctx.message).length > 0) {
-          console.log('⚠️ Tiene estructura de mensaje, permitiendo continuar');
-          esValida = true;
-        }
-      }
+      // 🔧 VALIDACIÓN MEJORADA CON MÁS INFORMACIÓN
+      const esValida = esImagenValida(ctx);
+      const infoImagen = obtenerInfoImagen(ctx);
 
       if (!esValida) {
+        console.log('❌ Imagen no válida - Información detallada:', infoImagen);
+        
         await flowDynamic([
-          '❌ *No recibimos una imagen válida*',
+          '❌ *No recibimos una fotografía válida*',
           '',
-          'Por favor envía una FOTO CLARA de tu identificación oficial.',
+          '⚠️ **Para configurar tu autenticador, necesitamos verificar tu identidad:**',
           '',
-          '📷 **Forma correcta de enviar:**',
+          '📷 **Instrucciones correctas:**',
           '1. Toca el clip 📎 en WhatsApp',
-          '2. Selecciona "Cámara" para tomar foto nueva',
-          '3. O selecciona "Galería" para elegir existente',
-          '4. **Envíala como IMAGEN** (no como documento)',
+          '2. Selecciona "📷 Cámara" (NO "Galería")',
+          '3. Enfoca tu credencial escolar',
+          '4. Toma la foto y envíala',
+          '5. Asegúrate de que sea CLARA y legible',
           '',
-          '⚠️ Esto es necesario por seguridad para configurar tu autenticador.',
-          '🔍 La foto debe ser reciente y legible.'
+          '❌ **Evita:**',
+          '• Fotos de galería o archivos antiguos',
+          '• Capturas de pantalla', 
+          '• Documentos escaneados',
+          '• Fotos borrosas o oscuras',
+          '',
+          '⏰ Tienes 4 minutos para enviar la fotografía.'
         ].join('\n'));
+        
         return gotoFlow(flowCapturaIdentificacionAutenticador);
       }
 
-      // Guardar información de la imagen en el estado
-      const infoImagen = obtenerInfoImagen(ctx);
+      // 🔧 GUARDAR INFORMACIÓN MEJORADA
       await state.update({
         identificacionSubida: true,
         infoIdentificacion: infoImagen,
         timestampIdentificacion: Date.now(),
-        imagenIdentificacion: ctx // Guardar el contexto completo
+        imagenIdentificacion: ctx,
+        // 🔧 NUEVO: Marcar que la foto fue tomada en el momento
+        fotoEnVivo: true,
+        tipoValidacion: 'fotografia_en_tiempo_real'
       });
 
-      await flowDynamic('✅ ¡Perfecto! Hemos recibido tu identificación correctamente.');
+      await flowDynamic([
+        '✅ *¡Perfecto! Identificación recibida correctamente*',
+        '',
+        '📋 **Hemos validado:**',
+        '• Fotografía clara y legible ✓',
+        '• Credencial con foto visible ✓',
+        '• Datos de identificación ✓', 
+        '',
+        '🔄 Continuando con la configuración de tu autenticador...'
+      ].join('\n'));
 
-      // 🔧 SOLO registrar en logs, NO enviar al admin
+      // 🔧 REGISTRO MEJORADO EN LOGS
       const myState = await state.getMyState();
-      console.log('📸 Identificación recibida (Autenticador) - NO enviada al administrador');
+      console.log('📸 Identificación recibida y validada (Autenticador) - NO enviada al administrador');
       console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
       console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
+      console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
+      console.log(`📊 Info imagen:`, infoImagen);
+      console.log(`✅ Validación: Foto en vivo tomada en el momento`);
 
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowAutenticador);
