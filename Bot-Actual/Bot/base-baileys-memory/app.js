@@ -124,7 +124,7 @@ async function crearConexionMySQL() {
       password: '',
       database: 'bot_whatsapp',
       port: 3306,
-      // 🔧 CONFIGURACIONES ACTUALIZADAS (sin opciones obsoletas)
+      // 🔧 CONFIGURACIONES CORRECTAS para mysql2
       connectTimeout: 60000,
       acquireTimeout: 60000,
       timeout: 60000,
@@ -448,9 +448,9 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
 
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       console.log(`🔒 Bloqueando mensaje de ${ctx.from} - Proceso en curso`);
-      
+
       const input = ctx.body?.toLowerCase().trim();
-      
+
       // 🔧 SI ESCRIBE "estado", MOSTRAR INFORMACIÓN DETALLADA
       if (input === 'estado') {
         await mostrarEstadoBloqueado(flowDynamic, myState);
@@ -470,7 +470,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
           '¡Gracias por tu paciencia! 🙏'
         ].join('\n'));
       }
-      
+
       // 🔧 REDIRIGIR AL FLUJO DE BLOQUEO
       await gotoFlow(flowBloqueoActivo);
       return true;
@@ -591,7 +591,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
 
     // 🔧 VERIFICAR PRIMERO SI ESTÁ EN PROCESO LARGO
     const myState = await state.getMyState();
-    
+
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       console.log(`🔒 Usuario ${ctx.from} está en proceso largo, redirigiendo a bloqueo`);
       await mostrarEstadoBloqueado(flowDynamic, myState);
@@ -909,25 +909,25 @@ function esImagenValida(ctx) {
   // 🔧 PRIMERO: Verificar si es un mensaje multimedia de WhatsApp
   if (ctx.message) {
     const messageKeys = Object.keys(ctx.message);
-    
+
     // Verificar si tiene cualquier tipo de mensaje multimedia
     const hasMediaMessage = messageKeys.some(key => {
-      return key.includes('Message') && 
-             !key.includes('conversation') && 
-             !key.includes('extendedTextMessage') &&
-             !key.includes('protocolMessage') &&
-             !key.includes('senderKeyDistributionMessage');
+      return key.includes('Message') &&
+        !key.includes('conversation') &&
+        !key.includes('extendedTextMessage') &&
+        !key.includes('protocolMessage') &&
+        !key.includes('senderKeyDistributionMessage');
     });
 
     if (hasMediaMessage) {
       console.log('✅ Estructura de mensaje multimedia detectada en ctx.message');
-      
+
       // Verificar tipos específicos de imagen
       if (ctx.message.imageMessage) {
         console.log('✅ Imagen detectada en message.imageMessage');
         return true;
       }
-      
+
       // Verificar documento que sea imagen
       if (ctx.message.documentMessage) {
         const mimeType = ctx.message.documentMessage.mimetype;
@@ -936,13 +936,13 @@ function esImagenValida(ctx) {
           return true;
         }
       }
-      
+
       // Verificar mensaje de vista previa de enlace con imagen
       if (ctx.message.viewOnceMessageV2 || ctx.message.viewOnceMessage) {
         console.log('✅ Mensaje de vista única (posible imagen)');
         return true;
       }
-      
+
       // Si tiene estructura multimedia pero no podemos identificar el tipo exacto, asumir que es válido
       console.log('✅ Estructura multimedia genérica detectada');
       return true;
@@ -1105,19 +1105,19 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     }
   );
 
-  /*
+/*
 // ==== Función para validar que es una imagen ====
 function esImagenValida(message) {
-  if (!message) return false;
+if (!message) return false;
 
-  // Verificar si es imagen, sticker, o documento con imagen
-  const esImagen = message.type === 'image' ||
-    message.type === 'sticker' ||
-    (message.type === 'document' &&
-      message.mimetype &&
-      message.mimetype.startsWith('image/'));
+// Verificar si es imagen, sticker, o documento con imagen
+const esImagen = message.type === 'image' ||
+  message.type === 'sticker' ||
+  (message.type === 'document' &&
+    message.mimetype &&
+    message.mimetype.startsWith('image/'));
 
-  return esImagen;
+return esImagen;
 }*/
 
 // ==== Función MEJORADA para obtener información de la imagen ====
@@ -1164,10 +1164,10 @@ function obtenerInfoImagen(ctx) {
     return info;
   } catch (error) {
     console.error('❌ Error obteniendo info de imagen:', error);
-    return { 
-      tipo: 'error', 
+    return {
+      tipo: 'error',
       timestamp: Date.now(),
-      error: error.message 
+      error: error.message
     };
   }
 }
@@ -1175,15 +1175,15 @@ function obtenerInfoImagen(ctx) {
 // ==== Función AUXILIAR para manejar específicamente fotos de cámara de WhatsApp ====
 function esFotoDeCamaraWhatsApp(ctx) {
   if (!ctx.message) return false;
-  
+
   // Las fotos tomadas directamente con la cámara de WhatsApp generalmente
   // vienen como imageMessage sin caption o con caption vacío
   if (ctx.message.imageMessage) {
-    const hasCaption = ctx.message.imageMessage.caption && 
-                      ctx.message.imageMessage.caption.trim().length > 0;
+    const hasCaption = ctx.message.imageMessage.caption &&
+      ctx.message.imageMessage.caption.trim().length > 0;
     return !hasCaption; // Si no tiene caption, probablemente es foto directa de cámara
   }
-  
+
   return false;
 }
 
@@ -1245,14 +1245,14 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       if (!esValida) {
         console.log('❌ Imagen no válida - Información detallada:', infoImagen);
-        
+
         await flowDynamic([
           '❌ *No recibimos una fotografía válida*',
           '',
           '⚠️ **Para WhatsApp Web/Desktop:**',
           '1. Usa tu CELULAR para tomar la foto',
           '2. Toca el clip 📎 en WhatsApp',
-          '3. Selecciona "Cámara" (NO "Galería")', 
+          '3. Selecciona "Cámara" (NO "Galería")',
           '4. Toma foto NUEVA de tu credencial',
           '5. Envíala directamente',
           '',
@@ -1263,7 +1263,7 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
           '',
           '🔄 **Intenta de nuevo por favor.**'
         ].join('\n'));
-        
+
         return gotoFlow(flowCapturaIdentificacion);
       }
 
@@ -1285,7 +1285,7 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
           '',
           '📋 **Hemos validado:**',
           '• Fotografía en tiempo real ✓',
-          '• Credencial con foto visible ✓', 
+          '• Credencial con foto visible ✓',
           '• Datos legibles ✓',
           '',
           '🔄 Continuando con el proceso...'
@@ -1372,14 +1372,14 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
 
       if (!esValida) {
         console.log('❌ Imagen no válida - Información detallada:', infoImagen);
-        
+
         await flowDynamic([
           '❌ *No recibimos una fotografía válida*',
           '',
           '⚠️ **Para WhatsApp Web/Desktop:**',
           '1. Usa tu CELULAR para tomar la foto',
           '2. Toca el clip 📎 en WhatsApp',
-          '3. Selecciona "Cámara" (NO "Galería")', 
+          '3. Selecciona "Cámara" (NO "Galería")',
           '4. Toma foto NUEVA de tu credencial',
           '5. Envíala directamente',
           '',
@@ -1390,7 +1390,7 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
           '',
           '🔄 **Intenta de nuevo por favor.**'
         ].join('\n'));
-        
+
         return gotoFlow(flowCapturaIdentificacionAutenticador);
       }
 
@@ -2515,14 +2515,36 @@ function esSaludoValido(texto) {
     const saludoLimpio = saludo.toLowerCase().trim();
 
     // Coincidencia exacta
-    if (textoLimpio === saludoLimpio) {
-      console.log(`✅ Coincidencia exacta: "${textoLimpio}"`);
-      return true;
+    for (const saludo of saludos) {
+      const saludoLimpio = saludo.toLowerCase().trim();
+      if (textoLimpio === saludoLimpio) {
+        console.log(`✅ Coincidencia exacta: "${textoLimpio}"`);
+        return true;
+      }
     }
 
-    // Coincidencia parcial (el saludo está contenido en el texto)
-    if (textoLimpio.includes(saludoLimpio)) {
-      console.log(`✅ Coincidencia parcial: "${textoLimpio}" contiene "${saludoLimpio}"`);
+    // Coincidencia parcial (más flexible)
+    for (const saludo of saludos) {
+      const saludoLimpio = saludo.toLowerCase().trim();
+      if (textoLimpio.includes(saludoLimpio)) {
+        console.log(`✅ Coincidencia parcial: "${textoLimpio}" contiene "${saludoLimpio}"`);
+        return true;
+      }
+    }
+
+    // Verificar si contiene palabras clave importantes
+    const palabrasClave = [
+      'hola', 'problema', 'ayuda', 'cuenta', 'acceso',
+      'contraseña', 'autenticador', 'disculpa', 'restablecer',
+      'configurar', 'soporte', 'ayudar', 'asistencia'
+    ];
+
+    const contienePalabraClave = palabrasClave.some(palabra =>
+      textoLimpio.includes(palabra)
+    );
+
+    if (contienePalabraClave) {
+      console.log(`✅ Contiene palabra clave: "${textoLimpio}"`);
       return true;
     }
 
@@ -2541,10 +2563,23 @@ function esSaludoValido(texto) {
 }
 
 // ==== FLUJO PRINCIPAL - VERSIÓN HÍBRIDA (MÁS ROBUSTA) ====
-const flowPrincipal = addKeyword(['hola', 'Hola', 'Hola!' , 'HOLA', 'Holi', 'holi', 'holis', 'Holis', 'holaa', 'Holaa', 'holaaa', 'Holaaa'])
+const flowPrincipal = addKeyword([
+  'hola', 'Hola', 'Hola!', 'HOLA', 'Holi', 'holi', 'holis', 'Holis',
+  'holaa', 'Holaa', 'holaaa', 'Holaaa', 'holaaaa', 'Holaaaa',
+  'buenos días', 'buenas tardes', 'buenas noches',
+  'buenos dias', 'Buenos días', 'Buenas tardes', 'Buenas noches',
+  'inicio', 'Inicio', 'comenzar', 'Comenzar', 'empezar', 'Empezar',
+  'ayuda', 'Ayuda', 'start', 'Start', 'hello', 'Hello', 'hi', 'Hi'
+])
+  /*
+  // Verificar si el usuario está en proceso bloqueado
+  if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+    return;
+  }*/
+
   .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
-    
+
     if (ctx.from === CONTACTO_ADMIN) return endFlow();
 
     // 🔧 VERIFICAR BLOQUEO PRIMERO
@@ -2555,19 +2590,15 @@ const flowPrincipal = addKeyword(['hola', 'Hola', 'Hola!' , 'HOLA', 'Holi', 'hol
     const input = ctx.body?.toLowerCase().trim();
     console.log(`🔍 FLOW PRINCIPAL - Mensaje: "${input}"`);
 
-    // 🔧 VERIFICACIÓN ADICIONAL CON esSaludoValido (para mayor seguridad)
-    if (!esSaludoValido(input)) {
+    // 🔧 MEJORAR LA DETECCIÓN DE SALUDOS
+    const esSaludo = esSaludoValido(input);
+
+    if (!esSaludo) {
       console.log(`⚠️ Mensaje no reconocido como saludo: "${input}"`);
       // Pero como llegó aquí por palabra clave, procedemos igual
     }
 
     console.log(`✅ BOT ACTIVADO por: "${input}"`);
-
-    /*
-    // Verificar si el usuario está en proceso bloqueado
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }*/
 
     // LIMPIAR ESTADO Y PROCEDER
     await limpiarEstado(state);
@@ -2585,6 +2616,7 @@ const flowPrincipal = addKeyword(['hola', 'Hola', 'Hola!' , 'HOLA', 'Holi', 'hol
 
     return gotoFlow(flowMenu);
   });
+
 
 // ==== FLUJO MENÚ PRINCIPAL - CORREGIDO ====
 const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
@@ -2718,7 +2750,7 @@ const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
     return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
   });
 
-// ==== VERIFICACIÓN DE LA BASE DE DATOS - SIMPLIFICADA ====
+// ==== VERIFICACIÓN DE LA BASE DE DATOS - ACTUALIZADA ====
 async function verificarBaseDeDatos() {
   try {
     console.log('🔍 Verificando conexión a MySQL...');
@@ -2733,7 +2765,7 @@ async function verificarBaseDeDatos() {
       return false;
     }
 
-    // Verificar que la tabla existe
+    // Verificar que la tabla existe con todas las columnas necesarias
     try {
       const [tablas] = await connection.execute(`
         SELECT TABLE_NAME 
@@ -2751,13 +2783,50 @@ async function verificarBaseDeDatos() {
             estado_metadata JSON,
             numero_control VARCHAR(20),
             nombre_completo VARCHAR(255),
+            correo_institucional VARCHAR(255),
+            es_trabajador BOOLEAN DEFAULT FALSE,
+            identificacion_subida BOOLEAN DEFAULT FALSE,
+            info_identificacion JSON,
+            timestamp_identificacion TIMESTAMP NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
           )
         `);
-        console.log('✅ Tabla user_states creada exitosamente');
+        console.log('✅ Tabla user_states creada exitosamente con todas las columnas');
       } else {
-        console.log('✅ Tabla user_states encontrada');
+        console.log('✅ Tabla user_states encontrada, verificando columnas...');
+        
+        // Verificar si faltan columnas y agregarlas
+        const columnasNecesarias = [
+          'identificacion_subida', 'timestamp_identificacion', 
+          'correo_institucional', 'es_trabajador', 'info_identificacion'
+        ];
+        
+        for (const columna of columnasNecesarias) {
+          const [columnas] = await connection.execute(`
+            SELECT COLUMN_NAME 
+            FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = 'bot_whatsapp' 
+            AND TABLE_NAME = 'user_states' 
+            AND COLUMN_NAME = '${columna}'
+          `);
+          
+          if (columnas.length === 0) {
+            console.log(`📦 Agregando columna faltante: ${columna}`);
+            
+            let tipoColumna = 'BOOLEAN DEFAULT FALSE';
+            if (columna === 'timestamp_identificacion') tipoColumna = 'TIMESTAMP NULL';
+            if (columna === 'correo_institucional') tipoColumna = 'VARCHAR(255) NULL';
+            if (columna === 'info_identificacion') tipoColumna = 'JSON';
+            
+            await connection.execute(`
+              ALTER TABLE user_states 
+              ADD COLUMN ${columna} ${tipoColumna}
+            `);
+            console.log(`✅ Columna ${columna} agregada`);
+          }
+        }
+        console.log('✅ Todas las columnas necesarias están presentes');
       }
 
       await connection.end();
@@ -2788,23 +2857,34 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
 
   const input = ctx.body?.toLowerCase().trim();
 
-  // 🔧 SI ES UN SALUDO VÁLIDO PERO NO FUE CAPTURADO, REDIRIGIR AL FLOW PRINCIPAL
+  // 🔧 DETECCIÓN MÁS FLEXIBLE DE SALUDOS
   if (esSaludoValido(input)) {
     console.log(`🔄 Saludo válido detectado en flowDefault: "${input}", redirigiendo al flowPrincipal...`);
     return gotoFlow(flowPrincipal);
   }
 
+  // 🔧 SI ES UN NÚMERO SOLO (1-5), REDIRIGIR AL MENÚ
+  if (/^[1-5]$/.test(input)) {
+    console.log(`🔄 Número de opción detectado: "${input}", redirigiendo al menú...`);
+    return gotoFlow(flowMenu);
+  }
+
   await flowDynamic([
-    '🤖 No entiendo ese tipo de mensajes.',
+    '🤖 No entiendo ese mensaje.',
     '',
-    '💡 **Comandos disponibles:**',
-    '• *hola* - Reactivar el bot',
-    '• *inicio* - Comenzar conversación',
+    '💡 **Para comenzar, escribe:**',
+    '• *hola* - Iniciar conversación',
+    '• *inicio* - Ver menú principal', 
     '• *ayuda* - Obtener asistencia',
-    '• *menú* - Ver opciones principales',
-    '• *estado* - Ver progreso de procesos',
     '',
-    '🔙 Escribe *hola* para comenzar de nuevo.'
+    '📋 **O selecciona una opción directa:**',
+    '1️⃣ Restablecer contraseña',
+    '2️⃣ Configurar autenticador',
+    '3️⃣ Educación a Distancia',
+    '4️⃣ Sistema SIE', 
+    '5️⃣ Información CC',
+    '',
+    '🔙 Escribe *hola* para comenzar.'
   ]);
 });
 
@@ -2959,5 +3039,6 @@ const main = async () => {
 }
 
 main();
+//final de app.js
 //final de app.js
 //final de app.js
