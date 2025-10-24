@@ -897,7 +897,7 @@ async function obtenerUrlImagen(message) {
   }
 }
 
-// ==== Función CORREGIDA para verificar imágenes de WhatsApp ====
+// ==== Función CORREGIDA para verificar imágenes de WhatsApp - VERSIÓN ÚNICA ====
 function esImagenValida(ctx) {
   if (!ctx || typeof ctx !== 'object') {
     console.log('❌ Contexto inválido para validar imagen');
@@ -906,54 +906,69 @@ function esImagenValida(ctx) {
 
   console.log('🔍 Analizando mensaje para validación de imagen:', JSON.stringify(ctx, null, 2));
 
-  // Verificar por el tipo de mensaje
-  if (ctx.type === 'image') {
-    console.log('✅ Imagen detectada por tipo directo');
-    return true;
-  }
-
-  // Verificar si tiene message con imageMessage (estructura de Baileys)
-  if (ctx.message && ctx.message.imageMessage) {
-    console.log('✅ Imagen detectada en message.imageMessage');
-    return true;
-  }
-
-  // Verificar si es un documento que es imagen
-  if (ctx.message && ctx.message.documentMessage) {
-    const mimeType = ctx.message.documentMessage.mimetype;
-    if (mimeType && mimeType.startsWith('image/')) {
-      console.log('✅ Imagen detectada como documento con mimetype:', mimeType);
-      return true;
-    }
-  }
-
+  // 🔧 PRIMERO: Verificar si es un mensaje multimedia de WhatsApp
   if (ctx.message) {
     const messageKeys = Object.keys(ctx.message);
-    const hasMediaKey = messageKeys.some(key => 
-      key.includes('Message') && 
-      !key.includes('conversation') && 
-      !key.includes('extendedTextMessage')
-    );
-    if (hasMediaKey) {
-      console.log('✅ Estructura de mensaje multimedia detectada');
+    
+    // Verificar si tiene cualquier tipo de mensaje multimedia
+    const hasMediaMessage = messageKeys.some(key => {
+      return key.includes('Message') && 
+             !key.includes('conversation') && 
+             !key.includes('extendedTextMessage') &&
+             !key.includes('protocolMessage') &&
+             !key.includes('senderKeyDistributionMessage');
+    });
+
+    if (hasMediaMessage) {
+      console.log('✅ Estructura de mensaje multimedia detectada en ctx.message');
+      
+      // Verificar tipos específicos de imagen
+      if (ctx.message.imageMessage) {
+        console.log('✅ Imagen detectada en message.imageMessage');
+        return true;
+      }
+      
+      // Verificar documento que sea imagen
+      if (ctx.message.documentMessage) {
+        const mimeType = ctx.message.documentMessage.mimetype;
+        if (mimeType && mimeType.startsWith('image/')) {
+          console.log('✅ Imagen detectada como documento con mimetype:', mimeType);
+          return true;
+        }
+      }
+      
+      // Verificar mensaje de vista previa de enlace con imagen
+      if (ctx.message.viewOnceMessageV2 || ctx.message.viewOnceMessage) {
+        console.log('✅ Mensaje de vista única (posible imagen)');
+        return true;
+      }
+      
+      // Si tiene estructura multimedia pero no podemos identificar el tipo exacto, asumir que es válido
+      console.log('✅ Estructura multimedia genérica detectada');
       return true;
     }
   }
 
-  // Verificar si tiene media (estructura alternativa)
+  // 🔧 SEGUNDO: Verificar propiedades directas
+  if (ctx.type === 'image' || ctx.type === 'sticker' || ctx.type === 'document') {
+    console.log('✅ Imagen detectada por tipo directo:', ctx.type);
+    return true;
+  }
+
+  // 🔧 TERCERO: Verificar propiedades de medios
   if (ctx.media || ctx.hasMedia || ctx.mimetype) {
     console.log('✅ Imagen detectada por propiedades media/mimetype');
     return true;
   }
 
-  // 6. Verificar por la key (estructura de Bot-WA)
+  // 🔧 CUARTO: Verificar estructura de clave WhatsApp
   if (ctx.key && ctx.key.remoteJid && ctx.key.id) {
     console.log('✅ Mensaje tiene estructura WhatsApp válida con key');
-    // En Bot-WA, si llegó aquí y tiene estructura válida, probablemente es media
+    // En WhatsApp, si tiene estructura válida y llegó aquí, podría ser media
     return true;
   }
 
-  // 7. Verificar si es un mensaje que contiene palabras clave de imagen
+  // 🔧 QUINTO: Verificar por palabras clave en el cuerpo (fallback)
   if (ctx.body) {
     const bodyLower = ctx.body.toLowerCase();
     const imageKeywords = ['foto', 'photo', 'imagen', 'image', 'cámara', 'camera', '📷', '📸'];
@@ -961,13 +976,6 @@ function esImagenValida(ctx) {
       console.log('✅ Palabra clave de imagen detectada en el mensaje');
       return true;
     }
-  }
-
-  // Verificar por la key (estructura de Bot-WA)
-  if (ctx.key && ctx.key.remoteJid) {
-    console.log('✅ Mensaje tiene estructura WhatsApp válida');
-    // En Bot-WA, a veces necesitamos confiar en que si llegó aquí, es válido
-    return true;
   }
 
   console.log('❌ No se pudo identificar como imagen válida después de todas las validaciones');
@@ -1097,6 +1105,7 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     }
   );
 
+  /*
 // ==== Función para validar que es una imagen ====
 function esImagenValida(message) {
   if (!message) return false;
@@ -1109,7 +1118,7 @@ function esImagenValida(message) {
       message.mimetype.startsWith('image/'));
 
   return esImagen;
-}
+}*/
 
 // ==== Función MEJORADA para obtener información de la imagen ====
 function obtenerInfoImagen(ctx) {
@@ -1121,7 +1130,7 @@ function obtenerInfoImagen(ctx) {
       timestamp: Date.now(),
       from: ctx.from,
       id: ctx.id,
-      esValida: esImagenValida(ctx) // 🔧 NUEVO: Incluir validación
+      esValida: esImagenValida(ctx)
     };
 
     // Información específica según el tipo
@@ -1131,16 +1140,18 @@ function obtenerInfoImagen(ctx) {
         info.tamaño = ctx.message.imageMessage.fileLength;
         info.esImageMessage = true;
         info.caption = ctx.message.imageMessage.caption || 'Sin descripción';
+        info.url = ctx.message.imageMessage.url;
       }
       if (ctx.message.documentMessage) {
         info.mimetype = ctx.message.documentMessage.mimetype;
         info.nombreArchivo = ctx.message.documentMessage.title;
         info.tamaño = ctx.message.documentMessage.fileLength;
         info.esDocumentMessage = true;
+        info.url = ctx.message.documentMessage.url;
       }
     }
 
-    // 🔧 NUEVO: Información adicional de depuración
+    // Información adicional de depuración
     info.estructuraCompleta = {
       tieneMessage: !!ctx.message,
       keysMessage: ctx.message ? Object.keys(ctx.message) : [],
@@ -1161,7 +1172,22 @@ function obtenerInfoImagen(ctx) {
   }
 }
 
-// ==== Flujo de captura para identificación oficial - COMPLETO MODIFICADO ====
+// ==== Función AUXILIAR para manejar específicamente fotos de cámara de WhatsApp ====
+function esFotoDeCamaraWhatsApp(ctx) {
+  if (!ctx.message) return false;
+  
+  // Las fotos tomadas directamente con la cámara de WhatsApp generalmente
+  // vienen como imageMessage sin caption o con caption vacío
+  if (ctx.message.imageMessage) {
+    const hasCaption = ctx.message.imageMessage.caption && 
+                      ctx.message.imageMessage.caption.trim().length > 0;
+    return !hasCaption; // Si no tiene caption, probablemente es foto directa de cámara
+  }
+  
+  return false;
+}
+
+// ==== Flujo de captura para identificación oficial - MEJORADO ====
 const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1175,7 +1201,7 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
       } catch (error) {
         console.error('❌ Error en timeout de captura:', error);
       }
-    }, 4 * 60 * 1000); // 🔧 CAMBIADO: 4 minutos en lugar de 3
+    }, 4 * 60 * 1000);
 
     await state.update({
       timeoutCapturaIdentificacion: timeout,
@@ -1186,28 +1212,25 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
     [
       '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
       '',
-      '⚠️ **IMPORTANTE:** Necesitamos una fotografía RECIENTE de tu credencial,',
-      'tomada en este momento con la cámara de tu celular.',
+      '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP WEB:**',
+      '• Usa la cámara de tu celular, NO la computadora',
+      '• Toca el ícono de 📎 (clip)',
+      '• Selecciona "Cámara" o "Camera"',
+      '• Toma una foto NUEVA de tu credencial',
+      '• Asegúrate de que sea CLARA y legible',
       '',
-      '📋 **Por favor toma una foto CLARA de tu credencial oficial:**',
+      '📋 **Credencial requerida:**',
       '• Credencial escolar CON FOTO del ITA',
-      '• Debe ser legible y actual',
+      '• Debe ser actual y vigente',
+      '• Todos los datos deben ser visibles',
       '',
       '⏰ **Tienes 4 minutos** para enviar la fotografía',
       '',
-      '📱 **Cómo enviar correctamente:**',
-      '1. Toca el clip 📎 en WhatsApp',
-      '2. Selecciona "📷 Cámara" (NO "Galería")',
-      '3. Toma una foto NUEVA de tu credencial',
-      '4. Asegúrate de que se vean todos los datos',
-      '5. Envíala como IMAGEN',
-      '',
       '❌ **NO se aceptan:**',
-      '• Fotos de galería o capturas de pantalla',
+      '• Fotos de galería o archivos antiguos',
+      '• Capturas de pantalla',
       '• Documentos escaneados o PDF',
-      '• Fotos borrosas o ilegibles',
-      '',
-      '🔒 Tu información está protegida y será usada solo para verificación.'
+      '• Fotos borrosas o oscuras'
     ].join('\n'),
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
@@ -1215,9 +1238,10 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      // 🔧 VALIDACIÓN MEJORADA CON MÁS INFORMACIÓN
+      // 🔧 VALIDACIÓN MEJORADA CON MÁS TOLERANCIA
       const esValida = esImagenValida(ctx);
       const infoImagen = obtenerInfoImagen(ctx);
+      const esDeCamara = esFotoDeCamaraWhatsApp(ctx);
 
       if (!esValida) {
         console.log('❌ Imagen no válida - Información detallada:', infoImagen);
@@ -1225,64 +1249,72 @@ const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
         await flowDynamic([
           '❌ *No recibimos una fotografía válida*',
           '',
-          '⚠️ **Por favor toma una foto NUEVA con tu cámara:**',
+          '⚠️ **Para WhatsApp Web/Desktop:**',
+          '1. Usa tu CELULAR para tomar la foto',
+          '2. Toca el clip 📎 en WhatsApp',
+          '3. Selecciona "Cámara" (NO "Galería")', 
+          '4. Toma foto NUEVA de tu credencial',
+          '5. Envíala directamente',
           '',
-          '📷 **Instrucciones correctas:**',
-          '1. Toca el clip 📎 en WhatsApp',
-          '2. Selecciona "📷 Cámara" (NO "Galería")',
-          '3. Enfoca tu credencial escolar',
-          '4. Toma la foto y envíala',
-          '5. Asegúrate de que sea CLARA y legible',
+          '📱 **Si usas WhatsApp en computadora:**',
+          '• La foto debe tomarse con tu celular',
+          '• NO uses la cámara de la computadora',
+          '• NO envíes archivos de galería',
           '',
-          '❌ **Evita:**',
-          '• Fotos de galería o archivos antiguos',
-          '• Capturas de pantalla',
-          '• Documentos escaneados',
-          '• Fotos borrosas o oscuras',
-          '',
-          '⏰ Tienes 4 minutos para enviar la fotografía.'
+          '🔄 **Intenta de nuevo por favor.**'
         ].join('\n'));
         
         return gotoFlow(flowCapturaIdentificacion);
       }
 
-      // 🔧 GUARDAR INFORMACIÓN MEJORADA
+      // 🔧 GUARDAR INFORMACIÓN MEJORADA CON DETECCIÓN DE CÁMARA
       await state.update({
         identificacionSubida: true,
         infoIdentificacion: infoImagen,
         timestampIdentificacion: Date.now(),
         imagenIdentificacion: ctx,
-        // 🔧 NUEVO: Marcar que la foto fue tomada en el momento
-        fotoEnVivo: true,
-        tipoValidacion: 'fotografia_en_tiempo_real'
+        fotoEnVivo: esDeCamara, // 🔧 MEJORADO: Detectar si es de cámara
+        tipoValidacion: esDeCamara ? 'fotografia_en_tiempo_real' : 'fotografia_de_galeria',
+        esWhatsAppWeb: !esDeCamara // 🔧 NUEVO: Marcar si posiblemente es de WhatsApp Web
       });
 
-      await flowDynamic([
-        '✅ *¡Perfecto! Identificación recibida correctamente*',
-        '',
-        '📋 **Hemos validado:**',
-        '• Fotografía clara y legible ✓',
-        '• Credencial con foto visible ✓', 
-        '• Datos de identificación ✓',
-        '',
-        '🔄 Continuando con el proceso de restablecimiento de contraseña...'
-      ].join('\n'));
+      // Mensaje según el tipo de imagen
+      if (esDeCamara) {
+        await flowDynamic([
+          '✅ *¡Perfecto! Foto tomada correctamente con la cámara*',
+          '',
+          '📋 **Hemos validado:**',
+          '• Fotografía en tiempo real ✓',
+          '• Credencial con foto visible ✓', 
+          '• Datos legibles ✓',
+          '',
+          '🔄 Continuando con el proceso...'
+        ].join('\n'));
+      } else {
+        await flowDynamic([
+          '✅ *¡Identificación recibida!*',
+          '',
+          '📋 Continuamos con el proceso...',
+          '',
+          '⚠️ **Nota:** Para mayor seguridad, recomendamos',
+          'tomar fotos directamente con la cámara la próxima vez.'
+        ].join('\n'));
+      }
 
       // 🔧 REGISTRO MEJORADO EN LOGS
       const myState = await state.getMyState();
-      console.log('📸 Identificación recibida y validada - NO enviada al administrador');
+      console.log('📸 Identificación recibida y validada');
       console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
       console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
+      console.log(`📱 Tipo: ${esDeCamara ? 'Foto de cámara' : 'Posible archivo/galería'}`);
       console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
-      console.log(`📊 Info imagen:`, infoImagen);
-      console.log(`✅ Validación: Foto en vivo tomada en el momento`);
 
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowContrasena);
     }
   );
 
-// ==== Flujo de captura para identificación oficial (AUTENTICADOR) - COMPLETO MODIFICADO ====
+// ==== Flujo de captura para identificación oficial (AUTENTICADOR) - ACTUALIZADO ====
 const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1296,7 +1328,7 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
       } catch (error) {
         console.error('❌ Error en timeout de captura:', error);
       }
-    }, 4 * 60 * 1000); // 🔧 CAMBIADO: 4 minutos en lugar de 3
+    }, 4 * 60 * 1000);
 
     await state.update({
       timeoutCapturaIdentificacion: timeout,
@@ -1307,28 +1339,25 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
     [
       '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
       '',
-      '⚠️ **IMPORTANTE:** Necesitamos una fotografía RECIENTE de tu credencial,',
-      'tomada en este momento con la cámara de tu celular.',
+      '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP WEB:**',
+      '• Usa la cámara de tu celular, NO la computadora',
+      '• Toca el ícono de 📎 (clip)',
+      '• Selecciona "Cámara" o "Camera"',
+      '• Toma una foto NUEVA de tu credencial',
+      '• Asegúrate de que sea CLARA y legible',
       '',
-      '📋 **Para configurar tu autenticador, toma una foto CLARA de tu credencial oficial:**',
+      '📋 **Para configurar tu autenticador, necesitamos verificar tu identidad:**',
       '• Credencial escolar CON FOTO del ITA',
-      '• Debe ser legible y actual',
+      '• Debe ser actual y vigente',
+      '• Todos los datos deben ser visibles',
       '',
       '⏰ **Tienes 4 minutos** para enviar la fotografía',
       '',
-      '📱 **Cómo enviar correctamente:**',
-      '1. Toca el clip 📎 en WhatsApp',
-      '2. Selecciona "📷 Cámara" (NO "Galería")',
-      '3. Toma una foto NUEVA de tu credencial',
-      '4. Asegúrate de que se vean todos los datos',
-      '5. Envíala como IMAGEN',
-      '',
       '❌ **NO se aceptan:**',
-      '• Fotos de galería o capturas de pantalla',
+      '• Fotos de galería o archivos antiguos',
+      '• Capturas de pantalla',
       '• Documentos escaneados o PDF',
-      '• Fotos borrosas o ilegibles',
-      '',
-      '🔒 Tu información está protegida y será usada solo para verificación del autenticador.'
+      '• Fotos borrosas o oscuras'
     ].join('\n'),
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state }) => {
@@ -1336,9 +1365,10 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
 
       timeoutManager.clearTimeout(ctx.from);
 
-      // 🔧 VALIDACIÓN MEJORADA CON MÁS INFORMACIÓN
+      // 🔧 VALIDACIÓN MEJORADA CON MÁS TOLERANCIA
       const esValida = esImagenValida(ctx);
       const infoImagen = obtenerInfoImagen(ctx);
+      const esDeCamara = esFotoDeCamaraWhatsApp(ctx);
 
       if (!esValida) {
         console.log('❌ Imagen no válida - Información detallada:', infoImagen);
@@ -1346,57 +1376,65 @@ const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
         await flowDynamic([
           '❌ *No recibimos una fotografía válida*',
           '',
-          '⚠️ **Para configurar tu autenticador, necesitamos verificar tu identidad:**',
+          '⚠️ **Para WhatsApp Web/Desktop:**',
+          '1. Usa tu CELULAR para tomar la foto',
+          '2. Toca el clip 📎 en WhatsApp',
+          '3. Selecciona "Cámara" (NO "Galería")', 
+          '4. Toma foto NUEVA de tu credencial',
+          '5. Envíala directamente',
           '',
-          '📷 **Instrucciones correctas:**',
-          '1. Toca el clip 📎 en WhatsApp',
-          '2. Selecciona "📷 Cámara" (NO "Galería")',
-          '3. Enfoca tu credencial escolar',
-          '4. Toma la foto y envíala',
-          '5. Asegúrate de que sea CLARA y legible',
+          '📱 **Si usas WhatsApp en computadora:**',
+          '• La foto debe tomarse con tu celular',
+          '• NO uses la cámara de la computadora',
+          '• NO envíes archivos de galería',
           '',
-          '❌ **Evita:**',
-          '• Fotos de galería o archivos antiguos',
-          '• Capturas de pantalla', 
-          '• Documentos escaneados',
-          '• Fotos borrosas o oscuras',
-          '',
-          '⏰ Tienes 4 minutos para enviar la fotografía.'
+          '🔄 **Intenta de nuevo por favor.**'
         ].join('\n'));
         
         return gotoFlow(flowCapturaIdentificacionAutenticador);
       }
 
-      // 🔧 GUARDAR INFORMACIÓN MEJORADA
+      // 🔧 GUARDAR INFORMACIÓN MEJORADA CON DETECCIÓN DE CÁMARA
       await state.update({
         identificacionSubida: true,
         infoIdentificacion: infoImagen,
         timestampIdentificacion: Date.now(),
         imagenIdentificacion: ctx,
-        // 🔧 NUEVO: Marcar que la foto fue tomada en el momento
-        fotoEnVivo: true,
-        tipoValidacion: 'fotografia_en_tiempo_real'
+        fotoEnVivo: esDeCamara,
+        tipoValidacion: esDeCamara ? 'fotografia_en_tiempo_real' : 'fotografia_de_galeria',
+        esWhatsAppWeb: !esDeCamara
       });
 
-      await flowDynamic([
-        '✅ *¡Perfecto! Identificación recibida correctamente*',
-        '',
-        '📋 **Hemos validado:**',
-        '• Fotografía clara y legible ✓',
-        '• Credencial con foto visible ✓',
-        '• Datos de identificación ✓', 
-        '',
-        '🔄 Continuando con la configuración de tu autenticador...'
-      ].join('\n'));
+      // Mensaje según el tipo de imagen
+      if (esDeCamara) {
+        await flowDynamic([
+          '✅ *¡Perfecto! Foto tomada correctamente con la cámara*',
+          '',
+          '📋 **Hemos validado:**',
+          '• Fotografía en tiempo real ✓',
+          '• Credencial con foto visible ✓',
+          '• Datos legibles ✓',
+          '',
+          '🔄 Continuando con la configuración de tu autenticador...'
+        ].join('\n'));
+      } else {
+        await flowDynamic([
+          '✅ *¡Identificación recibida!*',
+          '',
+          '📋 Continuamos con la configuración del autenticador...',
+          '',
+          '⚠️ **Nota:** Para mayor seguridad, recomendamos',
+          'tomar fotos directamente con la cámara la próxima vez.'
+        ].join('\n'));
+      }
 
       // 🔧 REGISTRO MEJORADO EN LOGS
       const myState = await state.getMyState();
-      console.log('📸 Identificación recibida y validada (Autenticador) - NO enviada al administrador');
+      console.log('📸 Identificación recibida y validada (Autenticador)');
       console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
       console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
+      console.log(`📱 Tipo: ${esDeCamara ? 'Foto de cámara' : 'Posible archivo/galería'}`);
       console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
-      console.log(`📊 Info imagen:`, infoImagen);
-      console.log(`✅ Validación: Foto en vivo tomada en el momento`);
 
       timeoutManager.clearTimeout(ctx.from);
       return gotoFlow(flowAutenticador);
