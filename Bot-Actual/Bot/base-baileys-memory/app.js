@@ -1600,7 +1600,7 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
 
 // ==== Flujo final de SIE - CORREGIDO (SOLO cuando ya tiene datos) ====
 const flowFinSIE = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, provider }) => {
+  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return;
 
