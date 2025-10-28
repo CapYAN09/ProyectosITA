@@ -1,32 +1,28 @@
 [handleMsg]:  {
   key: {
-    remoteJid: '5214494539734@s.whatsapp.net',
+    remoteJid: '5214491835717@s.whatsapp.net',
     fromMe: false,
-    id: 'AC0A0C0A2D5600AD42A8C6BF9A74B1B6',
+    id: 'A5A28654527B4EAF2028D3A71D01C3AD',
     participant: undefined
   },
-  messageTimestamp: 1761676111,
-  pushName: 'Evelyn Villalobos',
+  messageTimestamp: 1761684064,
+  pushName: 'YKStore',
   broadcast: false,
   message: Message {
-    extendedTextMessage: ExtendedTextMessage {
-      text: 'Hola',
-      previewType: 0,
-      contextInfo: [ContextInfo],
-      inviteLinkGroupTypeV2: 0
-    },
+    conversation: 'Hola',
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
       deviceListMetadataVersion: 2,
       messageSecret: [Uint8Array]
     }
   },
+  verifiedBizName: 'YKStore',
   body: 'Hola',
-  from: '5214494539734'
+  from: '5214491835717'
 }
 [QUEUE_SE_ENVIO]:  {
-  ref: 'ans_c2f1f9f3-2a8d-47f4-9ba5-43d4ae929f28',
-  keyword: 'key_aa341e9d-0d62-447d-a4fe-2a20143e47cd',
+  ref: 'ans_a7989684-3c06-49cd-b30b-0b208a555a88',
+  keyword: 'key_0e81ef3f-a917-4e8c-bce9-abdd9a1d4180',
   answer: '__call_action__',
   options: {
     media: null,
@@ -40,16 +36,281 @@
     keyword: {},
     callback: true
   },
-  refSerialize: '287533cf71f5def8e6cfe58212e5938d'
+  refSerialize: '0f1d55eae4c5bee979da0ca6280b76dd'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A56F4F5AEBFD5DC9E7C3DE201BFF21F8',
+    participant: undefined
+  },
+  messageTimestamp: 1761684067,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '1',
+  from: '5214491835717'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_a85bd92b-68ef-4f36-93b8-088d9ebb9f90',
+  keyword: 'key_004679da-c410-4b08-9a46-d4b616b28338',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '0d6ea78133205aa5a602c1324cd8b508'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A50324177E14A37C497C8EC35BB90B12',
+    participant: undefined
+  },
+  messageTimestamp: 1761684070,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '1',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A5EB28595247DB7F41CFB1E5695A4388',
+    participant: undefined
+  },
+  messageTimestamp: 1761684074,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: '17151288',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '17151288',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A5614D25144FB9C1EC76D72B73633CF9',
+    participant: undefined
+  },
+  messageTimestamp: 1761684076,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Alejandro Nieves',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Alejandro Nieves',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A52409ED72D0F9C8A78641DCD6942536',
+    participant: undefined
+  },
+  messageTimestamp: 1761684085,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    imageMessage: ImageMessage {
+      interactiveAnnotations: [],
+      scanLengths: [Array],
+      url: 'https://mmg.whatsapp.net/v/t62.7118-24/534148329_859617163224540_8084402394875920206_n.enc?ccb=11-4&oh=01_Q5Aa2wHQtdxijBcm6bOgZaJYVbVU2xzTns2SC4IquJGhvldVqQ&oe=6928AA1B&_nc_sid=5e03e0&mms3=true',
+      mimetype: 'image/jpeg',
+      fileSha256: [Uint8Array],
+      fileLength: [Long],
+      height: 1599,
+      width: 899,
+      mediaKey: [Uint8Array],
+      fileEncSha256: [Uint8Array],
+      directPath: '/v/t62.7118-24/534148329_859617163224540_8084402394875920206_n.enc?ccb=11-4&oh=01_Q5Aa2wHQtdxijBcm6bOgZaJYVbVU2xzTns2SC4IquJGhvldVqQ&oe=6928AA1B&_nc_sid=5e03e0',
+      mediaKeyTimestamp: [Long],
+      jpegThumbnail: [Uint8Array],
+      contextInfo: [ContextInfo],
+      scansSidecar: [Uint8Array],
+      midQualityFileSha256: [Uint8Array]
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: '_event_media__d1bf8089-22ff-4860-a9cf-7ffde68acf4b',
+  from: '5214491835717'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A55E527C536D4DFD217072B05C53AC1B',
+    participant: undefined
+  },
+  messageTimestamp: 1761684088,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Perfecto',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Perfecto',
+  from: '5214491835717'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_66d03300-4a46-47d1-9463-4bac45102a97',
+  keyword: 'key_3b762f34-a541-4bec-96d7-a2a3747785d1',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: 'ff9f0887b405930cdde4858dc89975d2'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A5FA0C59D2E318F13BC1D05560FB4D9B',
+    participant: undefined
+  },
+  messageTimestamp: 1761684097,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Hola',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Hola',
+  from: '5214491835717'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_a7989684-3c06-49cd-b30b-0b208a555a88',
+  keyword: 'key_0e81ef3f-a917-4e8c-bce9-abdd9a1d4180',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '0f1d55eae4c5bee979da0ca6280b76dd'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491835717@s.whatsapp.net',
+    fromMe: false,
+    id: 'A54CFE449E4FC276878743ED22413B26',
+    participant: undefined
+  },
+  messageTimestamp: 1761684102,
+  pushName: 'YKStore',
+  broadcast: false,
+  message: Message {
+    conversation: 'Hola',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  verifiedBizName: 'YKStore',
+  body: 'Hola',
+  from: '5214491835717'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_a7989684-3c06-49cd-b30b-0b208a555a88',
+  keyword: 'key_0e81ef3f-a917-4e8c-bce9-abdd9a1d4180',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '0f1d55eae4c5bee979da0ca6280b76dd'
 }
 [handleMsg]:  {
   key: {
     remoteJid: '5214494877990@s.whatsapp.net',
     fromMe: false,
-    id: 'AC7B59DE0FA06A6E4F59954985C17C9E',
+    id: 'ACD6CC3E79EB97E96FE1C75FD34DF5DD',
     participant: undefined
   },
-  messageTimestamp: 1761682992,
+  messageTimestamp: 1761684216,
   pushName: 'Alejandro Nieves 😎',
   broadcast: false,
   message: Message {
@@ -68,25 +329,244 @@
 }
 [handleMsg]:  {
   key: {
-    remoteJid: '5214494877990@s.whatsapp.net',
+    remoteJid: '5214491086342@s.whatsapp.net',
     fromMe: false,
-    id: 'ACF292C2256601F63681869A2B1779FD',
+    id: 'AC02446B5F75278C9F716E32D2C5D26C',
     participant: undefined
   },
-  messageTimestamp: 1761682998,
-  pushName: 'Alejandro Nieves 😎',
+  messageTimestamp: 1761684739,
+  pushName: 'E. Torres',
+  broadcast: false,
+  messageStubType: 2,
+  messageStubParameters: [ 'Message absent from node' ],
+  body: undefined,
+  from: '5214491086342'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491086342@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC02446B5F75278C9F716E32D2C5D26C',
+    participant: undefined
+  },
+  messageTimestamp: 1761684739,
+  pushName: 'E. Torres',
   broadcast: false,
   message: Message {
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Buenas tardes, tengo problema para acceder a mi correo institucional, qué puedo hacer?',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
     messageContextInfo: MessageContextInfo {
       deviceListMetadata: [DeviceListMetadata],
-      deviceListMetadataVersion: 2
-    },
-    reactionMessage: ReactionMessage {
-      key: [MessageKey],
-      text: '👍🏼',
-      senderTimestampMs: [Long]
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
     }
   },
-  body: '',
-  from: '5214494877990'
+  body: 'Buenas tardes, tengo problema para acceder a mi correo institucional, qué puedo hacer?',
+  from: '5214491086342'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491086342@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC02446B5F75278C9F716E32D2C5D26C',
+    participant: undefined
+  },
+  messageTimestamp: 1761684741,
+  pushName: 'E. Torres',
+  broadcast: false,
+  message: Message {
+    extendedTextMessage: ExtendedTextMessage {
+      text: 'Buenas tardes, tengo problema para acceder a mi correo institucional, qué puedo hacer?',
+      previewType: 0,
+      contextInfo: [ContextInfo],
+      inviteLinkGroupTypeV2: 0
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Buenas tardes, tengo problema para acceder a mi correo institucional, qué puedo hacer?',
+  from: '5214491086342'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_a7989684-3c06-49cd-b30b-0b208a555a88',
+  keyword: 'key_0e81ef3f-a917-4e8c-bce9-abdd9a1d4180',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '0f1d55eae4c5bee979da0ca6280b76dd'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_a7989684-3c06-49cd-b30b-0b208a555a88',
+  keyword: 'key_0e81ef3f-a917-4e8c-bce9-abdd9a1d4180',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '0f1d55eae4c5bee979da0ca6280b76dd'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491086342@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC1D36A5F581F19986D58218F57E3157',
+    participant: undefined
+  },
+  messageTimestamp: 1761684770,
+  pushName: 'E. Torres',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '1',
+  from: '5214491086342'
+}
+[QUEUE_SE_ENVIO]:  {
+  ref: 'ans_a85bd92b-68ef-4f36-93b8-088d9ebb9f90',
+  keyword: 'key_004679da-c410-4b08-9a46-d4b616b28338',
+  answer: '__call_action__',
+  options: {
+    media: null,
+    buttons: [],
+    capture: false,
+    child: null,
+    delay: 0,
+    idle: null,
+    ref: null,
+    nested: [],
+    keyword: {},
+    callback: true
+  },
+  refSerialize: '0d6ea78133205aa5a602c1324cd8b508'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491086342@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC8EAA9F4CFBD518560B07E4AD64F6D9',
+    participant: undefined
+  },
+  messageTimestamp: 1761684774,
+  pushName: 'E. Torres',
+  broadcast: false,
+  message: Message {
+    conversation: '1',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '1',
+  from: '5214491086342'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491086342@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC84441CDE3B76800482A271A32E53A2',
+    participant: undefined
+  },
+  messageTimestamp: 1761684782,
+  pushName: 'E. Torres',
+  broadcast: false,
+  message: Message {
+    conversation: '21150797',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '21150797',
+  from: '5214491086342'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491086342@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC7EE92D110CF450F3B070E75FB499AE',
+    participant: undefined
+  },
+  messageTimestamp: 1761684787,
+  pushName: 'E. Torres',
+  broadcast: false,
+  message: Message {
+    conversation: 'Emiliano Esaú Torres Muñoz',
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: 'Emiliano Esaú Torres Muñoz',
+  from: '5214491086342'
+}
+[handleMsg]:  {
+  key: {
+    remoteJid: '5214491086342@s.whatsapp.net',
+    fromMe: false,
+    id: 'AC5ABD3167FF51EC5B4A9114FD1CB897',
+    participant: undefined
+  },
+  messageTimestamp: 1761684825,
+  pushName: 'E. Torres',
+  broadcast: false,
+  message: Message {
+    imageMessage: ImageMessage {
+      interactiveAnnotations: [],
+      scanLengths: [Array],
+      url: 'https://mmg.whatsapp.net/v/t62.7118-24/531633369_1584429672541887_4708773268630637135_n.enc?ccb=11-4&oh=01_Q5Aa2wH3Rz3UeBBKfv_w17j21mBrC0cBeSBOy1fXz0jMURxkPg&oe=6928A845&_nc_sid=5e03e0&mms3=true',
+      mimetype: 'image/jpeg',
+      fileSha256: [Uint8Array],
+      fileLength: [Long],
+      height: 950,
+      width: 1600,
+      mediaKey: [Uint8Array],
+      fileEncSha256: [Uint8Array],
+      directPath: '/v/t62.7118-24/531633369_1584429672541887_4708773268630637135_n.enc?ccb=11-4&oh=01_Q5Aa2wH3Rz3UeBBKfv_w17j21mBrC0cBeSBOy1fXz0jMURxkPg&oe=6928A845&_nc_sid=5e03e0',
+      mediaKeyTimestamp: [Long],
+      jpegThumbnail: [Uint8Array],
+      contextInfo: [ContextInfo],
+      scansSidecar: [Uint8Array],
+      midQualityFileSha256: [Uint8Array]
+    },
+    messageContextInfo: MessageContextInfo {
+      deviceListMetadata: [DeviceListMetadata],
+      deviceListMetadataVersion: 2,
+      messageSecret: [Uint8Array]
+    }
+  },
+  body: '_event_media__e269d9cb-56af-4cd9-8068-705e517dad79',
+  from: '5214491086342'
 }
