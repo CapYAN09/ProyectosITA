@@ -439,7 +439,7 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
   ].join('\n'));
 }
 
-// ==== Función de verificación MEJORADA - MÁS ROBUSTA ====
+// ==== Función de verificación MEJORADA - SIN REDIRECCIÓN RECURSIVA ====
 async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   if (ctx.from === CONTACTO_ADMIN) return false;
 
@@ -471,8 +471,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
         ].join('\n'));
       }
 
-      // 🔧 REDIRIGIR AL FLUJO DE BLOQUEO
-      await gotoFlow(flowBloqueoActivo);
+      // 🔧 IMPORTANTE: Retornar true para indicar que está bloqueado, pero NO redirigir
       return true;
     }
   } catch (error) {
@@ -629,7 +628,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     return endFlow();
   });
 
-// ==== Flujo de Bloqueo Activo - MEJORADO ====
+// ==== Flujo de Bloqueo Activo - CORREGIDO (Sin bucle) ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowBloqueoActivo');
@@ -649,24 +648,29 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
     // 🔧 MANEJAR DIFERENTES TIPOS DE MENSAJES
     if (input === 'estado') {
       await mostrarEstadoBloqueado(flowDynamic, myState);
+      // 🔧 IMPORTANTE: No redirigir a ningún lado después de mostrar estado
+      return endFlow();
     } else if (input) {
-      // 🔧 CUALQUIER OTRO MENSAJE - RESPONDER Y MANTENER BLOQUEO
+      // 🔧 CUALQUIER OTRO MENSAJE - RESPONDER UNA SOLA VEZ
       await flowDynamic([
-        '🔒 *Proceso en Curso* 🔒',
+        '⏳ *Proceso en curso* ⏳',
         '',
-        'Tu solicitud sigue siendo procesada...',
+        '📋 Tu solicitud está siendo procesada activamente...',
         '',
-        '⚠️ **No es necesario que interactúes**',
-        'El proceso continuará automáticamente',
+        '🔄 **No es necesario que escribas nada**',
+        '⏰ El proceso continuará automáticamente',
         '',
-        '📊 Para ver el progreso escribe: *estado*',
+        '💡 **Solo escribe:**',
+        '*estado* - Para ver el progreso actual',
         '',
-        '⏰ Por favor espera pacientemente'
+        '¡Gracias por tu paciencia! 🙏'
       ].join('\n'));
+      // 🔧 IMPORTANTE: No redirigir, terminar el flujo
+      return endFlow();
     }
 
-    // 🔧 MANTENERSE EN ESTE FLUJO INDEFINIDAMENTE
-    return gotoFlow(flowBloqueoActivo);
+    // 🔧 SI NO HAY INPUT, TERMINAR SILENCIOSAMENTE
+    return endFlow();
   });
 
 // ==== FLUJO PARA BLOQUEAR AL ADMINISTRADOR ====
@@ -683,7 +687,7 @@ const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
 const flowSubMenuContrasena = addKeyword(EVENTS.ACTION)
   .addAnswer(
     ' Una ves comenzado esté proceso no podrá ser detenido hasta completarse.\n\n' +
-    '👥 *Selecciona tu tipo de usuario:*\n\n' +
+    '👥 *Selecciona tu tipo de usuario (Solamente ingresa el número):*\n\n' +
     '1️⃣ ¿Eres un estudiante?\n' +
     '2️⃣ ¿Eres un trabajador o docente?\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
@@ -841,7 +845,7 @@ const flowCapturaCorreoTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
 const flowSubMenuAutenticador = addKeyword(EVENTS.ACTION)
   .addAnswer(
     ' Una ves comenzado esté proceso no podrá ser detenido hasta completarse.\n\n' +
-    '👥 *Selecciona tu tipo de usuario:*\n\n' +
+    '👥 *Selecciona tu tipo de usuario (Solamente ingresa el número):*\n\n' +
     '1️⃣ ¿Eres un estudiante?\n' +
     '2️⃣ ¿Eres un trabajador o docente?\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
@@ -1639,6 +1643,47 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
     }
   );
 
+// ==== FLUJO PARA INFORMACIÓN DE CREDENCIALES (OPCIÓN 6) ====
+const flowInfoCredenciales = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    await debugFlujo(ctx, 'flowInfoCredenciales');
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+      return;
+    }
+
+    await flowDynamic([
+      '❓ *¿No conoces tu correo institucional ni tu contraseña?* ❓',
+      '',
+      '📋 **Para estudiantes:**',
+      '• Tu correo institucional se forma con tu número de control:',
+      '  *numero_de_control@aguascalientes.tecnm.mx*',
+      '',
+      '📋 **Para trabajadores/docentes:**',
+      '• Tu correo institucional generalmente es:',
+      '  *nombre.apellido@aguascalientes.tecnm.mx*',
+      '',
+      '🔍 **Si no recuerdas tu número de control:**',
+      '• Revisa tu credencial escolar del ITA',
+      '• Consulta con tu coordinador de carrera',
+      '• Revisa documentos oficiales de inscripción',
+      '',
+      '🔐 **Para restablecer tu contraseña:**',
+      '• Si conoces tu correo pero no tu contraseña,',
+      '  puedes restablecerla usando este bot, regresa al menú principal',
+      '  selecciona la opción *1* y sigue las instrucciones.',
+      '',
+      '📞 **Si necesitas ayuda adicional:**',
+      '• Centro de cómputo: 449 910 50 02 EXT. 145',
+      '• Coordinación de educación a distancia: 449 910 50 02 EXT. 125',
+      '',
+      '🔙 Escribe *menú* para volver al menú principal.'
+    ].join('\n'));
+
+    return gotoFlow(flowEsperaMenu);
+  });
+
 // ==== Flujo de espera para menú principal ====
 const flowEsperaMenu = addKeyword(EVENTS.ACTION)
   .addAction(async (_, { state, flowDynamic }) => {
@@ -2426,6 +2471,7 @@ const flowGracias = addKeyword(EVENTS.ACTION).addAction(
     await flowDynamic(
       '🙏 ¡Gracias por comunicarte con el Centro de Cómputo del ITA! 💙\n' +
       'Estamos para ayudarte siempre que lo necesites.\n\n' +
+      'En dado caso de que tengas más dudas o requieras asistencia adicional, no dudes en contactarnos nuevamente \n\n Tambien puedes comunicarte a los siguientes telefonos: \n Centro de cómputo: 449 910 50 02 EXT. 145 \n Coordinación de educación a distancia 449 910 50 02 EXT. 125' +
       '🔙 Escribe *menú* si deseas regresar al inicio.'
     )
     console.log('✅ Mensaje de agradecimiento enviada correctamente \n')
@@ -2507,7 +2553,13 @@ function esSaludoValido(texto) {
     'Hola buenos días, necesito ayuda con el acceso a mi cuenta',
     'Problemas con el autenticador', 'Problema con el autenticador',
     'problemas con la contraseña', 'problema con la contraseña',
-    'problemas con el acceso', 'problema con el acceso'
+    'problemas con el acceso', 'problema con el acceso',
+    'no conozco mi correo', 'no sé mi correo', 'no recuerdo mi correo',
+    'no conozco mi contraseña', 'no sé mi contraseña', 'no recuerdo mi contraseña',
+    'no conozco mis credenciales', 'no sé mis credenciales', 'no recuerdo mis credenciales',
+    'cuál es mi correo', 'cual es mi correo', 'dime mi correo',
+    'cuál es mi contraseña', 'cual es mi contraseña', 'dime mi contraseña',
+    'cuáles son mis credenciales', 'cuales son mis credenciales', 'dime mis credenciales'
   ];
 
   // 🔧 BÚSQUEDA MÁS FLEXIBLE Y ROBUSTA
@@ -2619,7 +2671,7 @@ const flowPrincipal = addKeyword([
 
 
 // ==== FLUJO MENÚ PRINCIPAL - CORREGIDO ====
-const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
+const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body);
 
@@ -2642,7 +2694,7 @@ const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5'])
     }
 
     // Si es una opción numérica, procesarla
-    if (['1', '2', '3', '4', '5'].includes(opcion)) {
+    if (['1', '2', '3', '4', '5', '6'].includes(opcion)) {
       await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
       return;
     }
@@ -2659,13 +2711,14 @@ async function mostrarOpcionesMenu(flowDynamic) {
     'Te recomiendo que tengas tu credencial a la mano para agilizar el proceso. Se te solicitará para validar tu identidad al momento de restablecer tu contraseña o autenticador.\n',
     'Selecciona una opción:',
     '',
-    '1️⃣ 🔐 Restablecer contraseña',
-    '2️⃣ 🔑 Restablecer autenticador',
+    '1️⃣ 🔐 Restablecer contraseña del correo institucional',
+    '2️⃣ 🔑 Restablecer autenticador del correo institucional',
     '3️⃣ 🎓 Educación a Distancia (Moodle)',
     '4️⃣ 📊 Sistema SIE',
-    '5️⃣ 🙏 Información CC',
+    '5️⃣ 🙏 Información adicional',
+    '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
     '',
-    '💡 *Escribe solo el número (1-5)*'
+    '💡 *Escribe solo el número (1-6)*'
   ].join('\n'));
 }
 
@@ -2703,8 +2756,13 @@ async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
       console.log('🚀 Redirigiendo a flowGracias');
       return gotoFlow(flowGracias);
 
+    case '6':
+      await flowDynamic('❓ Redirigiendo a información de credenciales...');
+      console.log('🚀 Redirigiendo a flowInfoCredenciales');
+      return gotoFlow(flowInfoCredenciales);
+
     default:
-      await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4* o *5*.');
+      await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4*, *5* o *6*.');
       return gotoFlow(flowMenu);
   }
 }
@@ -2795,13 +2853,13 @@ async function verificarBaseDeDatos() {
         console.log('✅ Tabla user_states creada exitosamente con todas las columnas');
       } else {
         console.log('✅ Tabla user_states encontrada, verificando columnas...');
-        
+
         // Verificar si faltan columnas y agregarlas
         const columnasNecesarias = [
-          'identificacion_subida', 'timestamp_identificacion', 
+          'identificacion_subida', 'timestamp_identificacion',
           'correo_institucional', 'es_trabajador', 'info_identificacion'
         ];
-        
+
         for (const columna of columnasNecesarias) {
           const [columnas] = await connection.execute(`
             SELECT COLUMN_NAME 
@@ -2810,15 +2868,15 @@ async function verificarBaseDeDatos() {
             AND TABLE_NAME = 'user_states' 
             AND COLUMN_NAME = '${columna}'
           `);
-          
+
           if (columnas.length === 0) {
             console.log(`📦 Agregando columna faltante: ${columna}`);
-            
+
             let tipoColumna = 'BOOLEAN DEFAULT FALSE';
             if (columna === 'timestamp_identificacion') tipoColumna = 'TIMESTAMP NULL';
             if (columna === 'correo_institucional') tipoColumna = 'VARCHAR(255) NULL';
             if (columna === 'info_identificacion') tipoColumna = 'JSON';
-            
+
             await connection.execute(`
               ALTER TABLE user_states 
               ADD COLUMN ${columna} ${tipoColumna}
@@ -2874,15 +2932,16 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     '',
     '💡 **Para comenzar, escribe:**',
     '• *hola* - Iniciar conversación',
-    '• *inicio* - Ver menú principal', 
+    '• *inicio* - Ver menú principal',
     '• *ayuda* - Obtener asistencia',
     '',
     '📋 **O selecciona una opción directa:**',
     '1️⃣ Restablecer contraseña',
     '2️⃣ Configurar autenticador',
     '3️⃣ Educación a Distancia',
-    '4️⃣ Sistema SIE', 
+    '4️⃣ Sistema SIE',
     '5️⃣ Información CC',
+    '6️⃣ No conozco mis credenciales',
     '',
     '🔙 Escribe *hola* para comenzar.'
   ]);
@@ -2956,6 +3015,7 @@ const main = async () => {
       flowAutenticador,
       flowFinSIE,
       flowBloqueoActivo,
+      flowInfoCredenciales,
 
       // ==================== 🕒 FLUJOS DE ESPERA ====================
       flowEsperaPrincipal,
