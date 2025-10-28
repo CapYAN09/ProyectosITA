@@ -415,12 +415,16 @@ async function restaurarEstadoInicial(ctx, state) {
   return false;
 }
 
-// ==== Función para mostrar estado de bloqueo - CORREGIDA ====
+// ==== Función para mostrar estado de bloqueo - ACTUALIZADA CON TIEMPOS ====
 async function mostrarEstadoBloqueado(flowDynamic, myState) {
   const metadata = myState.estadoMetadata || {};
   const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
   const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
   const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
+  
+  // Calcular la última interacción (usamos ultimaActualizacion como referencia)
+  const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
+  const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
 
   await flowDynamic([
     '🔒 *Proceso en Curso* 🔒',
@@ -428,6 +432,8 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
     `📋 ${metadata.tipo || 'Proceso largo'}`,
     `⏰ Tiempo transcurrido: ${minutosTranscurridos} minutos`,
     `⏳ Tiempo restante: ${minutosRestantes} minutos`,
+    `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
+    `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
     '',
     '🔄 **Estamos trabajando en tu solicitud...**',
     '📱 Por favor espera, *este proceso toma aproximadamente 30 minutos*',
@@ -439,7 +445,7 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
   ].join('\n'));
 }
 
-// ==== Función de verificación MEJORADA - SIN REDIRECCIÓN RECURSIVA ====
+// ==== Función de verificación MEJORADA - CON ACTUALIZACIÓN DE INTERACCIÓN ====
 async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
   if (ctx.from === CONTACTO_ADMIN) return false;
 
@@ -451,15 +457,34 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
 
       const input = ctx.body?.toLowerCase().trim();
 
+      // 🔧 ACTUALIZAR LA ÚLTIMA INTERACCIÓN USANDO TU FUNCIÓN actualizarEstado
+      if (input) {
+        await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+          ...myState.estadoMetadata,
+          // Mantenemos todos los metadatos existentes
+        });
+      }
+
       // 🔧 SI ESCRIBE "estado", MOSTRAR INFORMACIÓN DETALLADA
       if (input === 'estado') {
         await mostrarEstadoBloqueado(flowDynamic, myState);
       } else if (input && input !== 'estado') {
-        // 🔧 CUALQUIER OTRO MENSAJE RECIBE RESPUESTA GENÉRICA
+        // 🔧 CALCULAR TIEMPOS PARA EL MENSAJE GENÉRICO
+        const metadata = myState.estadoMetadata || {};
+        const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
+        const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
+        const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
+        
+        const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
+        const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
+
         await flowDynamic([
           '⏳ *Proceso en curso* ⏳',
           '',
           '📋 Tu solicitud está siendo procesada activamente...',
+          '',
+          `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
+          `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
           '',
           '🔄 **No es necesario que escribas nada**',
           '⏰ El proceso continuará automáticamente',
@@ -471,7 +496,6 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
         ].join('\n'));
       }
 
-      // 🔧 IMPORTANTE: Retornar true para indicar que está bloqueado, pero NO redirigir
       return true;
     }
   } catch (error) {
@@ -628,7 +652,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     return endFlow();
   });
 
-// ==== Flujo de Bloqueo Activo - CORREGIDO (Sin bucle) ====
+// ==== Flujo de Bloqueo Activo - ACTUALIZADO CON TIEMPOS ====
 const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowBloqueoActivo');
@@ -645,17 +669,35 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
 
     const input = ctx.body?.toLowerCase().trim();
 
+    // 🔧 ACTUALIZAR LA ÚLTIMA INTERACCIÓN USANDO TU FUNCIÓN actualizarEstado
+    if (input) {
+      await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+        ...myState.estadoMetadata,
+        // Mantenemos todos los metadatos existentes pero actualizamos el timestamp
+      });
+    }
+
     // 🔧 MANEJAR DIFERENTES TIPOS DE MENSAJES
     if (input === 'estado') {
       await mostrarEstadoBloqueado(flowDynamic, myState);
-      // 🔧 IMPORTANTE: No redirigir a ningún lado después de mostrar estado
       return endFlow();
     } else if (input) {
-      // 🔧 CUALQUIER OTRO MENSAJE - RESPONDER UNA SOLA VEZ
+      // 🔧 CALCULAR TIEMPOS PARA EL MENSAJE GENÉRICO
+      const metadata = myState.estadoMetadata || {};
+      const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
+      const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
+      const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
+      
+      const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
+      const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
+
       await flowDynamic([
         '⏳ *Proceso en curso* ⏳',
         '',
         '📋 Tu solicitud está siendo procesada activamente...',
+        '',
+        `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
+        `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
         '',
         '🔄 **No es necesario que escribas nada**',
         '⏰ El proceso continuará automáticamente',
@@ -665,11 +707,9 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
         '',
         '¡Gracias por tu paciencia! 🙏'
       ].join('\n'));
-      // 🔧 IMPORTANTE: No redirigir, terminar el flujo
       return endFlow();
     }
 
-    // 🔧 SI NO HAY INPUT, TERMINAR SILENCIOSAMENTE
     return endFlow();
   });
 
@@ -1579,6 +1619,7 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
     await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
       tipo: "📊 Sincronización de Datos SIE",
       inicio: Date.now()
+      
     });
 
     const phone = ctx.from;
