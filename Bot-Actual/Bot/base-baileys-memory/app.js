@@ -1716,7 +1716,7 @@ const flowInfoCredenciales = addKeyword(EVENTS.ACTION)
     return gotoFlow(flowEsperaMenu);
   });
 
-// ==== FLUJO PARA SISTEMA DE TICKETS (OPCIÓN 7) - ACTUALIZADO ====
+// ==== FLUJO PARA SISTEMA DE TICKETS (OPCIÓN 7) - CORREGIDO ====
 const flowTickets = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     await debugFlujo(ctx, 'flowTickets');
@@ -1769,133 +1769,7 @@ const flowTickets = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE DATOS PARA TICKETS - NUEVO ====
-const flowCapturaDatosTicket = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    const timeout = timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en captura de datos para ticket');
-        await flowDynamic('⏱️ No recibimos tu información. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      timeoutCaptura: timeout,
-      ultimaInteraccion: Date.now()
-    });
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *nombre completo*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
-        return gotoFlow(flowCapturaDatosTicket);
-      }
-
-      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
-        return gotoFlow(flowCapturaDatosTicket);
-      }
-
-      if (input.length < 3) {
-        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
-        return gotoFlow(flowCapturaDatosTicket);
-      }
-
-      await state.update({ nombreCompleto: input });
-      await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaAreaTicket);
-    }
-  );
-
-// ==== FLUJO DE CAPTURA DE ÁREA/DEPARTAMENTO - NUEVO ====
-const flowCapturaAreaTicket = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    const timeout = timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en captura de área');
-        await flowDynamic('⏱️ No recibimos tu área/departamento. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      timeoutCapturaArea: timeout,
-      ultimaInteraccion: Date.now()
-    });
-  })
-  .addAnswer(
-    [
-      '🏢 *Información del Área/Departamento*',
-      '',
-      '📋 Por favor escribe tu *área o departamento*:',
-      '',
-      '💡 **Ejemplos:**',
-      '• Recursos Humanos',
-      '• Contabilidad',
-      '• Dirección',
-      '• Servicios Escolares',
-      '• Coordinación Académica',
-      '',
-      '🔙 Escribe *menú* para volver al menú principal.'
-    ].join('\n'),
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu área/departamento. Por favor escríbelo.');
-        return gotoFlow(flowCapturaAreaTicket);
-      }
-
-      if (!isValidText(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *área o departamento*.');
-        return gotoFlow(flowCapturaAreaTicket);
-      }
-
-      await state.update({ areaDepartamento: input });
-      await flowDynamic(`✅ Recibimos tu área/departamento: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowFinalTicket);
-    }
-  );
-
-// ==== FLUJO FINAL PARA TICKETS - COMPLETAMENTE ACTUALIZADO ====
+// ==== FLUJO FINAL PARA TICKETS - CORREGIDO ====
 const flowFinalTicket = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     // ⚡ Excluir administrador
@@ -2788,7 +2662,7 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - NUEVO ====
+// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - CORREGIDO ====
 const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -2847,7 +2721,7 @@ const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - NUEVO ====
+// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - CORREGIDO ====
 const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -2912,7 +2786,7 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE DEPARTAMENTO - ACTUALIZADO ====
+// ==== FLUJO DE CAPTURA DE DEPARTAMENTO - CORREGIDO ====
 const flowCapturaDepartamentoTicket = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -3615,10 +3489,11 @@ const main = async () => {
       flowGracias,
       flowSIE,
 
-      // ==================== 🎫 FLUJOS DE TICKETS - NUEVOS ====================
+      // ✅ SOLO ESTOS FLUJOS DE TICKETS (eliminar los duplicados)
       flowTickets,
-      flowCapturaDatosTicket,
-      flowCapturaAreaTicket,
+      flowCapturaNombreTicket,
+      flowCapturaUsuarioSistema,
+      flowCapturaDepartamentoTicket,
       flowFinalTicket,
 
       // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
