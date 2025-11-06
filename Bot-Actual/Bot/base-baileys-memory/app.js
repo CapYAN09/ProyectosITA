@@ -626,7 +626,7 @@ const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
     // 🔧 PERMITIR SOLO COMANDOS ESPECÍFICOS SI NO ESTÁ BLOQUEADO
     const comandosPermitidos = [
       'hola', 'inicio', 'menu', 'menú', 'estado', 'ayuda',
-      '1', '2', '3', '4', '5', '6', '7'
+      '1', '2', '3', '4', '5'
     ];
 
     if (comandosPermitidos.includes(input)) {
@@ -1148,6 +1148,21 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
       return gotoFlow(flowBloqueoActivo);
     }
   );
+
+/*
+// ==== Función para validar que es una imagen ====
+function esImagenValida(message) {
+if (!message) return false;
+
+// Verificar si es imagen, sticker, o documento con imagen
+const esImagen = message.type === 'image' ||
+  message.type === 'sticker' ||
+  (message.type === 'document' &&
+    message.mimetype &&
+    message.mimetype.startsWith('image/'));
+
+return esImagen;
+}*/
 
 // ==== Función MEJORADA para obtener información de la imagen ====
 function obtenerInfoImagen(ctx) {
@@ -1715,275 +1730,6 @@ const flowInfoCredenciales = addKeyword(EVENTS.ACTION)
 
     return gotoFlow(flowEsperaMenu);
   });
-
-// ==== FLUJO PARA SISTEMA DE TICKETS (OPCIÓN 7) - CORREGIDO ====
-const flowTickets = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
-    await debugFlujo(ctx, 'flowTickets');
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
-
-    await flowDynamic([
-      '🎫 *Sistema de Tickets - Soporte Administrativo* 🎫',
-      '',
-      '🔧 **¿Qué deseas hacer?**',
-      '',
-      '1️⃣ Restablecer contraseña del sistema de gestión',
-      '2️⃣ Crear un nuevo perfil de usuario',
-      '',
-      '💡 *Selecciona una opción (1 o 2)*',
-      '',
-      '🔙 Escribe *menú* para volver al menú principal.'
-    ].join('\n'));
-  })
-  .addAnswer(
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🔐 Iniciando proceso para restablecer contraseña del sistema de gestión...');
-        await state.update({ 
-          tipoSolicitudTicket: 'restablecer_contrasena',
-          esTrabajador: true
-        });
-        
-        console.log('🚀 Redirigiendo a captura de usuario del sistema...');
-        return gotoFlow(flowCapturaUsuarioSistema);
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('👤 Iniciando proceso para crear un nuevo perfil de usuario...');
-        await state.update({ 
-          tipoSolicitudTicket: 'crear_perfil',
-          esTrabajador: true
-        });
-        
-        console.log('🚀 Redirigiendo a captura de nombre para ticket...');
-        return gotoFlow(flowCapturaNombreTicket);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
-      return gotoFlow(flowTickets);
-    }
-  );
-
-// ==== FLUJO FINAL PARA TICKETS - CORREGIDO ====
-const flowFinalTicket = addKeyword(EVENTS.ACTION) // 🔧 CAMBIAR a EVENTS.ACTION
-  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-    // ⚡ Excluir administrador
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
-    const myState = (await state.getMyState()) || {};
-    const tipoSolicitud = myState.tipoSolicitudTicket;
-    const nombreCompleto = myState.nombreCompleto;
-    const usuarioSistema = myState.usuarioSistema;
-    const departamento = myState.departamento;
-
-    console.log('🔍 Datos para ticket:', { tipoSolicitud, nombreCompleto, usuarioSistema, departamento });
-
-    // 🔧 VALIDACIÓN SEGÚN EL TIPO DE SOLICITUD
-    if (tipoSolicitud === 'crear_perfil' && (!nombreCompleto || !departamento)) {
-      console.log('❌ Datos incompletos para crear perfil, redirigiendo...');
-      await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
-      return gotoFlow(flowCapturaNombreTicket);
-    }
-
-    if (tipoSolicitud === 'restablecer_contrasena' && (!usuarioSistema || !departamento)) {
-      console.log('❌ Datos incompletos para restablecer contraseña, redirigiendo...');
-      await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
-      return gotoFlow(flowCapturaUsuarioSistema);
-    }
-
-    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
-    await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-      tipo: tipoSolicitud === 'crear_perfil' 
-        ? "🎫 Creación de Perfil - Sistema de Gestión" 
-        : "🎫 Restablecimiento de Contraseña - Sistema de Gestión",
-      inicio: Date.now(),
-      tipoSolicitud: tipoSolicitud
-    });
-
-    const phone = ctx.from;
-
-    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
-    let mensajeAdmin = '';
-    
-    if (tipoSolicitud === 'crear_perfil') {
-      mensajeAdmin = `🎫 *NUEVA SOLICITUD DE CREACIÓN DE PERFIL - SISTEMA DE GESTIÓN* 🎫\n\n📋 *Información del solicitante:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n🔧 *Tipo de solicitud:* Creación de nuevo perfil\n\n⚠️ *Procesando solicitud...*`;
-    } else {
-      mensajeAdmin = `🎫 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA - SISTEMA DE GESTIÓN* 🎫\n\n📋 *Información del solicitante:*\n👤 Usuario del sistema: ${usuarioSistema}\n🏢 Departamento: ${departamento}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n🔧 *Tipo de solicitud:* Restablecimiento de contraseña\n\n⚠️ *Procesando solicitud...*`;
-    }
-
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
-
-    if (envioExitoso) {
-      await flowDynamic('⏳ Hemos recibido tu solicitud. Estamos procesando tu información... \n\n *Te solicitamos no enviar mensajes en lo que realizamos este proceso, este proceso durará aproximadamente 30 minutos.*');
-    } else {
-      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
-    }
-
-    let minutosRestantes = 30;
-
-    // Aviso cada 10 minutos
-    const intervalId = setInterval(async () => {
-      minutosRestantes -= 10;
-      if (minutosRestantes > 0) {
-        const nombre = tipoSolicitud === 'crear_perfil' ? nombreCompleto : usuarioSistema;
-        await flowDynamic(`⏳ Hola *${nombre}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
-      }
-    }, 10 * 60000);
-
-    // Guardar ID del intervalo
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        intervalId: intervalId
-      }
-    });
-
-    // Mensaje final después de 30 minutos
-    const timeoutId = setTimeout(async () => {
-      clearInterval(intervalId);
-
-      try {
-        // 🔧 GENERAR CREDENCIALES AUTOMÁTICAMENTE
-        const usuarioGenerado = tipoSolicitud === 'crear_perfil' 
-          ? generarUsuario(nombreCompleto) 
-          : usuarioSistema;
-        
-        const contrasenaGenerada = generarContrasena();
-
-        if (tipoSolicitud === 'crear_perfil') {
-          await flowDynamic([
-            '✅ *¡Perfil creado exitosamente!* ✅',
-            '',
-            '📋 **Tus credenciales de acceso al sistema de gestión:**',
-            '',
-            `👤 *Usuario:* \`${usuarioGenerado}\``,
-            `🔐 *Contraseña:* \`${contrasenaGenerada}\``,
-            '',
-            '💡 **Guarda esta información en un lugar seguro**'
-          ].join('\n'));
-
-          console.log(`✅ Perfil creado para *${nombreCompleto}* - Usuario: *${usuarioGenerado}* - Departamento: *${departamento}*`);
-        } else {
-          await flowDynamic([
-            '✅ *¡Contraseña restablecida exitosamente!* ✅',
-            '',
-            '📋 **Tus nuevas credenciales de acceso al sistema de gestión:**',
-            '',
-            `👤 *Usuario:* \`${usuarioGenerado}\``,
-            `🔐 *Nueva Contraseña:* \`${contrasenaGenerada}\``,
-            '',
-            '💡 **Guarda esta información en un lugar seguro**'
-          ].join('\n'));
-
-          console.log(`✅ Contraseña restablecida para *${usuarioSistema}* - Departamento: *${departamento}*`);
-        }
-
-        // 🔧 INSTRUCCIONES ADICIONALES
-        await flowDynamic([
-          '🔐 **Instrucciones de acceso:**',
-          '',
-          '1. Accede al sistema de gestión en:',
-          '   https://sistema.ita.edu.mx',
-          '2. Ingresa tu usuario y contraseña',
-          '3. Cambia tu contraseña después del primer acceso',
-          '',
-          '⚠️ **Recomendaciones de seguridad:**',
-          '• No compartas tus credenciales',
-          '• Cambia tu contraseña regularmente',
-          '• Usa una contraseña segura y única',
-          '',
-          '📞 **Para soporte técnico:**',
-          '• Centro de cómputo: 449 910 50 02 EXT. 145',
-          '',
-          '🔙 Escribe *menú* para volver al menú principal.'
-        ].join('\n'));
-
-      } catch (error) {
-        console.error('❌ Error enviando mensaje final:', error.message);
-      }
-
-      // 🔓 LIBERAR ESTADO al finalizar
-      await limpiarEstado(state);
-    }, 30 * 60000);
-
-    // Guardar ID del timeout
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        timeoutId: timeoutId
-      }
-    });
-  })
-  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
-  .addAnswer(
-    { capture: true },
-    async (ctx, { gotoFlow }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-      return gotoFlow(flowBloqueoActivo);
-    }
-  );
-
-// ==== FUNCIONES AUXILIARES PARA GENERAR CREDENCIALES - NUEVAS ====
-function generarUsuario(nombreCompleto) {
-  // Convertir nombre a formato de usuario: nombre.apellido
-  const nombres = nombreCompleto.toLowerCase().split(' ');
-  let usuario = '';
-  
-  if (nombres.length >= 2) {
-    // Tomar primer nombre y primer apellido
-    const primerNombre = nombres[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    const primerApellido = nombres[1].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    usuario = `${primerNombre}.${primerApellido}`;
-  } else {
-    // Si solo tiene un nombre, usar ese
-    usuario = nombres[0].normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  }
-  
-  // Limpiar caracteres especiales y agregar número aleatorio para unicidad
-  usuario = usuario.replace(/[^a-z.]/g, '');
-  const numeroAleatorio = Math.floor(Math.random() * 90) + 10; // Número entre 10-99
-  
-  return `${usuario}${numeroAleatorio}`;
-}
-
-function generarContrasena() {
-  const longitud = 12;
-  const mayusculas = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const minusculas = 'abcdefghijklmnopqrstuvwxyz';
-  const numeros = '0123456789';
-  const especiales = '!@#$%&*';
-  
-  let contrasena = '';
-  
-  // Asegurar al menos un carácter de cada tipo
-  contrasena += mayusculas[Math.floor(Math.random() * mayusculas.length)];
-  contrasena += minusculas[Math.floor(Math.random() * minusculas.length)];
-  contrasena += numeros[Math.floor(Math.random() * numeros.length)];
-  contrasena += especiales[Math.floor(Math.random() * especiales.length)];
-  
-  // Completar el resto de la contraseña
-  const todosCaracteres = mayusculas + minusculas + numeros + especiales;
-  for (let i = contrasena.length; i < longitud; i++) {
-    contrasena += todosCaracteres[Math.floor(Math.random() * todosCaracteres.length)];
-  }
-  
-  // Mezclar la contraseña
-  return contrasena.split('').sort(() => Math.random() - 0.5).join('');
-}
 
 // ==== Flujo de espera para menú principal ====
 const flowEsperaMenu = addKeyword(EVENTS.ACTION)
@@ -2672,205 +2418,6 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - VERIFICADO ====
-const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    console.log('🔍 Entrando a flowCapturaNombreTicket para creación de perfil');
-    const userPhone = ctx.from;
-
-    const timeout = timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en captura de nombre para ticket');
-        await flowDynamic('⏱️ No recibimos tu información. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      timeoutCaptura: timeout,
-      ultimaInteraccion: Date.now()
-    });
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *nombre completo*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
-        return gotoFlow(flowCapturaNombreTicket);
-      }
-
-      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
-        return gotoFlow(flowCapturaNombreTicket);
-      }
-
-      if (input.length < 3) {
-        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
-        return gotoFlow(flowCapturaNombreTicket);
-      }
-
-      await state.update({ nombreCompleto: input });
-      await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      console.log('🚀 Redirigiendo a captura de departamento...');
-      return gotoFlow(flowCapturaDepartamentoTicket);
-    }
-  );
-
-// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - VERIFICADO ====
-const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    console.log('🔍 Entrando a flowCapturaUsuarioSistema para restablecer contraseña');
-    const userPhone = ctx.from;
-
-    const timeout = timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en captura de usuario del sistema');
-        await flowDynamic('⏱️ No recibimos tu información. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      timeoutCaptura: timeout,
-      ultimaInteraccion: Date.now()
-    });
-  })
-  .addAnswer(
-    [
-      '👤 *Información del Usuario del Sistema*',
-      '',
-      '📝 Por favor escribe tu *nombre de usuario* en el sistema de gestión:',
-      '',
-      '💡 **Ejemplos:**',
-      '• juan.perez',
-      '• maria.gonzalez',
-      '• carlos.rodriguez',
-      '',
-      '🔙 Escribe *menú* para volver al menú principal.'
-    ].join('\n'),
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu nombre de usuario. Por favor escríbelo.');
-        return gotoFlow(flowCapturaUsuarioSistema);
-      }
-
-      if (!isValidText(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre de usuario*.');
-        return gotoFlow(flowCapturaUsuarioSistema);
-      }
-
-      await state.update({ usuarioSistema: input });
-      await flowDynamic(`✅ Recibimos tu usuario del sistema: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      console.log('🚀 Redirigiendo a captura de departamento...');
-      return gotoFlow(flowCapturaDepartamentoTicket);
-    }
-  );
-
-// ==== FLUJO DE CAPTURA DE DEPARTAMENTO - CORREGIDO ====
-const flowCapturaDepartamentoTicket = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR palabra clave
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    const timeout = timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en captura de departamento');
-        await flowDynamic('⏱️ No recibimos tu departamento. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      timeoutCapturaDepartamento: timeout,
-      ultimaInteraccion: Date.now()
-    });
-  })
-  .addAnswer(
-    [
-      '🏢 *Información del Departamento*',
-      '',
-      '📋 Por favor escribe tu *departamento*:',
-      '',
-      '💡 **Ejemplos:**',
-      '• Recursos Humanos',
-      '• Contabilidad',
-      '• Dirección',
-      '• Servicios Escolares',
-      '• Coordinación Académica',
-      '• Centro de Cómputo',
-      '• Mantenimiento',
-      '',
-      '🔙 Escribe *menú* para volver al menú principal.'
-    ].join('\n'),
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu departamento. Por favor escríbelo.');
-        return gotoFlow(flowCapturaDepartamentoTicket);
-      }
-
-      if (!isValidText(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *departamento*.');
-        return gotoFlow(flowCapturaDepartamentoTicket);
-      }
-
-      await state.update({ departamento: input });
-      await flowDynamic(`✅ Recibimos tu departamento: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      
-      // 🔧 CORRECCIÓN: Redirigir directamente al flujo final
-      return gotoFlow(flowFinalTicket);
-    }
-  );
-
 // ==== Flujo de captura para nombre (SIE) ====
 const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => { // 🔧 AGREGAR ctx
@@ -3123,6 +2670,12 @@ const flowPrincipal = addKeyword([
   'inicio', 'Inicio', 'comenzar', 'Comenzar', 'empezar', 'Empezar',
   'ayuda', 'Ayuda', 'start', 'Start', 'hello', 'Hello', 'hi', 'Hi'
 ])
+  /*
+  // Verificar si el usuario está en proceso bloqueado
+  if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+    return;
+  }*/
+
   .addAction(async (ctx, { flowDynamic, state, gotoFlow, endFlow }) => {
     await debugFlujo(ctx, 'flowPrincipal');
 
@@ -3163,8 +2716,9 @@ const flowPrincipal = addKeyword([
     return gotoFlow(flowMenu);
   });
 
-// ==== FLUJO MENÚ PRINCIPAL - ACTUALIZADO CON OPCIÓN 7 ====
-const flowMenu = addKeyword(['menu', 'menú']) // 🔧 CORRECCIÓN: Se quitan los números '1-7' de las keywords
+
+// ==== FLUJO MENÚ PRINCIPAL - CORREGIDO ====
+const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body);
 
@@ -3175,51 +2729,28 @@ const flowMenu = addKeyword(['menu', 'menú']) // 🔧 CORRECCIÓN: Se quitan lo
       return;
     }
 
+    const opcion = ctx.body.trim();
+
     // 🔧 ACTUALIZAR ESTADO AL ESTAR EN MENÚ
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    // 🔧 MOSTRAR EL MENÚ SIEMPRE
-    await mostrarOpcionesMenu(flowDynamic);
-    // 🔧 No hay 'return', dejamos que fluya al .addAnswer
-  })
-  .addAnswer( // 🔧 CORRECCIÓN: Capturamos la opción (1-7) aquí
-    null, // El prompt ya está en la función mostrarOpcionesMenu
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      console.log('📱 FLOW MENÚ - Opción capturada:', ctx.body);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      // 🔧 VERIFICAR BLOQUEO
-      if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-        return;
-      }
-
-      const opcion = ctx.body.trim().toLowerCase();
-
-      // 🔧 Si escribe 'menu' o 'menú' de nuevo, volver a cargar el menú
-      if (opcion === 'menu' || opcion === 'menú') {
-        return gotoFlow(flowMenu);
-      }
-
-      // 🔧 Si escribe 'hola' o 'inicio', también volver al menú (robusto)
-      if (esSaludoValido(opcion)) {
-         return gotoFlow(flowMenu);
-      }
-
-      // 🔧 Procesar la opción numérica
-      if (['1', '2', '3', '4', '5', '6', '7'].includes(opcion)) {
-        await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
-        return;
-      }
-
-      // 🔧 Si no es una opción válida, repetir
-      await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4*, *5*, *6* o *7*.');
-      // 🔧 Volvemos a mostrar el menú
-      return gotoFlow(flowMenu);
+    // Si es un comando de menú, mostrar opciones
+    if (opcion === 'menu' || opcion === 'menú') {
+      await mostrarOpcionesMenu(flowDynamic);
+      return; // Esperar la respuesta del usuario
     }
-  );
 
-// ==== FUNCIÓN PARA MOSTRAR OPCIONES DEL MENÚ - ACTUALIZADA CON OPCIÓN 7 ====
+    // Si es una opción numérica, procesarla
+    if (['1', '2', '3', '4', '5', '6'].includes(opcion)) {
+      await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
+      return;
+    }
+
+    // Si no es ninguna de las anteriores, mostrar menú
+    await mostrarOpcionesMenu(flowDynamic);
+  });
+
+// ==== FUNCIÓN PARA MOSTRAR OPCIONES DEL MENÚ ====
 async function mostrarOpcionesMenu(flowDynamic) {
   await flowDynamic([
     '📋 *MENÚ PRINCIPAL* 📋',
@@ -3233,23 +2764,12 @@ async function mostrarOpcionesMenu(flowDynamic) {
     '4️⃣ 📊 Sistema SIE',
     '5️⃣ 🙏 Información adicional',
     '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
-    '7️⃣ 🎫 Sistema de Tickets - Soporte Administrativo',
     '',
-    '💡 *Escribe solo el número (1-7)*'
+    '💡 *Escribe solo el número (1-6)*'
   ].join('\n'));
 }
 
-// ==== FUNCIÓN PARA DEPURAR EL FLUJO DE TICKETS ====
-async function debugFlujoTickets(ctx, paso, opcionSeleccionada) {
-  console.log(`🎯 [TICKETS DEBUG] Paso: ${paso}`);
-  console.log(`📱 Usuario: ${ctx.from}`);
-  console.log(`💬 Mensaje: "${ctx.body}"`);
-  console.log(`🔢 Opción seleccionada: ${opcionSeleccionada}`);
-  console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
-  console.log('---');
-}
-
-// ==== FUNCIÓN PARA PROCESAR OPCIONES - ACTUALIZADA CON OPCIÓN 7 ====
+// ==== FUNCIÓN PARA PROCESAR OPCIONES - ACTUALIZADA ====
 async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   console.log('🎯 Procesando opción:', opcion);
 
@@ -3288,15 +2808,8 @@ async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
       console.log('🚀 Redirigiendo a flowInfoCredenciales');
       return gotoFlow(flowInfoCredenciales);
 
-    case '7':
-      await flowDynamic('🎫 Redirigiendo al Sistema de Tickets...');
-      console.log('🚀 Redirigiendo a flowTickets');
-      // 🔧 LIMPIAR ESTADO ANTES DE COMENZAR NUEVO PROCESO
-      await limpiarEstado(state);
-      return gotoFlow(flowTickets);
-
     default:
-      await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4*, *5*, *6* o *7*.');
+      await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4*, *5* o *6*.');
       return gotoFlow(flowMenu);
   }
 }
@@ -3455,8 +2968,8 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     return gotoFlow(flowPrincipal);
   }
 
-  // 🔧 SI ES UN NÚMERO SOLO (1-7), REDIRIGIR AL MENÚ
-  if (/^[1-7]$/.test(input)) {
+  // 🔧 SI ES UN NÚMERO SOLO (1-5), REDIRIGIR AL MENÚ
+  if (/^[1-5]$/.test(input)) {
     console.log(`🔄 Número de opción detectado: "${input}", redirigiendo al menú...`);
     return gotoFlow(flowMenu);
   }
@@ -3476,7 +2989,6 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     '4️⃣ Sistema SIE',
     '5️⃣ Información CC',
     '6️⃣ No conozco mis credenciales',
-    '7️⃣ Sistema de Tickets - Soporte Administrativo',
     '',
     '🔙 Escribe *hola* para comenzar.'
   ]);
@@ -3514,13 +3026,6 @@ const main = async () => {
       // ==================== 🎪 SUBMENÚS ====================
       flowSubMenuContrasena,
       flowSubMenuAutenticador,
-
-      // ==================== 🎫 SISTEMA DE TICKETS (AGREGAR AQUÍ) ====================
-      flowTickets,
-      flowCapturaNombreTicket,
-      flowCapturaUsuarioSistema,
-      flowCapturaDepartamentoTicket,
-      flowFinalTicket,
 
       // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
       flowCapturaNumeroControl,
@@ -3641,5 +3146,6 @@ const main = async () => {
 }
 
 main();
-
-//app.js
+//final de app.js
+//final de app.js
+//final de app.js
