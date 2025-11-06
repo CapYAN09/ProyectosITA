@@ -1752,28 +1752,24 @@ const flowTickets = addKeyword(EVENTS.ACTION)
 
       if (opcion === '1') {
         await flowDynamic('🔐 Iniciando proceso para restablecer contraseña del sistema de gestión...');
-        await state.update({ tipoSolicitudTicket: 'restablecer_contrasena' });
+        await state.update({ 
+          tipoSolicitudTicket: 'restablecer_contrasena',
+          esTrabajador: true // 🔧 Marcar como trabajador para tickets
+        });
         
-        // 🔧 CORRECCIÓN: Usar EVENTS.ACTION en lugar de palabra clave
-        const flowTemp = addKeyword(EVENTS.ACTION)
-          .addAction(async () => {
-            return gotoFlow(flowCapturaUsuarioSistema);
-          });
-        
-        return gotoFlow(flowTemp);
+        console.log('🚀 Redirigiendo a captura de usuario del sistema...');
+        return gotoFlow(flowCapturaUsuarioSistema);
       }
 
       if (opcion === '2') {
         await flowDynamic('👤 Iniciando proceso para crear un nuevo perfil de usuario...');
-        await state.update({ tipoSolicitudTicket: 'crear_perfil' });
+        await state.update({ 
+          tipoSolicitudTicket: 'crear_perfil',
+          esTrabajador: true // 🔧 Marcar como trabajador para tickets
+        });
         
-        // 🔧 CORRECCIÓN: Usar EVENTS.ACTION en lugar de palabra clave
-        const flowTemp = addKeyword(EVENTS.ACTION)
-          .addAction(async () => {
-            return gotoFlow(flowCapturaNombreTicket);
-          });
-        
-        return gotoFlow(flowTemp);
+        console.log('🚀 Redirigiendo a captura de nombre para ticket...');
+        return gotoFlow(flowCapturaNombreTicket);
       }
 
       await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
@@ -2676,9 +2672,10 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - CORREGIDO ====
-const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR palabra clave
+// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - VERIFICADO ====
+const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    console.log('🔍 Entrando a flowCapturaNombreTicket para creación de perfil');
     const userPhone = ctx.from;
 
     const timeout = timeoutManager.setTimeout(userPhone, async () => {
@@ -2731,13 +2728,15 @@ const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR palab
       await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
 
       timeoutManager.clearTimeout(ctx.from);
+      console.log('🚀 Redirigiendo a captura de departamento...');
       return gotoFlow(flowCapturaDepartamentoTicket);
     }
   );
 
-// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - CORREGIDO ====
-const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR palabra clave
+// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - VERIFICADO ====
+const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    console.log('🔍 Entrando a flowCapturaUsuarioSistema para restablecer contraseña');
     const userPhone = ctx.from;
 
     const timeout = timeoutManager.setTimeout(userPhone, async () => {
@@ -2796,6 +2795,7 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR pal
       await flowDynamic(`✅ Recibimos tu usuario del sistema: *${input}*`);
 
       timeoutManager.clearTimeout(ctx.from);
+      console.log('🚀 Redirigiendo a captura de departamento...');
       return gotoFlow(flowCapturaDepartamentoTicket);
     }
   );
@@ -3216,6 +3216,16 @@ async function mostrarOpcionesMenu(flowDynamic) {
   ].join('\n'));
 }
 
+// ==== FUNCIÓN PARA DEPURAR EL FLUJO DE TICKETS ====
+async function debugFlujoTickets(ctx, paso, opcionSeleccionada) {
+  console.log(`🎯 [TICKETS DEBUG] Paso: ${paso}`);
+  console.log(`📱 Usuario: ${ctx.from}`);
+  console.log(`💬 Mensaje: "${ctx.body}"`);
+  console.log(`🔢 Opción seleccionada: ${opcionSeleccionada}`);
+  console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
+  console.log('---');
+}
+
 // ==== FUNCIÓN PARA PROCESAR OPCIONES - ACTUALIZADA CON OPCIÓN 7 ====
 async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   console.log('🎯 Procesando opción:', opcion);
@@ -3608,3 +3618,5 @@ const main = async () => {
 }
 
 main();
+
+//app.js
