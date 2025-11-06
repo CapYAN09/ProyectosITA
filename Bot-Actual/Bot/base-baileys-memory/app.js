@@ -1731,8 +1731,8 @@ const flowTickets = addKeyword(EVENTS.ACTION)
       '',
       '🔧 **¿Qué deseas hacer?**',
       '',
-      '1️⃣ Crear un nuevo perfil de usuario',
-      '2️⃣ Restablecer contraseña del sistema de gestión',
+      '1️⃣ Restablecer contraseña del sistema de gestión',
+      '2️⃣ Crear un nuevo perfil de usuario',
       '',
       '💡 *Selecciona una opción (1 o 2)*',
       '',
@@ -1751,17 +1751,17 @@ const flowTickets = addKeyword(EVENTS.ACTION)
       }
 
       if (opcion === '1') {
-        await flowDynamic('👤 Iniciando proceso para crear un nuevo perfil de usuario...');
-        // 🔧 GUARDAR EL TIPO DE SOLICITUD EN EL ESTADO
-        await state.update({ tipoSolicitudTicket: 'crear_perfil' });
-        return gotoFlow(flowCapturaNombreTicket);
+        await flowDynamic('🔐 Iniciando proceso para restablecer contraseña del sistema de gestión...');
+        // 🔧 CORREGIDO: Opción 1 ahora es para restablecer contraseña
+        await state.update({ tipoSolicitudTicket: 'restablecer_contrasena' });
+        return gotoFlow(flowCapturaUsuarioSistema);
       }
 
       if (opcion === '2') {
-        await flowDynamic('🔐 Iniciando proceso para restablecer contraseña del sistema de gestión...');
-        // 🔧 GUARDAR EL TIPO DE SOLICITUD EN EL ESTADO
-        await state.update({ tipoSolicitudTicket: 'restablecer_contrasena' });
-        return gotoFlow(flowCapturaUsuarioSistema);
+        await flowDynamic('👤 Iniciando proceso para crear un nuevo perfil de usuario...');
+        // 🔧 CORREGIDO: Opción 2 ahora es para crear perfil
+        await state.update({ tipoSolicitudTicket: 'crear_perfil' });
+        return gotoFlow(flowCapturaNombreTicket);
       }
 
       await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
