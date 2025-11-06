@@ -1754,14 +1754,14 @@ const flowTickets = addKeyword(EVENTS.ACTION)
         await flowDynamic('🔐 Iniciando proceso para restablecer contraseña del sistema de gestión...');
         // 🔧 CORREGIDO: Opción 1 ahora es para restablecer contraseña
         await state.update({ tipoSolicitudTicket: 'restablecer_contrasena' });
-        return gotoFlow(flowCapturaUsuarioSistema);
+        return gotoFlow(flowCapturaUsuarioSistema); // 🔧 REDIRIGIR CON gotoFlow
       }
 
       if (opcion === '2') {
         await flowDynamic('👤 Iniciando proceso para crear un nuevo perfil de usuario...');
         // 🔧 CORREGIDO: Opción 2 ahora es para crear perfil
         await state.update({ tipoSolicitudTicket: 'crear_perfil' });
-        return gotoFlow(flowCapturaNombreTicket);
+        return gotoFlow(flowCapturaNombreTicket); // 🔧 REDIRIGIR CON gotoFlow
       }
 
       await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
@@ -1769,8 +1769,8 @@ const flowTickets = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO FINAL PARA TICKETS - CORREGIDO ====
-const flowFinalTicket = addKeyword(EVENTS.ACTION)
+// ==== FLUJO FINAL PARA TICKETS - CORREGIDO CON PALABRA CLAVE ====
+const flowFinalTicket = addKeyword(['final_ticket']) // 🔧 PALABRA CLAVE ÚNICA
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -2662,8 +2662,8 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - CORREGIDO ====
-const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION)
+// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - CORREGIDO CON PALABRA CLAVE ====
+const flowCapturaNombreTicket = addKeyword(['captura_nombre_ticket']) // 🔧 PALABRA CLAVE ÚNICA
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
@@ -2721,8 +2721,8 @@ const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - CORREGIDO ====
-const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
+// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - CORREGIDO CON PALABRA CLAVE ====
+const flowCapturaUsuarioSistema = addKeyword(['captura_usuario_sistema']) // 🔧 PALABRA CLAVE ÚNICA
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
@@ -2786,8 +2786,8 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE DEPARTAMENTO - CORREGIDO ====
-const flowCapturaDepartamentoTicket = addKeyword(EVENTS.ACTION)
+// ==== FLUJO DE CAPTURA DE DEPARTAMENTO - CORREGIDO CON PALABRA CLAVE ====
+const flowCapturaDepartamentoTicket = addKeyword(['captura_departamento_ticket']) // 🔧 PALABRA CLAVE ÚNICA
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
@@ -3427,7 +3427,7 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     '4️⃣ Sistema SIE',
     '5️⃣ Información CC',
     '6️⃣ No conozco mis credenciales',
-    '7️⃣ Sistema de Tickets',
+    '7️⃣ Sistema de Tickets - Soporte Administrativo',
     '',
     '🔙 Escribe *hola* para comenzar.'
   ]);
