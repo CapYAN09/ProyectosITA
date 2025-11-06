@@ -421,7 +421,7 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
   const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
   const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
   const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-  
+
   // Calcular la última interacción (usamos ultimaActualizacion como referencia)
   const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
   const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
@@ -474,7 +474,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
         const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
         const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
         const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-        
+
         const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
         const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
 
@@ -571,6 +571,45 @@ async function enviarAlAdmin(provider, mensaje, ctx = null) { // 🔧 AGREGAR ct
 
     return false
   }
+}
+
+// ==== FUNCIÓN PARA GENERAR CONTRASEÑA SEGURA ====
+function generarContrasenaSegura() {
+  const mayusculas = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const minusculas = 'abcdefghijklmnopqrstuvwxyz';
+  const numeros = '0123456789';
+  const simbolos = '!#$%&/()=?¡¿+*}{][-_';
+
+  const todosCaracteres = mayusculas + minusculas + numeros + simbolos;
+
+  let contrasena = '';
+
+  // Asegurar al menos un carácter de cada tipo
+  contrasena += mayusculas[Math.floor(Math.random() * mayusculas.length)];
+  contrasena += minusculas[Math.floor(Math.random() * minusculas.length)];
+  contrasena += numeros[Math.floor(Math.random() * numeros.length)];
+  contrasena += simbolos[Math.floor(Math.random() * simbolos.length)];
+
+  // Completar los 12 caracteres
+  for (let i = 4; i < 12; i++) {
+    contrasena += todosCaracteres[Math.floor(Math.random() * todosCaracteres.length)];
+  }
+
+  // Mezclar los caracteres para que no estén en orden predecible
+  contrasena = contrasena.split('').sort(() => Math.random() - 0.5).join('');
+
+  return contrasena;
+}
+
+// ==== FUNCIÓN PARA FORMATEAR NOMBRE DE USUARIO ====
+function formatearNombreUsuario(departamento) {
+  // Limpiar el departamento: quitar espacios, acentos y caracteres especiales
+  const departamentoLimpio = departamento
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quitar acentos
+    .replace(/[^a-zA-Z0-9]/g, "_") // reemplazar caracteres especiales con _
+    .toLowerCase();
+
+  return `Dep_${departamentoLimpio}`;
 }
 
 // ==== Funciones de validación ====
@@ -687,7 +726,7 @@ const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
       const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
       const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
       const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-      
+
       const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
       const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
 
@@ -1062,7 +1101,7 @@ const flowContrasena = addKeyword(EVENTS.ACTION)
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
     // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORRO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
 
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -1523,7 +1562,7 @@ const flowAutenticador = addKeyword(EVENTS.ACTION)
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
 
     // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -1619,7 +1658,7 @@ const flowFinSIE = addKeyword(EVENTS.ACTION)
     await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
       tipo: "📊 Sincronización de Datos SIE",
       inicio: Date.now()
-      
+
     });
 
     const phone = ctx.from;
@@ -3038,7 +3077,7 @@ const flowGestionServicios = addKeyword(EVENTS.ACTION)
     }
   );
 
-  // ==== FLUJO PARA RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA ====
+// ==== FLUJO PARA RESTABLECIMIENTO DE SISTEMA (ACTUALIZADO) ====
 const flowRestablecimientoSistema = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -3088,7 +3127,7 @@ const flowRestablecimientoSistema = addKeyword(EVENTS.ACTION)
       await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
 
       timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaDepartamento);
+      return gotoFlow(flowCapturaDepartamento); // 🔧 USA TU FLUJO EXISTENTE
     }
   );
 
@@ -3146,7 +3185,7 @@ const flowCapturaDepartamento = addKeyword(EVENTS.ACTION)
     }
   );
 
-  // ==== FLUJO PARA SOLICITUD DE NUEVO USUARIO ====
+// ==== FLUJO PARA SOLICITUD DE NUEVO USUARIO ====
 const flowNuevoUsuario = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -3200,7 +3239,7 @@ const flowNuevoUsuario = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO PARA CAPTURAR ÁREA ====
+// ==== FLUJO PARA CAPTURAR ÁREA (ACTUALIZADO CON GENERACIÓN AUTOMÁTICA) ====
 const flowCapturaArea = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
     const userPhone = ctx.from;
@@ -3246,7 +3285,15 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
         return gotoFlow(flowCapturaArea);
       }
 
-      await state.update({ area: input });
+      // 🔧 GENERAR USUARIO Y CONTRASEÑA AUTOMÁTICAMENTE
+      const nuevoUsuario = formatearNombreUsuario(input);
+      const nuevaContrasena = generarContrasenaSegura();
+
+      await state.update({
+        area: input,
+        nuevoUsuario: nuevoUsuario,
+        nuevaContrasena: nuevaContrasena
+      });
 
       // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
       await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
@@ -3259,8 +3306,8 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
       const nombreCompleto = myState.nombreCompleto;
       const area = myState.area;
 
-      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR
-      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${area}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR (ACTUALIZADO)
+      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${area}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -3271,12 +3318,14 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
           '📋 **Resumen de tu solicitud:**',
           `👤 Nombre: ${nombreCompleto}`,
           `🏢 Área: ${area}`,
+          `👤 *Nuevo usuario:* ${nuevoUsuario}`,
+          `🔐 *Contraseña generada:* ${nuevaContrasena}`,
           '',
           '⏳ *Por favor espera aproximadamente 30 minutos*',
           'Nuestro equipo está procesando tu solicitud de creación de nuevo usuario.',
           '',
           '🔒 **Tu solicitud está siendo atendida**',
-          'Recibirás un correo con tus nuevas credenciales de acceso una vez completado el proceso.'
+          'Recibirás un correo con la confirmación una vez completado el proceso.'
         ].join('\n'));
       } else {
         await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
@@ -3290,8 +3339,15 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
             '',
             '👤 Tu nuevo usuario ha sido creado exitosamente.',
             '',
-            '📧 Has recibido un correo con tus credenciales de acceso.',
-            '🔒 Recuerda cambiar tu contraseña después del primer inicio de sesión.',
+            `📋 **Tus credenciales de acceso:**`,
+            `👤 *Usuario:* ${nuevoUsuario}`,
+            `🔐 *Contraseña:* ${nuevaContrasena}`,
+            '',
+            '🔒 **Instrucciones importantes:**',
+            '• Recibirás un correo con la confirmación',
+            '• Cambia tu contraseña después del primer inicio de sesión',
+            '• La contraseña es temporal por seguridad',
+            '• Guarda estas credenciales en un lugar seguro',
             '',
             '🔙 Escribe *menú* para volver al menú principal.'
           ].join('\n'));
@@ -3315,7 +3371,7 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO PARA CAPTURAR USUARIO DEL SISTEMA ====
+// ==== FLUJO PARA CAPTURAR USUARIO DEL SISTEMA (ACTUALIZADO CON GENERACIÓN AUTOMÁTICA) ====
 const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -3361,7 +3417,13 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
         return gotoFlow(flowCapturaUsuarioSistema);
       }
 
-      await state.update({ usuarioSistema: input });
+      // 🔧 GENERAR NUEVA CONTRASEÑA AUTOMÁTICAMENTE
+      const nuevaContrasena = generarContrasenaSegura();
+
+      await state.update({
+        usuarioSistema: input,
+        nuevaContrasena: nuevaContrasena
+      });
 
       // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
       await actualizarEstado(state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
@@ -3375,8 +3437,8 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
       const departamento = myState.departamento;
       const usuarioSistema = myState.usuarioSistema;
 
-      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR
-      const mensajeAdmin = `🔔 *SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR (ACTUALIZADO)
+      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA DE SERVICIOS* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n🔐 *Nueva contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -3388,6 +3450,7 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
           `👤 Nombre: ${nombreCompleto}`,
           `🏢 Departamento: ${departamento}`,
           `👤 Usuario: ${usuarioSistema}`,
+          `🔐 *Nueva contraseña:* ${nuevaContrasena}`,
           '',
           '⏳ *Por favor espera aproximadamente 30 minutos*',
           'Nuestro equipo está procesando tu solicitud de restablecimiento de contraseña del sistema.',
@@ -3407,8 +3470,14 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
             '',
             '🔐 Tu contraseña del sistema ha sido restablecida exitosamente.',
             '',
-            '📧 Recibirás un correo con las nuevas credenciales de acceso.',
-            '🔒 Recuerda cambiar tu contraseña después del primer inicio de sesión.',
+            `📋 **Tus nuevas credenciales:**`,
+            `👤 *Usuario:* ${usuarioSistema}`,
+            `🔐 *Contraseña:* ${nuevaContrasena}`,
+            '',
+            '🔒 **Instrucciones importantes:**',
+            '• Recibirás un correo con la confirmación',
+            '• Cambia tu contraseña después del primer inicio de sesión',
+            '• La contraseña es temporal por seguridad',
             '',
             '🔙 Escribe *menú* para volver al menú principal.'
           ].join('\n'));
@@ -3474,12 +3543,14 @@ const main = async () => {
       flowCapturaNombreSIE,
 
       // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
-  flowGestionServicios,
-  flowRestablecimientoSistema,
-  flowCapturaDepartamento,
-  flowCapturaUsuarioSistema,
-  flowNuevoUsuario,
-  flowCapturaArea,
+      flowGestionServicios,
+      flowRestablecimientoSistema,
+      flowCapturaDepartamento,
+      flowCapturaUsuarioSistema,
+      flowNuevoUsuario,
+      flowCapturaArea,
+      flowGestionServicios,
+      flowRestablecimientoSistema,
 
       // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
       flowCapturaCorreoTrabajador,
