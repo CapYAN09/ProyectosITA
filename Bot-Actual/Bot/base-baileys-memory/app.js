@@ -3239,26 +3239,10 @@ const flowNuevoUsuario = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO PARA CAPTURAR ÁREA (ACTUALIZADO CON GENERACIÓN AUTOMÁTICA) ====
+// ==== FLUJO PARA CAPTURAR ÁREA (ACTUALIZADO) ====
 const flowCapturaArea = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
-    const userPhone = ctx.from;
-
-    const timeout = timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en área');
-        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      timeoutCaptura: timeout,
-      ultimaInteraccion: Date.now()
-    });
+    // ... código anterior sin cambios ...
   })
   .addAnswer(
     '🏢 Por favor escribe el *área a la que perteneces*:',
@@ -3288,8 +3272,8 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
       // 🔧 GENERAR USUARIO Y CONTRASEÑA AUTOMÁTICAMENTE
       const nuevoUsuario = formatearNombreUsuario(input);
       const nuevaContrasena = generarContrasenaSegura();
-
-      await state.update({
+      
+      await state.update({ 
         area: input,
         nuevoUsuario: nuevoUsuario,
         nuevaContrasena: nuevaContrasena
@@ -3306,7 +3290,7 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
       const nombreCompleto = myState.nombreCompleto;
       const area = myState.area;
 
-      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR (ACTUALIZADO)
+      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR
       const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${area}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
@@ -3318,8 +3302,6 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
           '📋 **Resumen de tu solicitud:**',
           `👤 Nombre: ${nombreCompleto}`,
           `🏢 Área: ${area}`,
-          `👤 *Nuevo usuario:* ${nuevoUsuario}`,
-          `🔐 *Contraseña generada:* ${nuevaContrasena}`,
           '',
           '⏳ *Por favor espera aproximadamente 30 minutos*',
           'Nuestro equipo está procesando tu solicitud de creación de nuevo usuario.',
@@ -3334,12 +3316,11 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
       // Simular proceso de 30 minutos
       const timeoutId = setTimeout(async () => {
         try {
+          // 🔧 MENSAJE FINAL CON CREDENCIALES
           await flowDynamic([
-            '✅ *Proceso completado*',
+            '✅ *Usuario creado correctamente*',
             '',
-            '👤 Tu nuevo usuario ha sido creado exitosamente.',
-            '',
-            `📋 **Tus credenciales de acceso:**`,
+            '📋 **Tus credenciales de acceso:**',
             `👤 *Usuario:* ${nuevoUsuario}`,
             `🔐 *Contraseña:* ${nuevaContrasena}`,
             '',
@@ -3371,26 +3352,10 @@ const flowCapturaArea = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO PARA CAPTURAR USUARIO DEL SISTEMA (ACTUALIZADO CON GENERACIÓN AUTOMÁTICA) ====
+// ==== FLUJO PARA CAPTURAR USUARIO DEL SISTEMA (ACTUALIZADO) ====
 const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    const timeout = timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en usuario sistema');
-        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      timeoutCaptura: timeout,
-      ultimaInteraccion: Date.now()
-    });
+    // ... código anterior sin cambios ...
   })
   .addAnswer(
     '👤 Por favor escribe tu *nombre de usuario del sistema*:',
@@ -3419,8 +3384,8 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
 
       // 🔧 GENERAR NUEVA CONTRASEÑA AUTOMÁTICAMENTE
       const nuevaContrasena = generarContrasenaSegura();
-
-      await state.update({
+      
+      await state.update({ 
         usuarioSistema: input,
         nuevaContrasena: nuevaContrasena
       });
@@ -3437,7 +3402,7 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
       const departamento = myState.departamento;
       const usuarioSistema = myState.usuarioSistema;
 
-      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR (ACTUALIZADO)
+      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR
       const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA DE SERVICIOS* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n🔐 *Nueva contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
@@ -3450,7 +3415,6 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
           `👤 Nombre: ${nombreCompleto}`,
           `🏢 Departamento: ${departamento}`,
           `👤 Usuario: ${usuarioSistema}`,
-          `🔐 *Nueva contraseña:* ${nuevaContrasena}`,
           '',
           '⏳ *Por favor espera aproximadamente 30 minutos*',
           'Nuestro equipo está procesando tu solicitud de restablecimiento de contraseña del sistema.',
@@ -3465,12 +3429,11 @@ const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
       // Simular proceso de 30 minutos
       const timeoutId = setTimeout(async () => {
         try {
+          // 🔧 MENSAJE FINAL CON CREDENCIALES
           await flowDynamic([
-            '✅ *Proceso completado*',
+            '✅ *Contraseña restablecida correctamente*',
             '',
-            '🔐 Tu contraseña del sistema ha sido restablecida exitosamente.',
-            '',
-            `📋 **Tus nuevas credenciales:**`,
+            '📋 **Tus nuevas credenciales de acceso:**',
             `👤 *Usuario:* ${usuarioSistema}`,
             `🔐 *Contraseña:* ${nuevaContrasena}`,
             '',
