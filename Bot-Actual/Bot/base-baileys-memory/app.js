@@ -1744,7 +1744,7 @@ const flowTickets = addKeyword(EVENTS.ACTION)
     async (ctx, { flowDynamic, gotoFlow, state }) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      const opcion = ctx.body.trim().toLowerCase();
+      const opcion = ctx.body.trim();
 
       if (opcion === 'menu' || opcion === 'menú') {
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
@@ -1754,7 +1754,7 @@ const flowTickets = addKeyword(EVENTS.ACTION)
         await flowDynamic('🔐 Iniciando proceso para restablecer contraseña del sistema de gestión...');
         await state.update({ 
           tipoSolicitudTicket: 'restablecer_contrasena',
-          esTrabajador: true // 🔧 Marcar como trabajador para tickets
+          esTrabajador: true
         });
         
         console.log('🚀 Redirigiendo a captura de usuario del sistema...');
@@ -1765,7 +1765,7 @@ const flowTickets = addKeyword(EVENTS.ACTION)
         await flowDynamic('👤 Iniciando proceso para crear un nuevo perfil de usuario...');
         await state.update({ 
           tipoSolicitudTicket: 'crear_perfil',
-          esTrabajador: true // 🔧 Marcar como trabajador para tickets
+          esTrabajador: true
         });
         
         console.log('🚀 Redirigiendo a captura de nombre para ticket...');
@@ -3164,7 +3164,7 @@ const flowPrincipal = addKeyword([
   });
 
 // ==== FLUJO MENÚ PRINCIPAL - ACTUALIZADO CON OPCIÓN 7 ====
-const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7'])
+const flowMenu = addKeyword(['menu', 'menú']) // 🔧 CORRECCIÓN: Se quitan los números '1-7' de las keywords
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body);
 
@@ -3175,26 +3175,49 @@ const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7']
       return;
     }
 
-    const opcion = ctx.body.trim();
-
     // 🔧 ACTUALIZAR ESTADO AL ESTAR EN MENÚ
     await actualizarEstado(state, ESTADOS_USUARIO.EN_MENU);
 
-    // Si es un comando de menú, mostrar opciones
-    if (opcion === 'menu' || opcion === 'menú') {
-      await mostrarOpcionesMenu(flowDynamic);
-      return; // Esperar la respuesta del usuario
-    }
-
-    // Si es una opción numérica, procesarla
-    if (['1', '2', '3', '4', '5', '6', '7'].includes(opcion)) {
-      await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
-      return;
-    }
-
-    // Si no es ninguna de las anteriores, mostrar menú
+    // 🔧 MOSTRAR EL MENÚ SIEMPRE
     await mostrarOpcionesMenu(flowDynamic);
-  });
+    // 🔧 No hay 'return', dejamos que fluya al .addAnswer
+  })
+  .addAnswer( // 🔧 CORRECCIÓN: Capturamos la opción (1-7) aquí
+    null, // El prompt ya está en la función mostrarOpcionesMenu
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      console.log('📱 FLOW MENÚ - Opción capturada:', ctx.body);
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      // 🔧 VERIFICAR BLOQUEO
+      if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+        return;
+      }
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      // 🔧 Si escribe 'menu' o 'menú' de nuevo, volver a cargar el menú
+      if (opcion === 'menu' || opcion === 'menú') {
+        return gotoFlow(flowMenu);
+      }
+
+      // 🔧 Si escribe 'hola' o 'inicio', también volver al menú (robusto)
+      if (esSaludoValido(opcion)) {
+         return gotoFlow(flowMenu);
+      }
+
+      // 🔧 Procesar la opción numérica
+      if (['1', '2', '3', '4', '5', '6', '7'].includes(opcion)) {
+        await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
+        return;
+      }
+
+      // 🔧 Si no es una opción válida, repetir
+      await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4*, *5*, *6* o *7*.');
+      // 🔧 Volvemos a mostrar el menú
+      return gotoFlow(flowMenu);
+    }
+  );
 
 // ==== FUNCIÓN PARA MOSTRAR OPCIONES DEL MENÚ - ACTUALIZADA CON OPCIÓN 7 ====
 async function mostrarOpcionesMenu(flowDynamic) {
