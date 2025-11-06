@@ -1752,16 +1752,28 @@ const flowTickets = addKeyword(EVENTS.ACTION)
 
       if (opcion === '1') {
         await flowDynamic('🔐 Iniciando proceso para restablecer contraseña del sistema de gestión...');
-        // 🔧 CORREGIDO: Opción 1 ahora es para restablecer contraseña
         await state.update({ tipoSolicitudTicket: 'restablecer_contrasena' });
-        return gotoFlow(flowCapturaUsuarioSistema); // 🔧 REDIRIGIR CON gotoFlow
+        
+        // 🔧 CORRECCIÓN: Usar EVENTS.ACTION en lugar de palabra clave
+        const flowTemp = addKeyword(EVENTS.ACTION)
+          .addAction(async () => {
+            return gotoFlow(flowCapturaUsuarioSistema);
+          });
+        
+        return gotoFlow(flowTemp);
       }
 
       if (opcion === '2') {
         await flowDynamic('👤 Iniciando proceso para crear un nuevo perfil de usuario...');
-        // 🔧 CORREGIDO: Opción 2 ahora es para crear perfil
         await state.update({ tipoSolicitudTicket: 'crear_perfil' });
-        return gotoFlow(flowCapturaNombreTicket); // 🔧 REDIRIGIR CON gotoFlow
+        
+        // 🔧 CORRECCIÓN: Usar EVENTS.ACTION en lugar de palabra clave
+        const flowTemp = addKeyword(EVENTS.ACTION)
+          .addAction(async () => {
+            return gotoFlow(flowCapturaNombreTicket);
+          });
+        
+        return gotoFlow(flowTemp);
       }
 
       await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
@@ -1769,8 +1781,8 @@ const flowTickets = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO FINAL PARA TICKETS - CORREGIDO CON PALABRA CLAVE ====
-const flowFinalTicket = addKeyword(['final_ticket']) // 🔧 PALABRA CLAVE ÚNICA
+// ==== FLUJO FINAL PARA TICKETS - CORREGIDO ====
+const flowFinalTicket = addKeyword(EVENTS.ACTION) // 🔧 CAMBIAR a EVENTS.ACTION
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     // ⚡ Excluir administrador
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -1781,6 +1793,8 @@ const flowFinalTicket = addKeyword(['final_ticket']) // 🔧 PALABRA CLAVE ÚNIC
     const nombreCompleto = myState.nombreCompleto;
     const usuarioSistema = myState.usuarioSistema;
     const departamento = myState.departamento;
+
+    console.log('🔍 Datos para ticket:', { tipoSolicitud, nombreCompleto, usuarioSistema, departamento });
 
     // 🔧 VALIDACIÓN SEGÚN EL TIPO DE SOLICITUD
     if (tipoSolicitud === 'crear_perfil' && (!nombreCompleto || !departamento)) {
@@ -2662,8 +2676,8 @@ const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - CORREGIDO CON PALABRA CLAVE ====
-const flowCapturaNombreTicket = addKeyword(['captura_nombre_ticket']) // 🔧 PALABRA CLAVE ÚNICA
+// ==== FLUJO DE CAPTURA DE NOMBRE PARA TICKETS - CORREGIDO ====
+const flowCapturaNombreTicket = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR palabra clave
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
@@ -2721,8 +2735,8 @@ const flowCapturaNombreTicket = addKeyword(['captura_nombre_ticket']) // 🔧 PA
     }
   );
 
-// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - CORREGIDO CON PALABRA CLAVE ====
-const flowCapturaUsuarioSistema = addKeyword(['captura_usuario_sistema']) // 🔧 PALABRA CLAVE ÚNICA
+// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA - CORREGIDO ====
+const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR palabra clave
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
@@ -2786,8 +2800,8 @@ const flowCapturaUsuarioSistema = addKeyword(['captura_usuario_sistema']) // �
     }
   );
 
-// ==== FLUJO DE CAPTURA DE DEPARTAMENTO - CORREGIDO CON PALABRA CLAVE ====
-const flowCapturaDepartamentoTicket = addKeyword(['captura_departamento_ticket']) // 🔧 PALABRA CLAVE ÚNICA
+// ==== FLUJO DE CAPTURA DE DEPARTAMENTO - CORREGIDO ====
+const flowCapturaDepartamentoTicket = addKeyword(EVENTS.ACTION) // 🔧 ELIMINAR palabra clave
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
 
@@ -2851,6 +2865,8 @@ const flowCapturaDepartamentoTicket = addKeyword(['captura_departamento_ticket']
       await flowDynamic(`✅ Recibimos tu departamento: *${input}*`);
 
       timeoutManager.clearTimeout(ctx.from);
+      
+      // 🔧 CORRECCIÓN: Redirigir directamente al flujo final
       return gotoFlow(flowFinalTicket);
     }
   );
@@ -3466,6 +3482,13 @@ const main = async () => {
       flowSubMenuContrasena,
       flowSubMenuAutenticador,
 
+      // ==================== 🎫 SISTEMA DE TICKETS (AGREGAR AQUÍ) ====================
+      flowTickets,
+      flowCapturaNombreTicket,
+      flowCapturaUsuarioSistema,
+      flowCapturaDepartamentoTicket,
+      flowFinalTicket,
+
       // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
       flowCapturaNumeroControl,
       flowCapturaNombre,
@@ -3488,13 +3511,6 @@ const main = async () => {
       flowDistancia,
       flowGracias,
       flowSIE,
-
-      // ✅ SOLO ESTOS FLUJOS DE TICKETS (eliminar los duplicados)
-      flowTickets,
-      flowCapturaNombreTicket,
-      flowCapturaUsuarioSistema,
-      flowCapturaDepartamentoTicket,
-      flowFinalTicket,
 
       // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
       flowrestablecercontrase,
