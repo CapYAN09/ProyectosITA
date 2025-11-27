@@ -3939,7 +3939,7 @@ const flowPrincipal = addKeyword([
 
 
 // ==== FLUJO MENÚ PRINCIPAL - ACTUALIZADO ====
-const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7'])
+const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '8', '7'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
 
@@ -3964,7 +3964,7 @@ const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7']
     }
 
     // Si es una opción numérica, procesarla
-    if (['1', '2', '3', '4', '5', '6', '7'].includes(opcion)) {
+    if (['1', '2', '3', '4', '5', '6', '7', '8'].includes(opcion)) {
       await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
       return;
     }
@@ -3987,8 +3987,8 @@ async function mostrarOpcionesMenu(flowDynamic) {
     '4️⃣ 📊 Sistema SIE',
     '5️⃣ 🙏 Información adicional',
     '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
-    '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-    '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+    //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+    //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
     '',
     '💡 *Escribe solo el número (1-8)*'
   ].join('\n'));
@@ -4221,8 +4221,8 @@ const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynam
     '4️⃣ Sistema SIE',
     '5️⃣ Información CC',
     '6️⃣ No conozco mis credenciales',
-    '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-    '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+    //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+    //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
     '',
     '🔙 Escribe *hola* para comenzar.'
   ]);
