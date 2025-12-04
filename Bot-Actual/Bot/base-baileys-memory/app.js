@@ -3939,7 +3939,7 @@ const flowPrincipal = addKeyword([
 
 
 // ==== FLUJO MENÚ PRINCIPAL - ACTUALIZADO ====
-const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '8', '7'])
+const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7', '8'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
 
