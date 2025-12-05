@@ -4907,6 +4907,96 @@ const main = async () => {
       await inicializarMySQL();
     }
 
+    /*
+
+    const adapterFlow = createFlow([
+      // ==================== 🔧 FLUJOS CRÍTICOS DE SISTEMA (PRIMEROS) ====================
+      flowInterceptorGlobal,      // 🛡️ PRIMERO - Normalización IDs y seguridad global
+      flowBlockAdmin,            // 🛡️ SEGUNDO - Bloqueo administrador
+
+      // ==================== 🎯 FLUJOS DE ENTRADA PRINCIPAL ====================
+      flowPrincipal,             // 🔥 TERCERO - Captura todos los saludos e inicios
+      flowMenu,                  // 🔥 CUARTO - Menú principal y navegación
+
+      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
+      flowDistancia,             // 🎓 Educación a distancia (sin procesos largos)
+      flowGracias,               // 🙏 Agradecimiento (sin interacción)
+      flowInfoCredenciales,      // ❓ Información credenciales (solo lectura)
+
+      // ==================== 🔄 COMANDOS ESPECIALES ====================
+      flowComandosEspeciales,    // 📊 Comando "estado" durante procesos
+
+      // ==================== 🗃️ CONSULTAS Y BASE DE DATOS ====================
+      flowConsultaUsuario,               // 🔍 Consulta usuarios
+      flowBuscarUsuarioEspecifico,       // 🔎 Búsqueda específica
+      flowListarTodosUsuarios,           // 📋 Listar todos usuarios
+      flowConexionBaseDatos,             // 🗃️ Base datos Actextita
+      flowCapturaNumeroControlBaseDatos, // 🔢 Captura número control BD
+      flowCapturaUsuarioAdmin,           // 👨‍💼 Captura usuario admin
+
+      // ==================== 🎪 SUBMENÚS DE OPCIONES ====================
+      flowSubMenuContrasena,              // 🔐 Submenú contraseña
+      flowSubMenuAutenticador,            // 🔑 Submenú autenticador
+
+      // ==================== 📝 FLUJOS DE CAPTURA BÁSICA ====================
+      flowCapturaNumeroControl,           // 🔢 Número control (contraseña)
+      flowCapturaNombre,                  // 📝 Nombre (contraseña)
+      flowCapturaNumeroControlAutenticador, // 🔢 Número control (autenticador)
+      flowCapturaNombreAutenticador,      // 📝 Nombre (autenticador)
+      flowCapturaNumeroControlSIE,        // 🔢 Número control (SIE)
+      flowCapturaNombreSIE,               // 📝 Nombre (SIE)
+
+      // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
+      flowCapturaCorreoTrabajador,        // 📧 Correo trabajador (contraseña)
+      flowCapturaNombreTrabajador,        // 📝 Nombre trabajador (contraseña)
+      flowCapturaCorreoTrabajadorAutenticador, // 📧 Correo trabajador (autenticador)
+      flowCapturaNombreTrabajadorAutenticador, // 📝 Nombre trabajador (autenticador)
+
+      // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
+      flowCapturaIdentificacion,          // 📸 Identificación (contraseña)
+      flowCapturaIdentificacionAutenticador, // 📸 Identificación (autenticador)
+
+      // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
+      flowGestionServicios,               // 👨‍💼 Menú gestión servicios
+      flowRestablecimientoSistema,        // 🔐 Restablecimiento sistema
+      flowCapturaDepartamento,            // 🏢 Captura departamento
+      flowCapturaUsuarioSistema,          // 👤 Captura usuario sistema
+      flowNuevoUsuario,                   // 👤 Solicitud nuevo usuario
+      flowCapturaArea,                    // 🏢 Captura área
+
+      // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
+      flowrestablecercontrase,            // 🚀 Inicio proceso contraseña
+      flowrestablecerautenti,             // 🚀 Inicio proceso autenticador
+      flowrestablecerSIE,                 // 🚀 Inicio proceso SIE
+      flowSIE,                            // 📊 Menú SIE
+
+      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS (BLOQUEANTES) ====================
+      flowContrasena,                     // ⏳ Proceso largo contraseña
+      flowAutenticador,                   // ⏳ Proceso largo autenticador
+      flowFinSIE,                         // ⏳ Proceso largo SIE
+      flowBloqueoActivo,                  // 🔒 Bloqueo durante procesos
+
+      // ==================== 🕒 FLUJOS DE ESPERA Y TIMEOUTS ====================
+      flowEsperaPrincipal,                // ⏰ Espera en principal
+      flowEsperaMenu,                     // ⏰ Espera en menú
+      flowEsperaSIE,                      // ⏰ Espera en SIE
+      flowEsperaContrasena,               // ⏰ Espera en contraseña
+      flowEsperaAutenticador,             // ⏰ Espera en autenticador
+      flowEsperaMenuDistancia,            // ⏰ Espera en educación distancia
+      flowEsperaMenuSIE,                  // ⏰ Espera en menú SIE
+
+      // ==================== ❓ FLUJO POR DEFECTO (SIEMPRE ÚLTIMO) ====================
+      flowDefault                         // 🤖 Manejo mensajes no entendidos
+    ]);
+
+    */
+
+
+
+
+
+
+
     const adapterFlow = createFlow([
       // ==================== 🔧 FLUJOS CRÍTICOS DE SISTEMA (PRIMEROS) ====================
       flowInterceptorGlobal,      // 🛡️ PRIMERO - Normalización IDs y seguridad global
