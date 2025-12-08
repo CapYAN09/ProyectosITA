@@ -1280,9 +1280,16 @@ async function mostrarOpcionesMenu(flowDynamic) {
 async function enviarAlAdmin(provider, mensaje, ctx = null) {
   try {
     const sock = provider.vendor;
-    if (!sock) return false;
+    if (!sock) {
+      console.error('❌ No hay conexión a WhatsApp para enviar al admin');
+      return false;
+    }
 
     const adminIdNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
+    
+    console.log(`📤 Enviando mensaje al admin (${adminIdNormalizado}):`);
+    console.log(`📝 Mensaje (primeras 100 chars): ${mensaje.substring(0, 100)}...`);
+    
     await sock.sendMessage(adminIdNormalizado, { text: mensaje });
 
     console.log('✅ Información enviada al administrador');
@@ -2072,6 +2079,7 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
     }
   );
 
+// ==== FLUJO FINAL DE CONTRASEÑA - VERSIÓN CORREGIDA ====
 const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -2106,8 +2114,7 @@ const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
     const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n💾 *MySQL:* ${conexionMySQL ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ Reacciona para validar que está listo`;
 
-    await enviarAlAdmin(provider, mensajeAdmin);
-
+    // 🔧 SOLUCIÓN: ENVIAR UNA SOLA VEZ
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
     if (envioExitoso) {
@@ -2217,6 +2224,7 @@ const flowSubMenuAutenticador = addKeyword(utils.setEvent('SUBMENU_AUTENTICADOR'
     }
   );
 
+// ==== FLUJO FINAL DE AUTENTICADOR - VERSIÓN CORREGIDA ====
 const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -2251,8 +2259,7 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
     const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n💾 *MySQL:* ${conexionMySQL ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ *Proceso en curso...*`;
 
-    await enviarAlAdmin(provider, mensajeAdmin);
-
+    // 🔧 SOLUCIÓN: ENVIAR UNA SOLA VEZ
     const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
     if (envioExitoso) {
@@ -2329,50 +2336,6 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
 
     return gotoFlow(flowBloqueoActivo);
   });
-
-const flowGestionServicios = addKeyword(EVENTS.ACTION)
-  .addAnswer(
-    [
-      '👨‍💼 *GESTIÓN DE SERVICIOS - EXCLUSIVO TRABAJADORES* 👨‍💼',
-      '',
-      'Selecciona el servicio que necesitas:',
-      '',
-      '1️⃣ 🔐 Restablecimiento de contraseña de acceso del sistema',
-      '2️⃣ 👤 Solicitar creación de nuevo usuario para acceder',
-      '3️⃣ 🔍 Consultar información de usuarios (BD Remota)',
-      '',
-      '🔙 Escribe *menú* para volver al menú principal.'
-    ].join('\n'),
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      await debugFlujo(ctx, 'flowGestionServicios');
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim().toLowerCase();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña de acceso del sistema...');
-        return gotoFlow(flowRestablecimientoSistema);
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('👤 Iniciando proceso de solicitud de nuevo usuario...');
-        return gotoFlow(flowNuevoUsuario);
-      }
-
-      if (opcion === '3') {
-        await flowDynamic('🔍 Iniciando consulta de información de usuarios...\n\n🔗 *Conectando a 172.30.247.185*');
-        return gotoFlow(flowConsultaUsuario);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1*, *2* o *3*.');
-      return gotoFlow(flowGestionServicios);
-    }
-  );
 
 const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_SISTEMA'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
