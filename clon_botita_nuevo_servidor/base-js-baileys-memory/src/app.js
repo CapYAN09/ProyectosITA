@@ -18,18 +18,25 @@ async function debugFlujo(ctx, nombreFlujo) {
 
 // ==== CONFIGURACIONES DE BASE DE DATOS ====================
 const DB_CONFIG = {
-  actextita: {
+  actextita: {           // Para tabla admins
     host: '172.30.247.186',
     user: 'root',
     password: '',
     database: 'actextita',
     port: 3306
   },
-  bot_whatsapp: {
+  bot_whatsapp: {        // Local para user_states
     host: 'localhost',
     user: 'root',
     password: '',
     database: 'bot_whatsapp',
+    port: 3306
+  },
+  usuariosprueba: {      // Para tabla usuariosprueba
+    host: '172.30.247.185',
+    user: 'ccomputo',
+    password: 'Jarjar0904$',
+    database: 'b1o04dzhm1guhvmjcrwb',
     port: 3306
   }
 };
@@ -244,54 +251,232 @@ async function consultarAlumnoEnBaseDatos(numeroControl) {
   }
 }
 
-// 2. Verificar administrador en base de datos actextita
+// 2. Verificar administrador en base de datos actextita (172.30.247.186)
 async function verificarAdministradorEnBaseDatos(usuario) {
+  let connection = null;
   try {
-    const connection = await mysql.createConnection({
-      host: '172.30.247.186',
-      user: 'root',
-      password: '',
-      database: 'actextita',
-      port: 3306
-    });
+    console.log(`🔍 Verificando administrador en 172.30.247.186 (actextita): ${usuario}`);
+    
+    connection = await mysql.createConnection(DB_CONFIG.actextita);
+    
+    // Primero, verificar si la tabla existe
+    try {
+      const [tablas] = await connection.execute(
+        "SHOW TABLES LIKE 'admins'"
+      );
+      
+      if (tablas.length === 0) {
+        console.log('❌ La tabla "admins" no existe en actextita');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error verificando tabla admins:', error.message);
+      return false;
+    }
 
     const [resultados] = await connection.execute(
       'SELECT usuario, estado, fecha_creacion FROM admins WHERE usuario = ? AND estado = "activo"',
       [usuario]
     );
-
-    await connection.end();
-    return resultados.length > 0;
+    
+    if (resultados.length > 0) {
+      console.log(`✅ Administrador encontrado en actextita: ${usuario}`);
+      console.log(`📊 Estado: ${resultados[0].estado}, Fecha: ${resultados[0].fecha_creacion}`);
+      return true;
+    } else {
+      console.log(`❌ Administrador no encontrado o inactivo en actextita: ${usuario}`);
+      return false;
+    }
 
   } catch (error) {
-    console.error('❌ Error verificando administrador:', error.message);
+    console.error('❌ Error verificando administrador en 172.30.247.186:', error.message);
     return false;
+  } finally {
+    if (connection) {
+      try {
+        await connection.end();
+      } catch (e) {
+        console.error('❌ Error cerrando conexión actextita:', e.message);
+      }
+    }
   }
 }
 
-// 3. Actualizar contraseña de admin
-async function actualizarContrasenaAdmin(usuario, nuevaContrasena) {
+// 3. Actualizar contraseña de admin en actextita (172.30.247.186)
+async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
+  let connection = null;
   try {
-    const connection = await mysql.createConnection({
-      host: '172.30.247.186',
-      user: 'root',
-      password: '',
-      database: 'actextita',
-      port: 3306
-    });
+    console.log(`🔐 Procesando actualización para admin en 172.30.247.186: ${usuario}`);
+    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
 
+    connection = await mysql.createConnection(DB_CONFIG.actextita);
+
+    // 🔐 ENCRIPTAR LA CONTRASEÑA
+    const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
+    
+    if (!contrasenaEncriptada) {
+      console.error('❌ Error: No se pudo encriptar la contraseña');
+      return false;
+    }
+
+    console.log(`🔐 Contraseña encriptada para BD: ${contrasenaEncriptada.substring(0, 30)}...`);
+    
+    // Verificar que la tabla admins existe
+    try {
+      const [tablas] = await connection.execute(
+        "SHOW TABLES LIKE 'admins'"
+      );
+      
+      if (tablas.length === 0) {
+        console.error('❌ Error: La tabla "admins" no existe en actextita');
+        return false;
+      }
+    } catch (error) {
+      console.error('❌ Error verificando tabla admins:', error.message);
+      return false;
+    }
+
+    // Actualizar contraseña
     const [resultado] = await connection.execute(
       'UPDATE admins SET contraseña = ? WHERE usuario = ?',
-      [nuevaContrasena, usuario]
+      [contrasenaEncriptada, usuario]
     );
-
-    await connection.end();
-    return resultado.affectedRows > 0;
+    
+    console.log(`✅ Resultado actualización en actextita: ${resultado.affectedRows} filas afectadas`);
+    
+    if (resultado.affectedRows > 0) {
+      console.log(`✅ Contraseña actualizada exitosamente para admin: ${usuario}`);
+      
+      // Verificar lo que se guardó
+      const [verificacion] = await connection.execute(
+        'SELECT contraseña FROM admins WHERE usuario = ?',
+        [usuario]
+      );
+      
+      if (verificacion.length > 0) {
+        console.log(`📝 Contraseña guardada en actextita (primeros 30 chars): ${verificacion[0].contraseña.substring(0, 30)}...`);
+      }
+      
+      // Devolver la contraseña sin encriptar para mostrarla al usuario
+      return contrasenaSinEncriptar;
+    } else {
+      console.log(`⚠️ No se encontró el usuario admin en actextita: ${usuario} o no hubo cambios`);
+      return false;
+    }
 
   } catch (error) {
-    console.error('❌ Error actualizando contraseña de admin:', error.message);
+    console.error('❌ Error actualizando contraseña de admin en 172.30.247.186:', error.message);
+    console.error('❌ Error stack:', error.stack);
     return false;
+  } finally {
+    if (connection) {
+      try {
+        await connection.end();
+      } catch (e) {
+        console.error('❌ Error cerrando conexión actextita:', e.message);
+      }
+    }
   }
+}
+
+// Función para verificar todas las conexiones a bases de datos
+async function verificarConexionesBD() {
+  console.log('\n🔍 VERIFICANDO CONEXIONES A BASES DE DATOS\n');
+  
+  // 1. Verificar actextita (172.30.247.186) - tabla admins
+  console.log('1️⃣ Verificando actextita (172.30.247.186)...');
+  try {
+    const connectionActextita = await mysql.createConnection(DB_CONFIG.actextita);
+    
+    // Verificar tablas
+    const [tablasActextita] = await connectionActextita.execute("SHOW TABLES");
+    console.log(`   📋 Tablas encontradas en actextita: ${tablasActextita.length}`);
+    
+    // Verificar tabla admins específicamente
+    const [tablaAdmins] = await connectionActextita.execute("SHOW TABLES LIKE 'admins'");
+    console.log(`   📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
+    
+    if (tablaAdmins.length > 0) {
+      // Verificar estructura
+      const [columnasAdmins] = await connectionActextita.execute("DESCRIBE admins");
+      console.log('   📋 Columnas de la tabla admins:');
+      columnasAdmins.forEach(col => {
+        console.log(`      ${col.Field} (${col.Type})`);
+      });
+      
+      // Verificar si hay administradores
+      const [admins] = await connectionActextita.execute("SELECT COUNT(*) as total FROM admins");
+      console.log(`   👥 Total de administradores: ${admins[0].total}`);
+      
+      // Mostrar algunos administradores
+      const [ejemplos] = await connectionActextita.execute("SELECT usuario, estado FROM admins LIMIT 3");
+      console.log('   👤 Ejemplos de administradores:');
+      ejemplos.forEach(admin => {
+        console.log(`      - ${admin.usuario} (${admin.estado})`);
+      });
+    }
+    
+    await connectionActextita.end();
+    console.log('   ✅ Conexión a actextita exitosa\n');
+    
+  } catch (error) {
+    console.error(`   ❌ Error conectando a actextita (172.30.247.186): ${error.message}\n`);
+  }
+  
+  // 2. Verificar usuariosprueba (172.30.247.185)
+  console.log('2️⃣ Verificando usuariosprueba (172.30.247.185)...');
+  try {
+    const connectionUsuarios = await mysql.createConnection(DB_CONFIG.usuariosprueba);
+    
+    // Verificar tablas
+    const [tablasUsuarios] = await connectionUsuarios.execute("SHOW TABLES");
+    console.log(`   📋 Tablas encontradas en usuariosprueba: ${tablasUsuarios.length}`);
+    
+    // Verificar tabla usuariosprueba específicamente
+    const [tablaUsuarios] = await connectionUsuarios.execute("SHOW TABLES LIKE 'usuariosprueba'");
+    console.log(`   📊 Tabla 'usuariosprueba' existe: ${tablaUsuarios.length > 0 ? '✅ SÍ' : '❌ NO'}`);
+    
+    if (tablaUsuarios.length > 0) {
+      // Verificar estructura
+      const [columnasUsuarios] = await connectionUsuarios.execute("DESCRIBE usuariosprueba");
+      console.log('   📋 Columnas de la tabla usuariosprueba:');
+      columnasUsuarios.forEach(col => {
+        console.log(`      ${col.Field} (${col.Type})`);
+      });
+      
+      // Verificar si hay usuarios
+      const [usuarios] = await connectionUsuarios.execute("SELECT COUNT(*) as total FROM usuariosprueba");
+      console.log(`   👥 Total de usuarios: ${usuarios[0].total}`);
+    }
+    
+    await connectionUsuarios.end();
+    console.log('   ✅ Conexión a usuariosprueba exitosa\n');
+    
+  } catch (error) {
+    console.error(`   ❌ Error conectando a usuariosprueba (172.30.247.185): ${error.message}\n`);
+  }
+  
+  // 3. Verificar bot_whatsapp local
+  console.log('3️⃣ Verificando bot_whatsapp (localhost)...');
+  try {
+    const connectionLocal = await mysql.createConnection(DB_CONFIG.bot_whatsapp);
+    
+    // Verificar tablas
+    const [tablasLocal] = await connectionLocal.execute("SHOW TABLES");
+    console.log(`   📋 Tablas encontradas en bot_whatsapp: ${tablasLocal.length}`);
+    
+    // Verificar tabla user_states específicamente
+    const [tablaUserStates] = await connectionLocal.execute("SHOW TABLES LIKE 'user_states'");
+    console.log(`   📊 Tabla 'user_states' existe: ${tablaUserStates.length > 0 ? '✅ SÍ' : '❌ NO'}`);
+    
+    await connectionLocal.end();
+    console.log('   ✅ Conexión a bot_whatsapp exitosa\n');
+    
+  } catch (error) {
+    console.error(`   ❌ Error conectando a bot_whatsapp (localhost): ${error.message}\n`);
+  }
+  
+  console.log('🔍 VERIFICACIÓN COMPLETADA\n');
 }
 
 // 4. Verificar usuario en sistema usuariosprueba
@@ -321,8 +506,8 @@ async function verificarUsuarioEnSistema(usuario) {
   }
 }
 
-// ==== 5. Insertar usuario directo en usuariosprueba (VERSIÓN MEJORADA) ====
-async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasena, telefono) {
+// ==== 5. Insertar usuario directo en usuariosprueba (ACTUALIZADA) ====
+async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasenaSinEncriptar, telefono) {
   try {
     await inicializarConexionRemota();
     if (!conexionRemota) return false;
@@ -333,10 +518,10 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     const estado = 'Activo';
 
     console.log(`📝 Insertando en usuariosprueba: ${usuario} - ${nombreCompleto}`);
-    console.log(`🔐 Contraseña original: ${contrasena}`);
+    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
 
     // 🔐 ENCRIPTAR LA CONTRASEÑA CON LA FUNCIÓN MEJORADA
-    const contrasenaEncriptada = encriptarContrasenaParaBD(contrasena);
+    const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
     if (!contrasenaEncriptada) {
       console.error('❌ Error al encriptar la contraseña para inserción');
       return false;
@@ -360,11 +545,15 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     ]);
 
     console.log(`✅ Usuario insertado en usuariosprueba: ${usuario}, ID: ${result.insertId}`);
-
-    return true;
+    
+    return {
+      exito: true,
+      contrasenaSinEncriptar: contrasenaSinEncriptar,
+      contrasenaEncriptada: contrasenaEncriptada
+    };
   } catch (error) {
     console.error('❌ Error insertando usuario en usuariosprueba:', error.message);
-    return false;
+    return { exito: false };
   }
 }
 
@@ -1217,52 +1406,89 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
       }
 
       await state.update({ usuarioAdmin: input });
-      await flowDynamic(`✅ Recibimos tu usuario: *${input}*\n\n🔍 Verificando en la base de datos...`);
+      await flowDynamic(`✅ Recibimos tu usuario: *${input}*\n\n🔍 Verificando en la base de datos de administradores...`);
 
-      const adminEncontrado = await verificarAdministradorEnBaseDatos(input);
+      try {
+        const adminEncontrado = await verificarAdministradorEnBaseDatos(input);
 
-      if (adminEncontrado) {
-        await flowDynamic([
-          '✅ *¡Administrador verificado!* ✅',
-          '',
-          `👤 Usuario: ${input}`,
-          '🔄 Generando nueva contraseña segura...'
-        ].join('\n'));
-
-        const nuevaContrasena = generarContrasenaSegura();
-        const actualizacionExitosa = await actualizarContrasenaAdmin(input, nuevaContrasena);
-
-        if (actualizacionExitosa) {
+        if (adminEncontrado) {
           await flowDynamic([
-            '🔐 *Contraseña actualizada exitosamente* 🔐',
+            '✅ *¡Administrador verificado!* ✅',
             '',
-            `📋 **Tus nuevas credenciales:**`,
             `👤 Usuario: ${input}`,
-            `🔐 Nueva contraseña: *${nuevaContrasena}*`,
+            `📍 Base de datos: actextita`,
+            `🔗 Servidor: 172.30.247.186`,
             '',
-            '⚠️ **Importante:**',
-            '• Guarda esta contraseña en un lugar seguro',
-            '• Cámbiala después del primer acceso',
-            '• No compartas tus credenciales',
-            '',
-            '💾 *Base de datos: actextita*',
-            '🔗 *Servidor: 172.30.247.186*',
-            '📊 *Tabla: admins*'
+            '🔄 Generando nueva contraseña segura...'
           ].join('\n'));
+
+          // 🔐 USAR EL MÉTODO PARA GENERAR CONTRASEÑA SEGURA
+          const nuevaContrasena = generarContrasenaSegura();
+          console.log(`🔐 Contraseña generada para ${input}: ${nuevaContrasena}`);
+          
+          const resultadoActualizacion = await actualizarContrasenaAdmin(input, nuevaContrasena);
+
+          if (resultadoActualizacion) {
+            await flowDynamic([
+              '🔐 *Contraseña actualizada exitosamente* 🔐',
+              '',
+              `📋 **Tus nuevas credenciales:**`,
+              `👤 Usuario: ${input}`,
+              `🔐 Nueva contraseña: *${resultadoActualizacion}*`,
+              `💾 Base de datos: actextita`,
+              `🔗 Servidor: 172.30.247.186`,
+              `📊 Tabla: admins`,
+              '',
+              '⚠️ **Importante:**',
+              '• Guarda esta contraseña en un lugar seguro',
+              '• Cámbiala después del primer acceso',
+              '• No compartas tus credenciales',
+              '',
+              '💡 **Nota:** La contraseña se almacena encriptada en la base de datos.',
+              '',
+              '🔙 Escribe *menú* para volver al menú principal.'
+            ].join('\n'));
+          } else {
+            await flowDynamic([
+              '❌ *Error al actualizar la contraseña*',
+              '',
+              'No pudimos actualizar tu contraseña en la base de datos.',
+              '',
+              '💡 **Posibles causas:**',
+              '• Problemas de conexión con el servidor 172.30.247.186',
+              '• El usuario no existe en la tabla admins',
+              '• Error en el proceso de encriptación',
+              '',
+              '🔙 Contacta al administrador del sistema o escribe *menú* para volver.'
+            ].join('\n'));
+          }
         } else {
-          await flowDynamic('❌ Error al actualizar la contraseña. Contacta al administrador del sistema.');
+          await flowDynamic([
+            '❌ *Administrador no encontrado*',
+            '',
+            `El usuario *${input}* no fue encontrado en:`,
+            `💾 Base de datos: actextita`,
+            `🔗 Servidor: 172.30.247.186`,
+            `📊 Tabla: admins`,
+            '',
+            '💡 **Verifica:**',
+            '• Que el usuario sea correcto',
+            '• Que tengas permisos de administrador activos',
+            '• Que tu usuario esté registrado en el sistema correcto',
+            '',
+            '🔙 Escribe *menú* para volver al menú principal.'
+          ].join('\n'));
         }
-      } else {
+      } catch (error) {
+        console.error('❌ Error en el proceso de administrador:', error);
         await flowDynamic([
-          '❌ *Administrador no encontrado*',
+          '❌ *Error en el proceso*',
           '',
-          `El usuario *${input}* no existe en la tabla de administradores.`,
+          'Ocurrió un error al procesar tu solicitud.',
           '',
-          '💡 **Verifica:**',
-          '• Que el usuario sea correcto',
-          '• Que tengas permisos de administrador',
+          `🔗 Servidor intentado: 172.30.247.186`,
           '',
-          '🔙 Escribe *menú* para volver al menú principal.'
+          '🔙 Por favor intenta nuevamente o escribe *menú* para volver.'
         ].join('\n'));
       }
 
@@ -2477,6 +2703,49 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
     }
   );
 
+  // Función para verificar conexión a la base de datos actextita
+async function verificarConexionActextita() {
+  try {
+    console.log('🔍 Verificando conexión a actextita...');
+    
+    const connection = await mysql.createConnection({
+      host: '172.30.247.186',
+      user: 'root',
+      password: '',
+      database: 'actextita',
+      port: 3306
+    });
+    
+    // Verificar tablas
+    const [tablas] = await connection.execute("SHOW TABLES");
+    console.log(`📋 Tablas encontradas en actextita: ${tablas.length}`);
+    
+    // Verificar tabla admins específicamente
+    const [tablaAdmins] = await connection.execute("SHOW TABLES LIKE 'admins'");
+    console.log(`📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
+    
+    if (tablaAdmins.length > 0) {
+      // Verificar estructura de la tabla admins
+      const [columnas] = await connection.execute("DESCRIBE admins");
+      console.log('📋 Columnas de la tabla admins:');
+      columnas.forEach(col => {
+        console.log(`   ${col.Field} (${col.Type})`);
+      });
+      
+      // Verificar si hay administradores
+      const [admins] = await connection.execute("SELECT COUNT(*) as total FROM admins");
+      console.log(`👥 Total de administradores: ${admins[0].total}`);
+    }
+    
+    await connection.end();
+    return true;
+    
+  } catch (error) {
+    console.error('❌ Error verificando conexión a actextita:', error.message);
+    return false;
+  }
+}
+
   // ==== FUNCIÓN ESPECIAL PARA ACTUALIZAR CONTRASEÑA (CON ENCRIPTACIÓN AUTOMÁTICA) ====
 async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasena, esEncriptada = false, telefono) {
   try {
@@ -3253,6 +3522,13 @@ const main = async () => {
 
   try {
     await verificarBaseDeDatos();
+
+    await verificarConexionesBD();
+    
+    await verificarBaseDeDatos();
+
+    console.log('🔐 Probando sistema de encriptación...');
+    probarEncriptacion();
 
     console.log('🔐 Probando sistema de encriptación...');
     probarEncriptacion();
