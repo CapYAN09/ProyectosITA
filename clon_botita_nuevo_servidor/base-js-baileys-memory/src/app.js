@@ -256,15 +256,15 @@ async function verificarAdministradorEnBaseDatos(usuario) {
   let connection = null;
   try {
     console.log(`🔍 Verificando administrador en 172.30.247.186 (actextita): ${usuario}`);
-    
+
     connection = await mysql.createConnection(DB_CONFIG.actextita);
-    
+
     // Primero, verificar si la tabla existe
     try {
       const [tablas] = await connection.execute(
         "SHOW TABLES LIKE 'admins'"
       );
-      
+
       if (tablas.length === 0) {
         console.log('❌ La tabla "admins" no existe en actextita');
         return false;
@@ -278,7 +278,7 @@ async function verificarAdministradorEnBaseDatos(usuario) {
       'SELECT usuario, estado, fecha_creacion FROM admins WHERE usuario = ? AND estado = "activo"',
       [usuario]
     );
-    
+
     if (resultados.length > 0) {
       console.log(`✅ Administrador encontrado en actextita: ${usuario}`);
       console.log(`📊 Estado: ${resultados[0].estado}, Fecha: ${resultados[0].fecha_creacion}`);
@@ -313,20 +313,20 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
 
     // 🔐 ENCRIPTAR LA CONTRASEÑA
     const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-    
+
     if (!contrasenaEncriptada) {
       console.error('❌ Error: No se pudo encriptar la contraseña');
       return false;
     }
 
     console.log(`🔐 Contraseña encriptada para BD: ${contrasenaEncriptada.substring(0, 30)}...`);
-    
+
     // Verificar que la tabla admins existe
     try {
       const [tablas] = await connection.execute(
         "SHOW TABLES LIKE 'admins'"
       );
-      
+
       if (tablas.length === 0) {
         console.error('❌ Error: La tabla "admins" no existe en actextita');
         return false;
@@ -341,22 +341,22 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
       'UPDATE admins SET contraseña = ? WHERE usuario = ?',
       [contrasenaEncriptada, usuario]
     );
-    
+
     console.log(`✅ Resultado actualización en actextita: ${resultado.affectedRows} filas afectadas`);
-    
+
     if (resultado.affectedRows > 0) {
       console.log(`✅ Contraseña actualizada exitosamente para admin: ${usuario}`);
-      
+
       // Verificar lo que se guardó
       const [verificacion] = await connection.execute(
         'SELECT contraseña FROM admins WHERE usuario = ?',
         [usuario]
       );
-      
+
       if (verificacion.length > 0) {
         console.log(`📝 Contraseña guardada en actextita (primeros 30 chars): ${verificacion[0].contraseña.substring(0, 30)}...`);
       }
-      
+
       // Devolver la contraseña sin encriptar para mostrarla al usuario
       return contrasenaSinEncriptar;
     } else {
@@ -382,20 +382,20 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
 // Función para verificar todas las conexiones a bases de datos
 async function verificarConexionesBD() {
   console.log('\n🔍 VERIFICANDO CONEXIONES A BASES DE DATOS\n');
-  
+
   // 1. Verificar actextita (172.30.247.186) - tabla admins
   console.log('1️⃣ Verificando actextita (172.30.247.186)...');
   try {
     const connectionActextita = await mysql.createConnection(DB_CONFIG.actextita);
-    
+
     // Verificar tablas
     const [tablasActextita] = await connectionActextita.execute("SHOW TABLES");
     console.log(`   📋 Tablas encontradas en actextita: ${tablasActextita.length}`);
-    
+
     // Verificar tabla admins específicamente
     const [tablaAdmins] = await connectionActextita.execute("SHOW TABLES LIKE 'admins'");
     console.log(`   📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-    
+
     if (tablaAdmins.length > 0) {
       // Verificar estructura
       const [columnasAdmins] = await connectionActextita.execute("DESCRIBE admins");
@@ -403,11 +403,11 @@ async function verificarConexionesBD() {
       columnasAdmins.forEach(col => {
         console.log(`      ${col.Field} (${col.Type})`);
       });
-      
+
       // Verificar si hay administradores
       const [admins] = await connectionActextita.execute("SELECT COUNT(*) as total FROM admins");
       console.log(`   👥 Total de administradores: ${admins[0].total}`);
-      
+
       // Mostrar algunos administradores
       const [ejemplos] = await connectionActextita.execute("SELECT usuario, estado FROM admins LIMIT 3");
       console.log('   👤 Ejemplos de administradores:');
@@ -415,27 +415,27 @@ async function verificarConexionesBD() {
         console.log(`      - ${admin.usuario} (${admin.estado})`);
       });
     }
-    
+
     await connectionActextita.end();
     console.log('   ✅ Conexión a actextita exitosa\n');
-    
+
   } catch (error) {
     console.error(`   ❌ Error conectando a actextita (172.30.247.186): ${error.message}\n`);
   }
-  
+
   // 2. Verificar usuariosprueba (172.30.247.185)
   console.log('2️⃣ Verificando usuariosprueba (172.30.247.185)...');
   try {
     const connectionUsuarios = await mysql.createConnection(DB_CONFIG.usuariosprueba);
-    
+
     // Verificar tablas
     const [tablasUsuarios] = await connectionUsuarios.execute("SHOW TABLES");
     console.log(`   📋 Tablas encontradas en usuariosprueba: ${tablasUsuarios.length}`);
-    
+
     // Verificar tabla usuariosprueba específicamente
     const [tablaUsuarios] = await connectionUsuarios.execute("SHOW TABLES LIKE 'usuariosprueba'");
     console.log(`   📊 Tabla 'usuariosprueba' existe: ${tablaUsuarios.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-    
+
     if (tablaUsuarios.length > 0) {
       // Verificar estructura
       const [columnasUsuarios] = await connectionUsuarios.execute("DESCRIBE usuariosprueba");
@@ -443,39 +443,39 @@ async function verificarConexionesBD() {
       columnasUsuarios.forEach(col => {
         console.log(`      ${col.Field} (${col.Type})`);
       });
-      
+
       // Verificar si hay usuarios
       const [usuarios] = await connectionUsuarios.execute("SELECT COUNT(*) as total FROM usuariosprueba");
       console.log(`   👥 Total de usuarios: ${usuarios[0].total}`);
     }
-    
+
     await connectionUsuarios.end();
     console.log('   ✅ Conexión a usuariosprueba exitosa\n');
-    
+
   } catch (error) {
     console.error(`   ❌ Error conectando a usuariosprueba (172.30.247.185): ${error.message}\n`);
   }
-  
+
   // 3. Verificar bot_whatsapp local
   console.log('3️⃣ Verificando bot_whatsapp (localhost)...');
   try {
     const connectionLocal = await mysql.createConnection(DB_CONFIG.bot_whatsapp);
-    
+
     // Verificar tablas
     const [tablasLocal] = await connectionLocal.execute("SHOW TABLES");
     console.log(`   📋 Tablas encontradas en bot_whatsapp: ${tablasLocal.length}`);
-    
+
     // Verificar tabla user_states específicamente
     const [tablaUserStates] = await connectionLocal.execute("SHOW TABLES LIKE 'user_states'");
     console.log(`   📊 Tabla 'user_states' existe: ${tablaUserStates.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-    
+
     await connectionLocal.end();
     console.log('   ✅ Conexión a bot_whatsapp exitosa\n');
-    
+
   } catch (error) {
     console.error(`   ❌ Error conectando a bot_whatsapp (localhost): ${error.message}\n`);
   }
-  
+
   console.log('🔍 VERIFICACIÓN COMPLETADA\n');
 }
 
@@ -506,11 +506,11 @@ async function verificarUsuarioEnSistema(usuario) {
   }
 }
 
-// ==== 5. Insertar usuario directo en usuariosprueba (ACTUALIZADA) ====
+// ==== 5. Insertar usuario directo en usuariosprueba (ACTUALIZADA PARA USUARIOS ESPECIALES) ====
 async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasenaSinEncriptar, telefono) {
   try {
     await inicializarConexionRemota();
-    if (!conexionRemota) return false;
+    if (!conexionRemota) return { exito: false };
 
     const id_rol = 2;
     const id_persona = 0;
@@ -520,14 +520,24 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     console.log(`📝 Insertando en usuariosprueba: ${usuario} - ${nombreCompleto}`);
     console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
 
-    // 🔐 ENCRIPTAR LA CONTRASEÑA CON LA FUNCIÓN MEJORADA
-    const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-    if (!contrasenaEncriptada) {
-      console.error('❌ Error al encriptar la contraseña para inserción');
-      return false;
+    // 🔐 DETERMINAR SI ES UN USUARIO ESPECIAL QUE NECESITA ENCRIPTACIÓN
+    const necesitaEncriptacionEspecial = usuario.toLowerCase() === 'dep_centro_de_computo';
+    
+    // ENCRIPTAR LA CONTRASEÑA CON LA FUNCIÓN MEJORADA
+    let contrasenaParaGuardar = contrasenaSinEncriptar;
+    
+    if (necesitaEncriptacionEspecial) {
+      console.log('🎯 USUARIO ESPECIAL DETECTADO - Aplicando encriptación PHP compatible');
+      const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
+      
+      if (contrasenaEncriptada) {
+        contrasenaParaGuardar = contrasenaEncriptada;
+        console.log(`🔐 Contraseña encriptada para ${usuario}: ${contrasenaEncriptada}`);
+      } else {
+        console.error('❌ Error al encriptar la contraseña para usuario especial');
+        console.log('⚠️ Guardando sin encriptar como fallback');
+      }
     }
-
-    console.log(`🔐 Contraseña encriptada para inserción: ${contrasenaEncriptada}`);
 
     const query = `
       INSERT INTO usuariosprueba 
@@ -539,7 +549,7 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
       id_rol,
       id_persona,
       usuario,
-      contrasenaEncriptada, // Contraseña encriptada
+      contrasenaParaGuardar, // Contraseña (encriptada o no)
       ubicacion,
       estado
     ]);
@@ -549,11 +559,13 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     return {
       exito: true,
       contrasenaSinEncriptar: contrasenaSinEncriptar,
-      contrasenaEncriptada: contrasenaEncriptada
+      contrasenaGuardada: contrasenaParaGuardar,
+      necesitaEncriptacionEspecial: necesitaEncriptacionEspecial,
+      mensaje: necesitaEncriptacionEspecial ? 'Contraseña almacenada encriptada (PHP compatible)' : 'Contraseña almacenada normalmente'
     };
   } catch (error) {
     console.error('❌ Error insertando usuario en usuariosprueba:', error.message);
-    return { exito: false };
+    return { exito: false, error: error.message };
   }
 }
 
@@ -1426,7 +1438,7 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
           // 🔐 USAR EL MÉTODO PARA GENERAR CONTRASEÑA SEGURA
           const nuevaContrasena = generarContrasenaSegura();
           console.log(`🔐 Contraseña generada para ${input}: ${nuevaContrasena}`);
-          
+
           const resultadoActualizacion = await actualizarContrasenaAdmin(input, nuevaContrasena);
 
           if (resultadoActualizacion) {
@@ -2507,7 +2519,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
           `👤 Usuario: ${usuarioInfo.usuario}`,
           `📍 Ubicación: ${usuarioInfo.ubicacion || 'No especificada'}`,
           '',
-          '🔄 Generando nueva contraseña...'
+          '🔄 Generando nueva contraseña segura...'
         ].join('\n'));
 
       } catch (error) {
@@ -2516,9 +2528,9 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         return gotoFlow(flowGestionServicios);
       }
 
-      // 🔐 CONTRASEÑA FIJA PARA PRUEBAS: 12345678901
-      const nuevaContrasena = '12345678901';
-      console.log(`🔐 Asignando contraseña fija para pruebas: ${nuevaContrasena}`);
+      // 🔐 GENERAR CONTRASEÑA SEGURA (NO FIJA)
+      const nuevaContrasena = generarContrasenaSegura();
+      console.log(`🔐 Contraseña segura generada para ${input}: ${nuevaContrasena}`);
 
       await state.update({
         usuarioSistema: input,
@@ -2538,43 +2550,18 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
 
       await flowDynamic('🔄 Actualizando contraseña en el sistema...');
 
-      // 🔐 DETECTAR SI ES Dep_centro_de_computo
-      let contrasenaParaGuardar = nuevaContrasena;
-      let esDepCentroComputo = false;
-      
-      if (usuarioSistema.toLowerCase() === 'dep_centro_de_computo') {
-        console.log('🎯 USUARIO ESPECIAL DETECTADO: Dep_centro_de_computo - Aplicando encriptación');
-        esDepCentroComputo = true;
-        
-        // Encriptar la contraseña
-        const contrasenaEncriptada = encriptarContrasena(nuevaContrasena);
-        
-        if (contrasenaEncriptada) {
-          contrasenaParaGuardar = contrasenaEncriptada;
-          console.log(`🔐 Contraseña encriptada para Dep_centro_de_computo: ${contrasenaEncriptada}`);
-          
-          // Verificar que se puede desencriptar
-          const contrasenaDesencriptada = desencriptarContrasena(contrasenaEncriptada);
-          if (contrasenaDesencriptada === nuevaContrasena) {
-            console.log('✅ Encriptación/desencriptación funciona correctamente');
-          } else {
-            console.log('⚠️ La desencriptación no coincide');
-          }
-        } else {
-          console.error('❌ Error al encriptar la contraseña para Dep_centro_de_computo');
-          console.log('⚠️ Guardando sin encriptar como fallback');
-        }
-      }
+      // 🔐 DETECTAR SI ES Dep_centro_de_computo o requiere encriptación especial
+      const esDepCentroComputo = usuarioSistema.toLowerCase() === 'dep_centro_de_computo';
 
       // Actualizar en la base de datos
-      const actualizacionExitosa = await actualizarContrasenaEnusuariospruebaEspecial(
+      const resultadoActualizacion = await actualizarContrasenaEnusuariospruebaEspecial(
         usuarioSistema,
-        contrasenaParaGuardar,
-        esDepCentroComputo,
+        nuevaContrasena,
+        esDepCentroComputo, // Pasar true para encriptación especial
         ctx.from
       );
 
-      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n🔐 *Nueva contraseña generada:* ${nuevaContrasena}\n${esDepCentroComputo ? '🔐 *Contraseña encriptada:* ' + contrasenaParaGuardar.substring(0, 20) + '...' : ''}\n📞 Teléfono: ${ctx.from}\n💾 *BD Remota:* ${actualizacionExitosa ? '✅ ACTUALIZADO' : '❌ ERROR'}\n${esDepCentroComputo ? '🔐 *Tipo:* ENCRIPTADO (PHP compatible)' : '🔐 *Tipo:* SIN ENCRIPTAR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n🔐 *Nueva contraseña generada:* ${nuevaContrasena}\n${resultadoActualizacion?.tipo === 'encriptado_especial' ? '🔐 *Tipo:* ENCRIPTADO ESPECIAL (PHP compatible)\n' : ''}📞 Teléfono: ${ctx.from}\n💾 *BD Remota:* ${resultadoActualizacion?.exito ? '✅ ACTUALIZADO' : '❌ ERROR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -2587,8 +2574,10 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
           `🏢 Departamento: ${departamento}`,
           `👤 Usuario: ${usuarioSistema}`,
           `🔐 Contraseña temporal: ${nuevaContrasena}`,
-          esDepCentroComputo ? `🔐 *Tipo almacenamiento:* Encriptado (compatible PHP)` : `🔐 *Tipo almacenamiento:* Sin encriptar`,
-          `💾 *Estado BD:* ${actualizacionExitosa ? '✅ Actualizado' : '⚠️ Pendiente'}`,
+          esDepCentroComputo
+            ? `🔐 *Tipo almacenamiento:* Encriptado (compatible PHP)`
+            : `🔐 *Tipo almacenamiento:* Normal`,
+          `💾 *Estado BD:* ${resultadoActualizacion?.exito ? '✅ Actualizado' : '⚠️ Pendiente'}`,
           '',
           '⏳ *Por favor espera aproximadamente 30 minutos*',
           'Nuestro equipo está procesando tu solicitud de restablecimiento de contraseña del sistema.',
@@ -2623,8 +2612,10 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
             '📋 **Tus nuevas credenciales de acceso:**',
             `👤 *Usuario:* \`${usuarioSistema}\``,
             `🔐 *Contraseña:* \`${nuevaContrasena}\``,
-            esDepCentroComputo ? '🔐 *Estado:* Encriptado en base de datos (PHP compatible)' : '🔐 *Estado:* Sin encriptar en base de datos',
-            `💾 *Base de datos:* ${actualizacionExitosa ? '✅ Actualizado' : '⚠️ Contactar soporte'}`,
+            esDepCentroComputo
+              ? '🔐 *Estado:* Encriptado en base de datos (PHP compatible)'
+              : '🔐 *Estado:* Normal en base de datos',
+            `💾 *Base de datos:* ${resultadoActualizacion?.exito ? '✅ Actualizado' : '⚠️ Contactar soporte'}`,
             '',
             '🔒 **Información importante:**',
             '• Recibirás un correo con la confirmación',
@@ -2704,11 +2695,11 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
     }
   );
 
-  // Función para verificar conexión a la base de datos actextita
+// Función para verificar conexión a la base de datos actextita
 async function verificarConexionActextita() {
   try {
     console.log('🔍 Verificando conexión a actextita...');
-    
+
     const connection = await mysql.createConnection({
       host: '172.30.247.186',
       user: 'root',
@@ -2716,15 +2707,15 @@ async function verificarConexionActextita() {
       database: 'actextita',
       port: 3306
     });
-    
+
     // Verificar tablas
     const [tablas] = await connection.execute("SHOW TABLES");
     console.log(`📋 Tablas encontradas en actextita: ${tablas.length}`);
-    
+
     // Verificar tabla admins específicamente
     const [tablaAdmins] = await connection.execute("SHOW TABLES LIKE 'admins'");
     console.log(`📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-    
+
     if (tablaAdmins.length > 0) {
       // Verificar estructura de la tabla admins
       const [columnas] = await connection.execute("DESCRIBE admins");
@@ -2732,35 +2723,60 @@ async function verificarConexionActextita() {
       columnas.forEach(col => {
         console.log(`   ${col.Field} (${col.Type})`);
       });
-      
+
       // Verificar si hay administradores
       const [admins] = await connection.execute("SELECT COUNT(*) as total FROM admins");
       console.log(`👥 Total de administradores: ${admins[0].total}`);
     }
-    
+
     await connection.end();
     return true;
-    
+
   } catch (error) {
     console.error('❌ Error verificando conexión a actextita:', error.message);
     return false;
   }
 }
 
-  // ==== FUNCIÓN ESPECIAL PARA ACTUALIZAR CONTRASEÑA (CON ENCRIPTACIÓN AUTOMÁTICA) ====
-async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasena, esEncriptada = false, telefono) {
+// ==== FUNCIÓN ESPECIAL PARA ACTUALIZAR CONTRASEÑA (CON ENCRIPTACIÓN AUTOMÁTICA) ====
+async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaSinEncriptar, esEncriptada = false, telefono) {
   try {
     await inicializarConexionRemota();
     if (!conexionRemota) return false;
 
     console.log(`🔍 Actualizando contraseña para usuario: ${usuario}`);
-    console.log(`🔐 Contraseña original: ${contrasena}`);
+    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
 
     // 🔐 SI ES NECESARIO ENCRIPTAR, USAR LA FUNCIÓN MEJORADA
-    let contrasenaParaGuardar = contrasena;
-    
-    if (esEncriptada) {
-      contrasenaParaGuardar = encriptarContrasenaParaBD(contrasena);
+    let contrasenaParaGuardar = contrasenaSinEncriptar;
+
+    // Determinar si este usuario necesita encriptación especial
+    const necesitaEncriptacionEspecial = usuario.toLowerCase() === 'dep_centro_de_computo';
+
+    if (necesitaEncriptacionEspecial) {
+      console.log('🎯 USUARIO ESPECIAL DETECTADO: Dep_centro_de_computo - Aplicando encriptación');
+
+      // Encriptar la contraseña
+      const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
+
+      if (contrasenaEncriptada) {
+        contrasenaParaGuardar = contrasenaEncriptada;
+        console.log(`🔐 Contraseña encriptada para Dep_centro_de_computo: ${contrasenaEncriptada}`);
+
+        // Verificar que se puede desencriptar
+        const contrasenaDesencriptada = desencriptarContrasena(contrasenaEncriptada);
+        if (contrasenaDesencriptada === contrasenaSinEncriptar) {
+          console.log('✅ Encriptación/desencriptación funciona correctamente');
+        } else {
+          console.log('⚠️ La desencriptación no coincide');
+        }
+      } else {
+        console.error('❌ Error al encriptar la contraseña para Dep_centro_de_computo');
+        console.log('⚠️ Guardando sin encriptar como fallback');
+      }
+    } else if (esEncriptada) {
+      // Para otros usuarios que requieran encriptación
+      contrasenaParaGuardar = encriptarContrasenaParaBD(contrasenaSinEncriptar);
       if (!contrasenaParaGuardar) {
         console.error('❌ Error al encriptar la contraseña');
         return false;
@@ -2791,31 +2807,40 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasena,
 
     if (result.affectedRows > 0) {
       console.log(`✅ Contraseña actualizada exitosamente para usuario: ${usuario}`);
-      
+      console.log(`🔐 Tipo: ${necesitaEncriptacionEspecial ? 'ENCRIPTADO (PHP compatible)' : esEncriptada ? 'ENCRIPTADO' : 'SIN ENCRIPTAR'}`);
+
       // Verificar lo guardado
       const [verificacion] = await conexionRemota.execute(
         'SELECT password FROM usuariosprueba WHERE usuario = ?',
         [usuario]
       );
-      
+
       if (verificacion.length > 0) {
-        console.log(`📝 Contraseña guardada en BD: ${verificacion[0].password}`);
-        
+        console.log(`📝 Contraseña guardada en BD: ${verificacion[0].password.substring(0, 30)}...`);
+
         // Si está encriptada, verificar que se puede desencriptar
-        if (esEncriptada) {
-          const desencriptado = desencriptarContrasena(verificacion[0].password);
-          console.log(`🔓 Verificación: "${desencriptado}" → ¿Coincide?: ${desencriptado === contrasena ? '✅ SÍ' : '❌ NO'}`);
+        if (necesitaEncriptacionEspecial || esEncriptada) {
+          try {
+            const desencriptado = desencriptarContrasena(verificacion[0].password);
+            console.log(`🔓 Verificación: "${desencriptado}" → ¿Coincide?: ${desencriptado === contrasenaSinEncriptar ? '✅ SÍ' : '❌ NO'}`);
+          } catch (e) {
+            console.log('⚠️ No se pudo verificar la desencriptación');
+          }
         }
       }
-      
-      return true;
+
+      return {
+        exito: true,
+        contrasenaSinEncriptar: contrasenaSinEncriptar,
+        tipo: necesitaEncriptacionEspecial ? 'encriptado_especial' : esEncriptada ? 'encriptado' : 'sin_encriptar'
+      };
     } else {
       console.log(`❌ No se pudo actualizar la contraseña para usuario: ${usuario}`);
-      return false;
+      return { exito: false };
     }
   } catch (error) {
     console.error('❌ Error actualizando contraseña en usuariosprueba:', error.message);
-    return false;
+    return { exito: false };
   }
 }
 
@@ -2871,29 +2896,39 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
       }
 
       const nuevoUsuario = formatearNombreUsuario(input);
-      const nuevaContrasena = generarContrasenaSegura();
+      const nuevaContrasena = generarContrasenaSegura(); // Esto ya lo tienes bien
 
       console.log(`🔧 Generando nuevo usuario: ${nuevoUsuario} para ${nombreCompleto}`);
 
       let insercionExitosa = false;
 
-      try {
-        console.log(`📝 INSERTANDO DIRECTAMENTE en usuariosprueba: ${nuevoUsuario}`);
+      console.log(`🔧 Generando nuevo usuario: ${nuevoUsuario} para ${nombreCompleto}`);
+console.log(`🔐 Contraseña generada: ${nuevaContrasena}`);
 
-        insercionExitosa = await insertarUsuarioDirectoEnusuariosprueba(
-          nombreCompleto,
-          input,
-          nuevoUsuario,
-          nuevaContrasena,
-          userPhone
-        );
+// Verificar si es un usuario especial que necesita encriptación
+const necesitaEncriptacionEspecial = nuevoUsuario.toLowerCase() === 'dep_centro_de_computo';
 
-        console.log(`✅ Resultado inserción DIRECTA usuariosprueba: ${insercionExitosa}`);
+try {
+  console.log(`📝 INSERTANDO DIRECTAMENTE en usuariosprueba: ${nuevoUsuario}`);
 
-      } catch (error) {
-        console.error('❌ Error insertando DIRECTAMENTE en usuariosprueba:', error.message);
-        insercionExitosa = false;
-      }
+  insercionExitosa = await insertarUsuarioDirectoEnusuariosprueba(
+    nombreCompleto,
+    input,
+    nuevoUsuario,
+    nuevaContrasena,
+    userPhone
+  );
+
+  console.log(`✅ Resultado inserción DIRECTA usuariosprueba: ${insercionExitosa.exito ? 'EXITOSA' : 'FALLIDA'}`);
+
+  if (necesitaEncriptacionEspecial && insercionExitosa.exito) {
+    console.log('🎯 Usuario especial creado - La contraseña se almacenó encriptada');
+  }
+
+} catch (error) {
+  console.error('❌ Error insertando DIRECTAMENTE en usuariosprueba:', error.message);
+  insercionExitosa = { exito: false };
+}
 
       const metadataProceso = {
         tipo: "👤 Solicitud de Nuevo Usuario del Sistema",
@@ -3525,7 +3560,7 @@ const main = async () => {
     await verificarBaseDeDatos();
 
     await verificarConexionesBD();
-    
+
     await verificarBaseDeDatos();
 
     console.log('🔐 Probando sistema de encriptación...');
