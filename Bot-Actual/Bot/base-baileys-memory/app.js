@@ -4990,13 +4990,7 @@ const main = async () => {
     ]);
 
     */
-
-
-
-
-
-
-
+   
     const adapterFlow = createFlow([
       // ==================== 🔧 FLUJOS CRÍTICOS DE SISTEMA (PRIMEROS) ====================
       flowInterceptorGlobal,      // 🛡️ PRIMERO - Normalización IDs y seguridad global
