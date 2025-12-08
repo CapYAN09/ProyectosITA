@@ -1,194 +1,160 @@
-// src/encriptacion.js - VERSIÓN 100% COMPATIBLE CON PHP
+// src/encriptacion.js - VERSIÓN CORREGIDA
 import crypto from 'crypto';
 
 // 🔐 CONSTANTES IDÉNTICAS AL PHP
-const ENCRYPT_METHOD = 'AES-256-CBC';        // ⚠️ IMPORTANTE: Mismo caso que PHP
-const ENCRYPT_SECRET_KEY = 'Tecnologico';    // ⚠️ EXACTAMENTE igual
-const ENCRYPT_SECRET_IV = '990520';          // ⚠️ EXACTAMENTE igual
+const ENCRYPT_METHOD = 'AES-256-CBC';
+const ENCRYPT_SECRET_KEY = 'Tecnologico';
+const ENCRYPT_SECRET_IV = '990520';
 
-// Generar clave y IV (EXACTAMENTE igual que en PHP)
-function generarClaveYIV() {
+// 🔑 GENERAR KEY - IDÉNTICO A PHP
+function generarKeyPHP() {
     // En PHP: $key = hash('sha256', ENCRYPT_SECRET_KEY);
-    // IMPORTANTE: En PHP hash() devuelve string hexadecimal en minúsculas
-    const key = crypto.createHash('sha256').update(ENCRYPT_SECRET_KEY).digest('hex');
+    // hash() en PHP devuelve string hexadecimal (64 chars)
+    const keyHex = crypto.createHash('sha256')
+        .update(ENCRYPT_SECRET_KEY)
+        .digest('hex');
     
-    // En PHP: $iv = substr(hash('sha256', ENCRYPT_SECRET_IV), 0, 16);
-    // hash() devuelve string hex, substr toma primeros 16 caracteres (32 hex chars = 16 bytes)
-    const ivHex = crypto.createHash('sha256').update(ENCRYPT_SECRET_IV).digest('hex');
-    const ivHex16 = ivHex.substring(0, 32); // 32 caracteres hex = 16 bytes
-    const iv = Buffer.from(ivHex16, 'hex');
+    console.log('🔑 Key PHP (hex):', keyHex);
+    console.log('🔑 Key PHP esperada: b023fa1e7a61dbf919d471777ecf99b87253e8237f64f97f356f14d8ad6f965d');
     
-    return { key, iv };
+    return keyHex;
 }
 
-// 🔐 Encriptar contraseña (IDÉNTICO a getEncryptedPassword en PHP)
-export function encriptarContrasena(password) {
+// 🔐 GENERAR IV - CORREGIDO PARA SER IDÉNTICO A PHP
+function generarIVPHP() {
+    // En PHP: $iv = substr(hash('sha256', ENCRYPT_SECRET_IV), 0, 16);
+    // hash() devuelve hexadecimal (ej: "5b6f6aad5f79777f...")
+    // substr(..., 0, 16) toma primeros 16 CARACTERES (no bytes)
+    
+    const ivHexFull = crypto.createHash('sha256')
+        .update(ENCRYPT_SECRET_IV)
+        .digest('hex');
+    
+    console.log('🔐 IV Full (hex):', ivHexFull);
+    
+    // PHP toma primeros 16 CARACTERES del string hexadecimal
+    const ivHex16Chars = ivHexFull.substring(0, 16);
+    
+    console.log('🔐 IV PHP (16 chars):', ivHex16Chars);
+    console.log('🔐 IV PHP esperado: 3562663666616164');
+    
+    // Convertir string a buffer (cada 2 chars hex = 1 byte)
+    const ivBuffer = Buffer.from(ivHex16Chars, 'utf8');
+    
+    console.log('🔐 IV Buffer:', ivBuffer.toString('hex'));
+    
+    return {
+        ivHex: ivHex16Chars,      // String de 16 caracteres
+        ivBuffer: ivBuffer        // Buffer de 16 bytes
+    };
+}
+
+// 🔐 ENCRIPTAR CONTRASEÑA - VERSIÓN CORREGIDA
+export function encriptarContrasenaPHP(password) {
     try {
-        console.log('🔐 Iniciando encriptación (compatible PHP)...');
-        console.log('📝 Contraseña original:', password);
+        console.log('\n🔐 ENCRIPTANDO (PHP compatible)...');
+        console.log('📝 Contraseña:', password);
         
-        const { key, iv } = generarClaveYIV();
+        // 1. Generar key (hex string)
+        const keyHex = generarKeyPHP();
         
-        // En PHP: $output = openssl_encrypt($password, ENCRYPT_METHOD, $key, 0, $iv);
-        // key es string hexadecimal
-        const keyBuffer = Buffer.from(key, 'hex');
+        // 2. Generar IV (16 chars string)
+        const { ivHex, ivBuffer } = generarIVPHP();
         
-        const cipher = crypto.createCipheriv(ENCRYPT_METHOD, keyBuffer, iv);
+        // 3. Convertir key hexadecimal a Buffer
+        // En PHP, openssl_encrypt espera key como string binario
+        // Pero hash() devuelve hex, y PHP lo usa directamente
+        const keyBuffer = Buffer.from(keyHex, 'hex');
         
-        // Encriptar
-        let encriptado = cipher.update(password, 'utf8', 'base64');
-        encriptado += cipher.final('base64');
+        console.log('🔑 Key Buffer:', keyBuffer.toString('hex'));
+        console.log('🔐 IV Buffer final:', ivBuffer.toString('hex'));
+        console.log('🔐 IV como string:', ivHex);
         
-        // En PHP: return base64_encode($output);
-        // Pero openssl_encrypt ya devuelve base64, y luego se hace base64_encode
-        // Esto significa: base64_encode(openssl_encrypt(...))
-        // openssl_encrypt devuelve base64, y luego se codifica OTRA VEZ en base64
-        const doubleBase64 = Buffer.from(encriptado).toString('base64');
+        // 4. Encriptar (openssl_encrypt)
+        const cipher = crypto.createCipheriv(ENCRYPT_METHOD, keyBuffer, ivBuffer);
         
-        console.log('🔐 Después de openssl_encrypt (base64):', encriptado);
-        console.log('🔐 Después de base64_encode (double):', doubleBase64);
-        console.log('📏 Longitud final:', doubleBase64.length, 'caracteres');
+        let encrypted = cipher.update(password, 'utf8', 'base64');
+        encrypted += cipher.final('base64');
+        
+        console.log('🔐 openssl_encrypt result:', encrypted);
+        console.log('🔐 Longitud:', encrypted.length, 'chars');
+        
+        // 5. Doble base64 (base64_encode)
+        const doubleBase64 = Buffer.from(encrypted).toString('base64');
+        
+        console.log('🔐 base64_encode result:', doubleBase64);
+        console.log('🔐 Longitud final:', doubleBase64.length, 'chars');
         
         return doubleBase64;
+        
     } catch (error) {
-        console.error('❌ Error encriptando contraseña:', error.message);
+        console.error('❌ Error:', error.message);
         return null;
     }
 }
 
-// 🔓 Desencriptar contraseña (IDÉNTICO a getUnencryptedPassword en PHP)
-export function desencriptarContrasena(encrypted) {
+// 🔓 DESENCRIPTAR CONTRASEÑA - VERSIÓN CORREGIDA
+export function desencriptarContrasenaPHP(encrypted) {
     try {
-        console.log('🔓 Iniciando desencriptación (compatible PHP)...');
+        console.log('\n🔓 DESENCRIPTANDO (PHP compatible)...');
         
-        const { key, iv } = generarClaveYIV();
-        const keyBuffer = Buffer.from(key, 'hex');
+        // 1. Generar key y IV
+        const keyHex = generarKeyPHP();
+        const { ivBuffer } = generarIVPHP();
+        const keyBuffer = Buffer.from(keyHex, 'hex');
         
-        // En PHP: base64_decode($encrypted) primero
-        // Luego: openssl_decrypt(..., ENCRYPT_METHOD, $key, 0, $iv)
+        // 2. Primer base64_decode (como en PHP)
         const decodedOnce = Buffer.from(encrypted, 'base64').toString('utf8');
         
-        const decipher = crypto.createDecipheriv(ENCRYPT_METHOD, keyBuffer, iv);
+        // 3. Desencriptar
+        const decipher = crypto.createDecipheriv(ENCRYPT_METHOD, keyBuffer, ivBuffer);
         
-        let desencriptado = decipher.update(decodedOnce, 'base64', 'utf8');
-        desencriptado += decipher.final('utf8');
+        let decrypted = decipher.update(decodedOnce, 'base64', 'utf8');
+        decrypted += decipher.final('utf8');
         
-        console.log('🔓 Contraseña desencriptada:', desencriptado);
+        console.log('🔓 Resultado:', decrypted);
         
-        return desencriptado;
+        return decrypted;
+        
     } catch (error) {
-        console.error('❌ Error desencriptando contraseña:', error.message);
-        
-        // Intentar método alternativo si el primero falla
-        console.log('🔄 Intentando método alternativo...');
-        try {
-            const { key, iv } = generarClaveYIV();
-            const keyBuffer = Buffer.from(key, 'hex');
-            
-            const decipher = crypto.createDecipheriv(ENCRYPT_METHOD, keyBuffer, iv);
-            
-            // Probar sin el doble base64
-            let desencriptado = decipher.update(encrypted, 'base64', 'utf8');
-            desencriptado += decipher.final('utf8');
-            
-            console.log('🔓 (Alternativo) Contraseña desencriptada:', desencriptado);
-            return desencriptado;
-        } catch (error2) {
-            console.error('❌ Error en método alternativo:', error2.message);
-            return null;
-        }
+        console.error('❌ Error desencriptando:', error.message);
+        return null;
     }
 }
 
-// 🔍 Función para probar compatibilidad exacta
-export function probarEncriptacionCompatible() {
-    console.log('\n🧪 PROBANDO COMPATIBILIDAD EXACTA CON PHP\n');
+// 🧪 FUNCIÓN DE PRUEBA CON VALORES ESPECÍFICOS
+export function probarConValoresPHP() {
+    console.log('\n🧪 PRUEBA CON VALORES EXACTOS DE PHP\n');
     
-    const testPassword = '123456789';
-    console.log('🔐 Contraseña de prueba:', testPassword);
-    console.log('📋 Configuración PHP:');
-    console.log('   ENCRYPT_METHOD:', ENCRYPT_METHOD);
-    console.log('   ENCRYPT_SECRET_KEY:', ENCRYPT_SECRET_KEY);
-    console.log('   ENCRYPT_SECRET_IV:', ENCRYPT_SECRET_IV);
-    console.log('');
+    // Valores del PHP que viste en la salida
+    const keyHexPHP = 'b023fa1e7a61dbf919d471777ecf99b87253e8237f64f97f356f14d8ad6f965d';
+    const ivHexPHP = '3562663666616164';  // 16 caracteres exactos del PHP
     
-    // Proceso paso a paso igual que PHP
-    console.log('🔧 PROCESO PASO A PASO (igual que PHP):');
+    console.log('🔑 Key PHP:', keyHexPHP);
+    console.log('🔐 IV PHP (16 chars):', ivHexPHP);
     
-    // Paso 1: Generar key (hash sha256)
-    const key = crypto.createHash('sha256').update(ENCRYPT_SECRET_KEY).digest('hex');
-    console.log('1. Key (sha256):', key);
-    console.log('   Longitud:', key.length, 'caracteres hex');
+    // Convertir a buffers
+    const keyBuffer = Buffer.from(keyHexPHP, 'hex');
+    const ivBuffer = Buffer.from(ivHexPHP, 'utf8');  // ¡IMPORTANTE! utf8, no hex
     
-    // Paso 2: Generar iv (primeros 16 chars de hash sha256)
-    const ivHex = crypto.createHash('sha256').update(ENCRYPT_SECRET_IV).digest('hex');
-    const ivHex16 = ivHex.substring(0, 32); // 32 chars hex = 16 bytes
-    console.log('2. IV Full (sha256):', ivHex);
-    console.log('   IV primeros 16 bytes (32 chars hex):', ivHex16);
+    console.log('🔑 Key Buffer:', keyBuffer.toString('hex'));
+    console.log('🔐 IV Buffer:', ivBuffer.toString('hex'));
+    console.log('🔐 IV como string:', ivBuffer.toString('utf8'));
     
-    const iv = Buffer.from(ivHex16, 'hex');
-    console.log('   IV Buffer:', iv.toString('hex'));
-    console.log('   Longitud IV:', iv.length, 'bytes');
+    // Encriptar
+    const cipher = crypto.createCipheriv(ENCRYPT_METHOD, keyBuffer, ivBuffer);
     
-    // Paso 3: openssl_encrypt
-    const keyBuffer = Buffer.from(key, 'hex');
-    const cipher = crypto.createCipheriv(ENCRYPT_METHOD, keyBuffer, iv);
-    let opensslResult = cipher.update(testPassword, 'utf8', 'base64');
-    opensslResult += cipher.final('base64');
-    console.log('3. openssl_encrypt result (base64):', opensslResult);
+    const password = '123456789';
+    let encrypted = cipher.update(password, 'utf8', 'base64');
+    encrypted += cipher.final('base64');
     
-    // Paso 4: base64_encode (doble base64)
-    const finalResult = Buffer.from(opensslResult).toString('base64');
-    console.log('4. base64_encode result (doble):', finalResult);
-    console.log('   Longitud final:', finalResult.length, 'caracteres');
+    console.log('🔐 openssl_encrypt:', encrypted);
     
-    // Probar con función principal
-    console.log('\n🔐 USANDO FUNCIÓN PRINCIPAL:');
-    const encriptado = encriptarContrasena(testPassword);
+    // Doble base64
+    const finalResult = Buffer.from(encrypted).toString('base64');
     
-    if (encriptado) {
-        console.log('✅ Encriptado:', encriptado);
-        
-        // Desencriptar
-        const desencriptado = desencriptarContrasena(encriptado);
-        console.log('🔓 Desencriptado:', desencriptado);
-        console.log('✅ ¿Coincide?:', testPassword === desencriptado ? 'SÍ ✅' : 'NO ❌');
-        
-        // Generar código PHP para comparar
-        console.log('\n📋 PARA COMPARAR EN PHP (172.30.247.185):');
-        console.log(`
-<?php
-include_once 'C:/xampp/htdocs/helpdeskita_2/clases/funciones_encriptacion.php';
-
-\$test = '123456789';
-\$resultado_php = getEncryptedPassword(\$test);
-
-echo "🔐 PHP: '\$test' → '\$resultado_php'\\n";
-echo "📏 Longitud PHP: " . strlen(\$resultado_php) . "\\n\\n";
-echo "🔐 Node.js esperado: '${encriptado}'\\n";
-echo "📏 Longitud Node.js: ${encriptado.length}\\n\\n";
-echo "📊 ¿Son idénticas?: " . (\$resultado_php === '${encriptado}' ? '✅ SÍ' : '❌ NO') . "\\n";
-
-if (\$resultado_php !== '${encriptado}') {
-    echo "\\n🔍 DIFERENCIAS:\\n";
-    echo "PHP:   '\$resultado_php'\\n";
-    echo "Node:  '${encriptado}'\\n";
+    console.log('\n🔐 RESULTADO FINAL ESPERADO:');
+    console.log(finalResult);
     
-    // Mostrar detalles
-    \$key = hash('sha256', ENCRYPT_SECRET_KEY);
-    \$iv = substr(hash('sha256', ENCRYPT_SECRET_IV), 0, 16);
-    echo "\\n🔧 DETALLES PHP:\\n";
-    echo "Key: \$key\\n";
-    echo "IV (hex): " . bin2hex(\$iv) . "\\n";
-    
-    \$paso1 = openssl_encrypt(\$test, ENCRYPT_METHOD, \$key, 0, \$iv);
-    echo "\\nPaso 1 (openssl_encrypt): '\$paso1'\\n";
-    \$paso2 = base64_encode(\$paso1);
-    echo "Paso 2 (base64_encode): '\$paso2'\\n";
-}
-?>
-        `);
-    }
-    
-    return encriptado;
+    return finalResult;
 }
