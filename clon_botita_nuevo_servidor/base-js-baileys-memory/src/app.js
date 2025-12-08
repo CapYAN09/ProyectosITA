@@ -412,16 +412,16 @@ async function listarTodosusuariosprueba() {
   }
 }
 
-// 🔐 CONTRASEÑA ENCRIPTADA CORRECTA PARA '1234567890'
+// 🔐 CONTRASEÑA ENCRIPTADA CORRECTA PARA '12345678901'
 let contrasenaEncriptada;
 
-if (nuevaContrasena === '1234567890') {
+if (nuevaContrasena === '12345678901') {
     // VALOR EXACTO QUE FUNCIONA CON PHP
     contrasenaEncriptada = 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09';
     console.log('✅ Usando contraseña encriptada precalculada (compatible PHP)');
 } else {
     // Para otras contraseñas, mostrar advertencia
-    console.warn('⚠️ Contraseña diferente a "1234567890" - La encriptación puede no ser compatible con PHP');
+    console.warn('⚠️ Contraseña diferente a "12345678901" - La encriptación puede no ser compatible con PHP');
     
     // Intentar con la función normal
     contrasenaEncriptada = encriptarContrasena(nuevaContrasena);
@@ -556,7 +556,7 @@ async function verificarCompatibilidadEncriptacion() {
   console.log('\n🔐 VERIFICANDO COMPATIBILIDAD DE ENCRIPTACIÓN PHP-NODE\n');
 
   // Contraseña de prueba
-  const testPassword = '1234567890';
+  const testPassword = '12345678901';
 
   // Encriptar en Node.js usando la función IMPORTADA
   const encryptedNode = encriptarContrasena(testPassword);  // ✅ CORRECTO
@@ -2289,8 +2289,8 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         return gotoFlow(flowGestionServicios);
       }
 
-      // 🔐 CONTRASEÑA FIJA PARA PRUEBAS: 1234567890
-      const nuevaContrasena = '1234567890';
+      // 🔐 CONTRASEÑA FIJA PARA PRUEBAS: 12345678901
+      const nuevaContrasena = '12345678901';
       console.log(`🔐 Asignando contraseña fija para pruebas: ${nuevaContrasena}`);
 
       await state.update({

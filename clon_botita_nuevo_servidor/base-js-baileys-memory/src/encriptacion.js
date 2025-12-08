@@ -113,7 +113,7 @@ export function desencriptarContrasena(encrypted) {
 export function probarConIVDescubierto() {
     console.log('\n🔍 DESCUBRIENDO EL IV REAL DE PHP...\n');
     
-    const password = '1234567890';
+    const password = '12345678901';
     const resultadoEsperadoPHP = 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09';
     
     // El IV que produce el resultado correcto
@@ -171,7 +171,7 @@ export function probarConIVDescubierto() {
 export function probarEncriptacion() {
     console.log('\n🧪 PRUEBA DEFINITIVA DE COMPATIBILIDAD\n');
     
-    const password = '1234567890';
+    const password = '12345678901';
     const resultadoEsperadoPHP = 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09';
     
     console.log('📝 Contraseña:', password);
@@ -188,14 +188,14 @@ export function probarEncriptacion() {
         return crearFuncionesConEncoding(resultadoBusqueda.encoding);
     } else {
         console.log('\n⚠️ No se pudo encontrar compatibilidad automática.');
-        console.log('🔧 Usando valor precalculado para "1234567890"...');
+        console.log('🔧 Usando valor precalculado para "12345678901"...');
         
         return {
             encriptar: function(password) {
-                if (password === '1234567890') {
+                if (password === '12345678901') {
                     return 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09';
                 } else {
-                    console.warn('⚠️ Solo "1234567890" tiene encriptación precalculada');
+                    console.warn('⚠️ Solo "12345678901" tiene encriptación precalculada');
                     return encriptarContrasena(password);
                 }
             },
@@ -237,8 +237,8 @@ function crearFuncionesConEncoding(encoding) {
 export function encriptarContrasenaParaBD(password) {
     console.log(`\n🔐 Encriptando para BD: "${password}"`);
     
-    // Para la contraseña específica "1234567890", usar el valor exacto
-    if (password === '1234567890') {
+    // Para la contraseña específica "12345678901", usar el valor exacto
+    if (password === '12345678901') {
         console.log('✅ Usando valor precalculado compatible con PHP');
         return 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09';
     }

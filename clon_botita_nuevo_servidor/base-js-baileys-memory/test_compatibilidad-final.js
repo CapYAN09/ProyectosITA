@@ -4,7 +4,7 @@ import { encriptarContrasenaParaBD } from './src/encriptacion.js';
 console.log('🧪 PRUEBA FINAL - COMPATIBILIDAD CON PHP\n');
 
 // Probar con la contraseña que necesitas
-const password = '1234567890';
+const password = '12345678901';
 const resultado = encriptarContrasenaParaBD(password);
 
 console.log('\n📊 RESULTADO:');
