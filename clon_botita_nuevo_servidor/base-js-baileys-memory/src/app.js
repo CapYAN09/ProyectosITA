@@ -5,7 +5,7 @@ import QRCode from 'qrcode-terminal'
 import mysql from 'mysql2/promise'
 
 // 🔐 IMPORTAR FUNCIONES DE ENCRIPTACIÓN DESDE src/
-import { encriptarContrasena, desencriptarContrasena, probarEncriptacion } from './encriptacion.js'
+import { encriptarContrasena, desencriptarContrasena, probarEncriptacion, encriptarContrasenaParaBD } from './encriptacion.js'
 
 // Contacto específico donde se enviará la información
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
@@ -171,8 +171,6 @@ async function inicializarMySQL() {
 // Conexión BD Remota (usuariosprueba)
 async function crearConexionRemota() {
   try {
-    //console.log('🔗 Conectando a BD usuariosprueba en 172.30.247.185...');
-
     const connection = await mysql.createConnection({
       host: '172.30.247.185',
       user: 'ccomputo',
@@ -251,7 +249,7 @@ async function consultarAlumnoEnBaseDatos(numeroControl) {
   }
 }
 
-// 2. Verificar administrador en base de datos actextita (172.30.247.186)
+// 2. Verificar administrador en base de datos actextita
 async function verificarAdministradorEnBaseDatos(usuario) {
   let connection = null;
   try {
@@ -302,7 +300,7 @@ async function verificarAdministradorEnBaseDatos(usuario) {
   }
 }
 
-// 3. Actualizar contraseña de admin en actextita (172.30.247.186)
+// 3. Actualizar contraseña de admin en actextita
 async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
   let connection = null;
   try {
@@ -383,32 +381,27 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
 async function verificarConexionesBD() {
   console.log('\n🔍 VERIFICANDO CONEXIONES A BASES DE DATOS\n');
 
-  // 1. Verificar actextita (172.30.247.186) - tabla admins
+  // 1. Verificar actextita
   console.log('1️⃣ Verificando actextita (172.30.247.186)...');
   try {
     const connectionActextita = await mysql.createConnection(DB_CONFIG.actextita);
 
-    // Verificar tablas
     const [tablasActextita] = await connectionActextita.execute("SHOW TABLES");
     console.log(`   📋 Tablas encontradas en actextita: ${tablasActextita.length}`);
 
-    // Verificar tabla admins específicamente
     const [tablaAdmins] = await connectionActextita.execute("SHOW TABLES LIKE 'admins'");
     console.log(`   📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
 
     if (tablaAdmins.length > 0) {
-      // Verificar estructura
       const [columnasAdmins] = await connectionActextita.execute("DESCRIBE admins");
       console.log('   📋 Columnas de la tabla admins:');
       columnasAdmins.forEach(col => {
         console.log(`      ${col.Field} (${col.Type})`);
       });
 
-      // Verificar si hay administradores
       const [admins] = await connectionActextita.execute("SELECT COUNT(*) as total FROM admins");
       console.log(`   👥 Total de administradores: ${admins[0].total}`);
 
-      // Mostrar algunos administradores
       const [ejemplos] = await connectionActextita.execute("SELECT usuario, estado FROM admins LIMIT 3");
       console.log('   👤 Ejemplos de administradores:');
       ejemplos.forEach(admin => {
@@ -423,28 +416,24 @@ async function verificarConexionesBD() {
     console.error(`   ❌ Error conectando a actextita (172.30.247.186): ${error.message}\n`);
   }
 
-  // 2. Verificar usuariosprueba (172.30.247.185)
+  // 2. Verificar usuariosprueba
   console.log('2️⃣ Verificando usuariosprueba (172.30.247.185)...');
   try {
     const connectionUsuarios = await mysql.createConnection(DB_CONFIG.usuariosprueba);
 
-    // Verificar tablas
     const [tablasUsuarios] = await connectionUsuarios.execute("SHOW TABLES");
     console.log(`   📋 Tablas encontradas en usuariosprueba: ${tablasUsuarios.length}`);
 
-    // Verificar tabla usuariosprueba específicamente
     const [tablaUsuarios] = await connectionUsuarios.execute("SHOW TABLES LIKE 'usuariosprueba'");
     console.log(`   📊 Tabla 'usuariosprueba' existe: ${tablaUsuarios.length > 0 ? '✅ SÍ' : '❌ NO'}`);
 
     if (tablaUsuarios.length > 0) {
-      // Verificar estructura
       const [columnasUsuarios] = await connectionUsuarios.execute("DESCRIBE usuariosprueba");
       console.log('   📋 Columnas de la tabla usuariosprueba:');
       columnasUsuarios.forEach(col => {
         console.log(`      ${col.Field} (${col.Type})`);
       });
 
-      // Verificar si hay usuarios
       const [usuarios] = await connectionUsuarios.execute("SELECT COUNT(*) as total FROM usuariosprueba");
       console.log(`   👥 Total de usuarios: ${usuarios[0].total}`);
     }
@@ -461,11 +450,9 @@ async function verificarConexionesBD() {
   try {
     const connectionLocal = await mysql.createConnection(DB_CONFIG.bot_whatsapp);
 
-    // Verificar tablas
     const [tablasLocal] = await connectionLocal.execute("SHOW TABLES");
     console.log(`   📋 Tablas encontradas en bot_whatsapp: ${tablasLocal.length}`);
 
-    // Verificar tabla user_states específicamente
     const [tablaUserStates] = await connectionLocal.execute("SHOW TABLES LIKE 'user_states'");
     console.log(`   📊 Tabla 'user_states' existe: ${tablaUserStates.length > 0 ? '✅ SÍ' : '❌ NO'}`);
 
@@ -506,7 +493,7 @@ async function verificarUsuarioEnSistema(usuario) {
   }
 }
 
-// ==== 5. Insertar usuario directo en usuariosprueba (ACTUALIZADA PARA USUARIOS ESPECIALES) ====
+// 5. Insertar usuario directo en usuariosprueba
 async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasenaSinEncriptar, telefono) {
   try {
     await inicializarConexionRemota();
@@ -520,16 +507,14 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     console.log(`📝 Insertando en usuariosprueba: ${usuario} - ${nombreCompleto}`);
     console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
 
-    // 🔐 DETERMINAR SI ES UN USUARIO ESPECIAL QUE NECESITA ENCRIPTACIÓN
     const necesitaEncriptacionEspecial = usuario.toLowerCase() === 'dep_centro_de_computo';
-    
-    // ENCRIPTAR LA CONTRASEÑA CON LA FUNCIÓN MEJORADA
+
     let contrasenaParaGuardar = contrasenaSinEncriptar;
-    
+
     if (necesitaEncriptacionEspecial) {
       console.log('🎯 USUARIO ESPECIAL DETECTADO - Aplicando encriptación PHP compatible');
       const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-      
+
       if (contrasenaEncriptada) {
         contrasenaParaGuardar = contrasenaEncriptada;
         console.log(`🔐 Contraseña encriptada para ${usuario}: ${contrasenaEncriptada}`);
@@ -549,13 +534,13 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
       id_rol,
       id_persona,
       usuario,
-      contrasenaParaGuardar, // Contraseña (encriptada o no)
+      contrasenaParaGuardar,
       ubicacion,
       estado
     ]);
 
     console.log(`✅ Usuario insertado en usuariosprueba: ${usuario}, ID: ${result.insertId}`);
-    
+
     return {
       exito: true,
       contrasenaSinEncriptar: contrasenaSinEncriptar,
@@ -613,26 +598,124 @@ async function listarTodosusuariosprueba() {
   }
 }
 
-/*
-// 🔐 CONTRASEÑA ENCRIPTADA CORRECTA PARA '12345678901'
-let contrasenaEncriptada;
+// 8. Actualizar contraseña en usuariosprueba
+async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaSinEncriptar, esEncriptada = false, telefono) {
+  try {
+    console.log(`\n🔍 INICIANDO ACTUALIZACIÓN PARA: ${usuario}`);
 
-if (nuevaContrasena === '12345678901') {
-    // VALOR EXACTO QUE FUNCIONA CON PHP
-    contrasenaEncriptada = 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09';
-    console.log('✅ Usando contraseña encriptada precalculada (compatible PHP)');
-} else {
-    // Para otras contraseñas, mostrar advertencia
-    console.warn('⚠️ Contraseña diferente a "12345678901" - La encriptación puede no ser compatible con PHP');
-    
-    // Intentar con la función normal
-    contrasenaEncriptada = encriptarContrasena(nuevaContrasena);
-    
-    if (!contrasenaEncriptada) {
-        console.error('❌ No se pudo encriptar la contraseña');
-        return false;
+    await inicializarConexionRemota();
+    if (!conexionRemota) {
+      console.log('❌ No hay conexión a la BD remota');
+      return { exito: false, error: 'No hay conexión a la BD remota' };
     }
-}*/
+
+    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
+
+    const necesitaEncriptacionEspecial = usuario.toLowerCase() === 'dep_centro_de_computo';
+    let contrasenaParaGuardar = contrasenaSinEncriptar;
+    let tipoEncriptacion = 'sin_encriptar';
+
+    if (necesitaEncriptacionEspecial) {
+      console.log('🎯 USUARIO ESPECIAL DETECTADO - Aplicando encriptación PHP compatible');
+
+      const valoresConocidos = {
+        '12345678901': 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9'
+      };
+
+      if (valoresConocidos[contrasenaSinEncriptar]) {
+        contrasenaParaGuardar = valoresConocidos[contrasenaSinEncriptar];
+        console.log(`🔐 Usando valor precalculado para ${contrasenaSinEncriptar}: ${contrasenaParaGuardar}`);
+      } else {
+        const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
+        if (contrasenaEncriptada && contrasenaEncriptada !== contrasenaSinEncriptar) {
+          contrasenaParaGuardar = contrasenaEncriptada;
+          console.log(`🔐 Contraseña encriptada: ${contrasenaEncriptada.substring(0, 30)}...`);
+        } else {
+          console.warn('⚠️ Encriptación fallida o igual al original, usando contraseña sin encriptar');
+        }
+      }
+      tipoEncriptacion = 'encriptado_especial';
+    } else if (esEncriptada) {
+      const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
+      if (contrasenaEncriptada && contrasenaEncriptada !== contrasenaSinEncriptar) {
+        contrasenaParaGuardar = contrasenaEncriptada;
+        console.log(`🔐 Contraseña encriptada: ${contrasenaEncriptada.substring(0, 30)}...`);
+        tipoEncriptacion = 'encriptado';
+      }
+    }
+
+    console.log(`🔍 Verificando existencia de usuario: ${usuario}`);
+    const queryVerificar = `SELECT id_usuario, usuario, password FROM usuariosprueba WHERE usuario = ?`;
+    const [usuarios] = await conexionRemota.execute(queryVerificar, [usuario]);
+
+    if (usuarios.length === 0) {
+      console.log(`❌ Usuario no encontrado en usuariosprueba: ${usuario}`);
+
+      const [todosUsuarios] = await conexionRemota.execute(
+        'SELECT usuario FROM usuariosprueba LIMIT 5'
+      );
+      console.log('📋 Usuarios existentes (primeros 5):');
+      todosUsuarios.forEach(u => console.log(`  - ${u.usuario}`));
+
+      return { exito: false, error: 'Usuario no encontrado' };
+    }
+
+    console.log(`✅ Usuario encontrado: ID=${usuarios[0].id_usuario}`);
+
+    console.log(`🔄 Actualizando contraseña para ${usuario}...`);
+    const queryActualizar = `
+      UPDATE usuariosprueba 
+      SET password = ?, fecha_insert = NOW()
+      WHERE usuario = ?
+    `;
+
+    const [result] = await conexionRemota.execute(queryActualizar, [
+      contrasenaParaGuardar,
+      usuario
+    ]);
+
+    console.log(`✅ Resultado: ${result.affectedRows} filas afectadas`);
+
+    if (result.affectedRows > 0) {
+      console.log(`🎉 Contraseña actualizada exitosamente para: ${usuario}`);
+      console.log(`📊 Tipo: ${tipoEncriptacion}`);
+
+      const [verificacion] = await conexionRemota.execute(
+        'SELECT password FROM usuariosprueba WHERE usuario = ?',
+        [usuario]
+      );
+
+      if (verificacion.length > 0) {
+        const passwordGuardado = verificacion[0].password;
+        console.log(`📝 Contraseña guardada: ${passwordGuardado.substring(0, 30)}...`);
+        console.log(`📏 Longitud de password guardado: ${passwordGuardado.length} caracteres`);
+      }
+
+      return {
+        exito: true,
+        contrasenaSinEncriptar: contrasenaSinEncriptar,
+        tipo: tipoEncriptacion,
+        mensaje: 'Actualización exitosa'
+      };
+    } else {
+      console.log(`⚠️ No se afectaron filas - posible error en la consulta`);
+      return { exito: false, error: 'No se afectaron filas' };
+    }
+
+  } catch (error) {
+    console.error('❌ Error en actualizarContrasenaEnusuariospruebaEspecial:', error.message);
+    console.error('❌ Error SQL Code:', error.code);
+    console.error('❌ Error SQL State:', error.sqlState);
+    console.error('❌ Stack:', error.stack);
+
+    return {
+      exito: false,
+      error: error.message,
+      code: error.code,
+      sqlState: error.sqlState
+    };
+  }
+}
 
 // 9. Verificar estructura usuariosprueba
 async function verificarEstructurausuariosprueba() {
@@ -756,7 +839,7 @@ async function limpiarEstadoMySQL(userPhone) {
 // Función de diagnóstico para Dep_centro_de_computo
 async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
   console.log('\n🔍 DIAGNÓSTICO PARA Dep_centro_de_computo\n');
-  
+
   try {
     await inicializarConexionRemota();
     if (!conexionRemota) {
@@ -764,7 +847,6 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
       return false;
     }
 
-    // 1. Verificar si el usuario existe
     console.log('1. 🔍 Verificando existencia del usuario...');
     const [usuarios] = await conexionRemota.execute(
       'SELECT id_usuario, usuario, password FROM usuariosprueba WHERE usuario = ?',
@@ -778,30 +860,27 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
 
     console.log(`✅ Usuario encontrado: ID=${usuarios[0].id_usuario}, Password actual: ${usuarios[0].password?.substring(0, 30)}...`);
 
-    // 2. Probar encriptación
     console.log('\n2. 🔐 Probando encriptación...');
     const contrasenaEncriptada = encriptarContrasenaParaBD(nuevaContrasena);
     console.log(`Contraseña original: ${nuevaContrasena}`);
     console.log(`Contraseña encriptada: ${contrasenaEncriptada}`);
-    
-    // 3. Probar actualización directamente
+
     console.log('\n3. 🔄 Probando actualización directa...');
     try {
       const [resultado] = await conexionRemota.execute(
         'UPDATE usuariosprueba SET password = ?, fecha_insert = NOW() WHERE usuario = ?',
         [contrasenaEncriptada, usuario]
       );
-      
+
       console.log(`✅ Filas afectadas: ${resultado.affectedRows}`);
-      
+
       if (resultado.affectedRows > 0) {
-        // 4. Verificar el cambio
         console.log('\n4. 📋 Verificando cambio...');
         const [verificacion] = await conexionRemota.execute(
           'SELECT password FROM usuariosprueba WHERE usuario = ?',
           [usuario]
         );
-        
+
         if (verificacion.length > 0) {
           console.log(`✅ Password actual en BD: ${verificacion[0].password}`);
           console.log(`¿Coincide con el esperado?: ${verificacion[0].password === contrasenaEncriptada ? '✅ SÍ' : '❌ NO'}`);
@@ -811,7 +890,7 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
         console.log('❌ No se afectaron filas - posiblemente el usuario no existe');
         return false;
       }
-      
+
     } catch (error) {
       console.error('❌ Error en actualización directa:', error.message);
       console.error('SQL Error Code:', error.code);
@@ -828,14 +907,11 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
 async function verificarCompatibilidadEncriptacion() {
   console.log('\n🔐 VERIFICANDO COMPATIBILIDAD DE ENCRIPTACIÓN PHP-NODE\n');
 
-  // Contraseña de prueba
   const testPassword = '12345678901';
 
-  // Encriptar en Node.js usando la función IMPORTADA
-  const encryptedNode = encriptarContrasena(testPassword);  // ✅ CORRECTO
+  const encryptedNode = encriptarContrasena(testPassword);
   console.log(`🔐 Node.js - Contraseña encriptada: ${encryptedNode}`);
 
-  // Desencriptar en Node.js
   const decryptedNode = desencriptarContrasena(encryptedNode);
   console.log(`🔓 Node.js - Contraseña desencriptada: ${decryptedNode}`);
   console.log(`✅ Node.js coincide: ${testPassword === decryptedNode}`);
@@ -1052,13 +1128,11 @@ async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
   try {
     const myState = await state.getMyState();
 
-    // 🔧 PROTECCIÓN MÁS ROBUSTA CONTRA RECURSIVIDAD
     if (myState?.redirigiendo || myState?.enRedireccion) {
       console.log('⚠️ Ya se está redirigiendo, evitando recursividad');
       return;
     }
 
-    // 🔧 MARCAR INICIO DE REDIRECCIÓN
     await state.update({
       redirigiendo: true,
       enRedireccion: true
@@ -1067,7 +1141,6 @@ async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
     await limpiarEstado(state);
     await new Promise(resolve => setTimeout(resolve, 200));
 
-    // 🔧 LIMPIAR BANDERAS DESPUÉS DE LA REDIRECCIÓN
     setTimeout(async () => {
       await state.update({
         redirigiendo: false,
@@ -1079,7 +1152,6 @@ async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
   } catch (error) {
     console.error('❌ Error en redirección al menú:', error);
 
-    // 🔧 ASEGURAR LIMPIEZA DE BANDERAS EN CASO DE ERROR
     await state.update({
       redirigiendo: false,
       enRedireccion: false
@@ -1158,8 +1230,8 @@ async function mostrarOpcionesMenu(flowDynamic) {
     '4️⃣ 📊 Sistema SIE',
     '5️⃣ 🙏 Información adicional',
     '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
-    //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-    //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+    '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+    '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
     '',
     '💡 *Escribe solo el número (1-8)*'
   ].join('\n'));
@@ -1335,7 +1407,7 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
   ].join('\n'));
 }
 
-// ==== FLUJO PARA OPCIÓN 8 - CONEXIÓN A BASE DE DATOS ACTEXTITA ====
+// ==== DEFINICIÓN DE FLUJOS ====================
 const flowConexionBaseDatos = addKeyword(utils.setEvent('CONEXION_BASE_DATOS'))
   .addAnswer(
     '🔐 *ACCESO AL SISTEMA - BASE DE DATOS ACTEXTITA* 🔐\n\n' +
@@ -1369,7 +1441,6 @@ const flowConexionBaseDatos = addKeyword(utils.setEvent('CONEXION_BASE_DATOS'))
     }
   );
 
-// ==== FLUJO PARA CAPTURAR NÚMERO DE CONTROL (ALUMNO) ====
 const flowCapturaNumeroControlBaseDatos = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTROL_BASE_DATOS'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1452,7 +1523,6 @@ const flowCapturaNumeroControlBaseDatos = addKeyword(utils.setEvent('CAPTURA_NUM
     }
   );
 
-// ==== FLUJO PARA CAPTURAR USUARIO DE ADMINISTRADOR ====
 const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1506,7 +1576,6 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
             '🔄 Generando nueva contraseña segura...'
           ].join('\n'));
 
-          // 🔐 USAR EL MÉTODO PARA GENERAR CONTRASEÑA SEGURA
           const nuevaContrasena = generarContrasenaSegura();
           console.log(`🔐 Contraseña generada para ${input}: ${nuevaContrasena}`);
 
@@ -1581,7 +1650,6 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
     }
   );
 
-// ==== FLUJO BUSCAR USUARIO ESPECÍFICO ====
 const flowBuscarUsuarioEspecifico = addKeyword(utils.setEvent('BUSCAR_USUARIO_ESPECIFICO'))
   .addAnswer(
     '🔎 Escribe el *ID de usuario, nombre de usuario o ID de persona* a buscar:',
@@ -1599,8 +1667,6 @@ const flowBuscarUsuarioEspecifico = addKeyword(utils.setEvent('BUSCAR_USUARIO_ES
         await flowDynamic('❌ No recibimos el dato a buscar. Por favor escríbelo.');
         return gotoFlow(flowBuscarUsuarioEspecifico);
       }
-
-      //await flowDynamic('🔍 Consultando información en la base de datos remota (172.30.247.185)...');
 
       const usuario = await consultarUsuarioEnusuariosprueba(input);
 
@@ -1635,7 +1701,6 @@ const flowBuscarUsuarioEspecifico = addKeyword(utils.setEvent('BUSCAR_USUARIO_ES
     }
   );
 
-// ==== FLUJO LISTAR TODOS USUARIOS ====
 const flowListarTodosUsuarios = addKeyword(utils.setEvent('LISTAR_TODOS_USUARIOS'))
   .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -1665,7 +1730,6 @@ const flowListarTodosUsuarios = addKeyword(utils.setEvent('LISTAR_TODOS_USUARIOS
     return gotoFlow(flowGestionServicios);
   });
 
-// ==== FLUJO PARA CONSULTA DE USUARIO ====
 const flowConsultaUsuario = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '🔍 *CONSULTA DE USUARIOS - usuariosprueba* 🔍\n\nSelecciona una opción:\n\n1️⃣ 🔎 Buscar usuario específico\n2️⃣ 📋 Listar todos los usuarios\n\n🔙 Escribe *menú* para volver al menú principal.',
@@ -1694,7 +1758,6 @@ const flowConsultaUsuario = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA ====
 const flowSubMenuContrasena = addKeyword(utils.setEvent('SUBMENU_CONTRASENA'))
   .addAnswer(
     '🔐 *RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL*\n\n' +
@@ -1731,7 +1794,6 @@ const flowSubMenuContrasena = addKeyword(utils.setEvent('SUBMENU_CONTRASENA'))
     }
   );
 
-// ==== FLUJO DE CAPTURA DE CORREO PARA TRABAJADOR ====
 const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TRABAJADOR'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1748,9 +1810,8 @@ const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TR
     }, 2 * 60 * 1000);
 
     await state.update({
-      timeoutCaptura: timeout,
       ultimaInteraccion: Date.now(),
-      esTrabajador: true // 🔧 MARCADOR PARA TRABAJADOR
+      esTrabajador: true
     });
   })
   .addAnswer(
@@ -1790,7 +1851,6 @@ const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TR
     }
   );
 
-// ==== FLUJO DE CAPTURA DE NÚMERO DE CONTROL ====
 const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTROL'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1806,7 +1866,6 @@ const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTR
       }
     }, 2 * 60 * 1000);
     await state.update({
-      timeoutCaptura: timeout,
       ultimaInteraccion: Date.now()
     });
   })
@@ -1817,7 +1876,6 @@ const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTR
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
-      // 🔧 LIMPIAR TIMEOUT INMEDIATAMENTE
       timeoutManager.clearTimeout(ctx.from);
 
       const input = ctx.body.trim().toLowerCase();
@@ -1845,7 +1903,6 @@ const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTR
     }
   );
 
-// ==== FLUJO DE CAPTURA DE NOMBRE ====
 const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1861,7 +1918,6 @@ const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
       }
     }, 2 * 60 * 1000);
     await state.update({
-      timeoutCapturaNombre: timeout,
       ultimaInteraccion: Date.now()
     });
   })
@@ -1902,7 +1958,6 @@ const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
     }
   );
 
-// ==== FLUJO DE CAPTURA DE IDENTIFICACIÓN ====
 const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICACION'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -1976,132 +2031,6 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
     }
   );
 
-/*
-// ==== FLUJO DE CAPTURA DE IDENTIFICACIÓN ====
-const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICACION'))
-.addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-  const userPhone = ctx.from;
-
-  timeoutManager.setTimeout(userPhone, async () => {
-    try {
-      console.log('⏱️ Timeout de 4 minutos en identificación');
-      await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
-      await limpiarEstado(state);
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-    } catch (error) {
-      console.error('❌ Error en timeout de captura:', error);
-    }
-  }, 4 * 60 * 1000);
-})
-.addAnswer(
-  [
-    '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
-    '',
-    'Es importante que solamente respondas con la fotografía de tu credencial escolar del ITA. No envíes mensajes de texto ni otros tipos de archivos. \n en caso de no contar con tu credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
-    '',
-    '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP:**',
-    '• Usa la cámara de tu celular, NO la computadora',
-    '• Toca el ícono de 📎 (clip)',
-    '• Selecciona "Cámara" o "Camera"',
-    '• Toma una foto NUEVA de tu credencial',
-    '• Asegúrate de que sea CLARA y legible',
-    '',
-    '📋 **Credencial requerida:**',
-    '• Credencial escolar CON FOTO del ITA',
-    '• Debe ser actual y vigente',
-    '• Todos los datos deben ser visibles',
-    '',
-    '⏰ **Tienes 4 minutos** para enviar la fotografía',
-    '',
-    '❌ **NO se aceptan:**',
-    '• Fotos de galería o archivos antiguos',
-    '• Capturas de pantalla',
-    '• Documentos escaneados o PDF',
-    '• Fotos borrosas o oscuras'
-  ].join('\n'),
-  { capture: true },
-  async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    timeoutManager.clearTimeout(ctx.from);
-
-    if (!esImagenValida(ctx)) {
-      console.log('❌ Imagen no válida - Información detallada:', infoImagen);
-
-      await flowDynamic([
-        '❌ *No recibimos una fotografía válida*',
-        '',
-        '⚠️ **Para WhatsApp Web/Desktop:**',
-        '1. Usa tu CELULAR para tomar la foto',
-        '2. Toca el clip 📎 en WhatsApp',
-        '3. Selecciona "Cámara" (NO "Galería")',
-        '4. Toma foto NUEVA de tu credencial',
-        '5. Envíala directamente',
-        '',
-        '📱 **Si usas WhatsApp en computadora:**',
-        '• La foto debe tomarse con tu celular',
-        '• NO uses la cámara de la computadora',
-        '• NO envíes archivos de galería',
-        '',
-        '🔄 **Intenta de nuevo por favor.**'
-      ].join('\n'));
-
-      return gotoFlow(flowCapturaIdentificacion);
-    }
-
-    await state.update({
-      identificacionSubida: true,
-      infoIdentificacion: infoImagen,
-      timestampIdentificacion: Date.now(),
-      imagenIdentificacion: ctx,
-      fotoEnVivo: true,
-      tipoValidacion: esDeCamara ? 'fotografia_en_tiempo_real' : 'fotografia_de_galeria',
-      esWhatsAppWeb: !esDeCamara 
-    });
-
-    // Mensaje según el tipo de imagen
-    if (esDeCamara) {
-      await flowDynamic([
-        '✅ *¡Perfecto! Foto tomada correctamente con la cámara*',
-        '',
-        '📋 **Hemos validado:**',
-        '• Fotografía en tiempo real ✓',
-        '• Credencial con foto visible ✓',
-        '• Datos legibles ✓',
-        '',
-        '🔄 Continuando con el proceso...'
-      ].join('\n'));
-    } else {
-      await flowDynamic([
-        '✅ *¡Identificación recibida!*',
-        '',
-        '📋 Continuamos con el proceso...',
-        '',
-        '⚠️ **Nota:** Para mayor seguridad, recomendamos',
-        'tomar fotos directamente con la cámara la próxima vez.'
-      ].join('\n'));
-    }
-
-    const myState = await state.getMyState();
-
-    console.log('📸 Identificación recibida y validada');
-    console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
-    console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
-    console.log(`📱 Tipo: ${esDeCamara ? 'Foto de cámara' : 'Posible archivo/galería'}`);
-    console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
-
-    const tipoProceso = myState.tipoProceso || 'CONTRASENA';
-
-    if (tipoProceso === 'AUTENTICADOR') {
-      return gotoFlow(flowAutenticador);
-    } else {
-      return gotoFlow(flowContrasena);
-    }
-  }
-);*/
-
-// ==== FLUJO FINAL DE CONTRASEÑA ====
 const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -2146,8 +2075,6 @@ const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
       await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
     }
 
-    //await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos este proceso, este proceso durará aproximadamente 30 minutos.*');
-
     let minutosRestantes = 30;
 
     const intervalId = setInterval(async () => {
@@ -2186,7 +2113,7 @@ const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
           '',
           '🔒 **Recomendaciones de seguridad:**',
           '• Mínimo 11 caracteres',
-          '• Incluye mayúsculas, minúsculas, números y símbolos (%$#!&/-_.*+)',
+          '• Incluye mayusculas, minúsculas, números y símbolos (%$#!&/-_.*+)',
           '• No compartas tu contraseña',
           '',
           '🔙 Escribe *menú* para volver al menú principal.'
@@ -2213,7 +2140,6 @@ const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
     return gotoFlow(flowBloqueoActivo);
   });
 
-// ==== SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR ====
 const flowSubMenuAutenticador = addKeyword(utils.setEvent('SUBMENU_AUTENTICADOR'))
   .addAnswer(
     '🔑 *RESTABLECIMIENTO DE AUTENTICADOR*\n\n' +
@@ -2250,7 +2176,6 @@ const flowSubMenuAutenticador = addKeyword(utils.setEvent('SUBMENU_AUTENTICADOR'
     }
   );
 
-// ==== FLUJO FINAL DE AUTENTICADOR ====
 const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
   .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -2295,8 +2220,6 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
       await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
     }
 
-    //await flowDynamic('⏳ Permítenos un momento, vamos a desconfigurar tu autenticador... \n\n *Te solicitamos no enviar mensajes en lo que realizamos este proceso, este proceso durará aproximadamente 30 minutos.*');
-
     let minutosRestantes = 30;
 
     const intervalId = setInterval(async () => {
@@ -2310,7 +2233,6 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
       }
     }, 10 * 60 * 1000);
 
-    // Guardar ID del intervalo
     await state.update({
       estadoMetadata: {
         ...(await state.getMyState())?.estadoMetadata,
@@ -2367,13 +2289,10 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
     return gotoFlow(flowBloqueoActivo);
   });
 
-// ==== FLUJO MEJORADO PARA GESTIÓN DE SERVICIOS ====
 const flowGestionServicios = addKeyword(EVENTS.ACTION)
   .addAnswer(
     [
       '👨‍💼 *GESTIÓN DE SERVICIOS - EXCLUSIVO TRABAJADORES* 👨‍💼',
-      '',
-      //'🔗 *Conectado a base de datos remota: 172.30.247.185*',
       '',
       'Selecciona el servicio que necesitas:',
       '',
@@ -2414,7 +2333,6 @@ const flowGestionServicios = addKeyword(EVENTS.ACTION)
     }
   );
 
-// ==== FLUJO DE RESTABLECIMIENTO DE SISTEMA ====
 const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_SISTEMA'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -2464,7 +2382,6 @@ const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_
     }
   );
 
-// ==== FLUJO DE CAPTURA DE DEPARTAMENTO ====
 const flowCapturaDepartamento = addKeyword(utils.setEvent('CAPTURA_DEPARTAMENTO'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -2514,7 +2431,6 @@ const flowCapturaDepartamento = addKeyword(utils.setEvent('CAPTURA_DEPARTAMENTO'
     }
   );
 
-// ==== FLUJO DE CAPTURA DE USUARIO DEL SISTEMA ====
 const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SISTEMA'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -2599,86 +2515,206 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         return gotoFlow(flowGestionServicios);
       }
 
-      // Dentro del flujo flowCapturaUsuarioSistema, después de generar la contraseña:
-const nuevaContrasena = generarContrasenaSegura();
-console.log(`🔐 Contraseña segura generada para ${input}: ${nuevaContrasena}`);
+      const nuevaContrasena = generarContrasenaSegura();
+      console.log(`🔐 Contraseña segura generada para ${input}: ${nuevaContrasena}`);
 
-await state.update({
-  usuarioSistema: input,
-  nuevaContrasena: nuevaContrasena
-});
+      await state.update({
+        usuarioSistema: input,
+        nuevaContrasena: nuevaContrasena
+      });
 
-// 🔍 EJECUTAR DIAGNÓSTICO PARA Dep_centro_de_computo
-if (input.toLowerCase() === 'dep_centro_de_computo') {
-  console.log('🔍 Ejecutando diagnóstico especial para Dep_centro_de_computo');
-  const diagnostico = await diagnosticarDepCentroComputo(input, nuevaContrasena);
-  
-  if (!diagnostico) {
-    await flowDynamic([
-      '⚠️ *Problema detectado con el usuario Dep_centro_de_computo*',
-      '',
-      'Se detectó un problema al actualizar la contraseña en la base de datos.',
-      '',
-      '💡 **Solución alternativa:**',
-      '1. Usaremos una contraseña pre-encriptada compatible',
-      '2. El administrador recibirá instrucciones manuales',
-      '',
-      '🔒 Tu solicitud será procesada manualmente.'
-    ].join('\n'));
-  }
-}
+      if (input.toLowerCase() === 'dep_centro_de_computo') {
+        console.log('🔍 Ejecutando diagnóstico especial para Dep_centro_de_computo');
+        const diagnostico = await diagnosticarDepCentroComputo(input, nuevaContrasena);
 
-// Intentar actualización normal
-const resultadoActualizacion = await actualizarContrasenaEnusuariospruebaEspecial(
-  input,
-  nuevaContrasena,
-  input.toLowerCase() === 'dep_centro_de_computo',
-  ctx.from
-);
+        if (!diagnostico) {
+          await flowDynamic([
+            '⚠️ *Problema detectado con el usuario Dep_centro_de_computo*',
+            '',
+            'Se detectó un problema al actualizar la contraseña en la base de datos.',
+            '',
+            '💡 **Solución alternativa:**',
+            '1. Usaremos una contraseña pre-encriptada compatible',
+            '2. El administrador recibirá instrucciones manuales',
+            '',
+            '🔒 Tu solicitud será procesada manualmente.'
+          ].join('\n'));
+        }
+      }
 
-// Si falla, intentar con contraseña pre-encriptada conocida
-if (!resultadoActualizacion.exito && input.toLowerCase() === 'dep_centro_de_computo') {
-  console.log('🔄 Intentando con contraseña pre-encriptada conocida...');
-  
-  // Usar contraseña pre-encriptada conocida
-  const contraseñasPreEncriptadas = {
-    '12345678901': 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9',
-    'SoporteCC2024$': 'ejd0bWxIT0xKaVRseDdlV3dJVHlPZz09'
-  };
-  
-  // Seleccionar una contraseña pre-encriptada
-  const contraseñaPreEncriptada = '12345678901';
-  const valorPreEncriptado = 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9';
-  
-  const resultadoFallback = await actualizarContrasenaEnusuariospruebaEspecial(
-    input,
-    contraseñaPreEncriptada, // Usar contraseña pre-encriptada
-    true,
-    ctx.from
+      const resultadoActualizacion = await actualizarContrasenaEnusuariospruebaEspecial(
+        input,
+        nuevaContrasena,
+        input.toLowerCase() === 'dep_centro_de_computo',
+        ctx.from
+      );
+
+      if (!resultadoActualizacion.exito && input.toLowerCase() === 'dep_centro_de_computo') {
+        console.log('🔄 Intentando con contraseña pre-encriptada conocida...');
+
+        const contraseñaPreEncriptada = '12345678901';
+        const valorPreEncriptado = 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9';
+
+        const resultadoFallback = await actualizarContrasenaEnusuariospruebaEspecial(
+          input,
+          contraseñaPreEncriptada,
+          true,
+          ctx.from
+        );
+
+        if (resultadoFallback.exito) {
+          await flowDynamic([
+            '✅ *Solicitud registrada con solución alternativa*',
+            '',
+            '📋 **Resumen de tu solicitud:**',
+            `👤 Nombre: ${nombreCompleto}`,
+            `🏢 Departamento: ${departamento}`,
+            `👤 Usuario: ${input}`,
+            `🔐 Contraseña temporal: ${contraseñaPreEncriptada}`,
+            `💡 *Nota:* Se usó contraseña pre-encriptada por compatibilidad`,
+            `💾 *Estado BD:* ✅ Actualizado`,
+            '',
+            '⏳ *Por favor espera aproximadamente 30 minutos*'
+          ].join('\n'));
+
+          resultadoActualizacion.exito = true;
+          nuevaContrasenaParaAdmin = contraseñaPreEncriptada;
+        }
+      }
+
+      const metadataProceso = {
+        tipo: "🔐 Restablecimiento de Contraseña de Sistema",
+        inicio: Date.now(),
+        esTrabajador: true,
+        departamento: state.departamento,
+        usuarioSistema: input,
+        nuevaContrasena: nuevaContrasena,
+        resultadoActualizacion: resultadoActualizacion
+      };
+
+      await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, metadataProceso);
+
+      const mensajeAdmin = `🔔 *RESTABLECIMIENTO DE CONTRASEÑA DE SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario: ${input}\n🔐 *Nueva contraseña:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n💾 *Estado BD:* ${resultadoActualizacion.exito ? '✅ ACTUALIZADO' : '❌ ERROR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+
+      await enviarAlAdmin(provider, mensajeAdmin);
+
+      await flowDynamic([
+        '✅ *Solicitud registrada correctamente*',
+        '',
+        '📋 **Resumen de tu solicitud:**',
+        `👤 Nombre: ${nombreCompleto}`,
+        `🏢 Departamento: ${departamento}`,
+        `👤 Usuario: ${input}`,
+        `💾 *Estado BD:* ${resultadoActualizacion.exito ? '✅ ACTUALIZADO' : '❌ ERROR - Contactar soporte'}`,
+        '',
+        resultadoActualizacion.exito
+          ? '🎉 *¡Contraseña actualizada exitosamente!*'
+          : '⚠️ *Error al actualizar contraseña, contacta a soporte*',
+        '',
+        '⏳ *Procesando configuración final... (30 minutos)*'
+      ].join('\n'));
+
+      if (resultadoActualizacion.exito) {
+        let notificacionesEnviadas = 0;
+        const maxNotificaciones = 3;
+
+        console.log(`🔔 Iniciando notificaciones para ${ctx.from} - ${nombreCompleto}`);
+
+        timeoutManager.setInterval(ctx.from, async () => {
+          notificacionesEnviadas++;
+          const minutosTranscurridos = notificacionesEnviadas * 10;
+          const minutosRestantes = 30 - minutosTranscurridos;
+
+          const estadoActual = await obtenerEstadoMySQL(ctx.from);
+          if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+            console.log(`⚠️ Usuario ${ctx.from} ya no está en proceso, deteniendo notificaciones`);
+            timeoutManager.clearInterval(ctx.from);
+            return;
+          }
+
+          if (minutosRestantes > 0) {
+            try {
+              console.log(`🔔 Enviando notificación ${notificacionesEnviadas}/${maxNotificaciones} para ${ctx.from}`);
+              await flowDynamic(
+                `⏳ Hola *${nombreCompleto}*, han pasado *${minutosTranscurridos} minutos*. ` +
+                `Faltan *${minutosRestantes} minutos* para completar la configuración...\n\n` +
+                `👤 Usuario: ${input}\n` +
+                `🏢 Departamento: ${departamento}\n` +
+                `✅ Contraseña actualizada en sistema\n` +
+                `🔄 Configuración en progreso...`
+              );
+
+              await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+                ...metadataProceso,
+                notificacionesEnviadas: notificacionesEnviadas,
+                ultimaNotificacion: Date.now()
+              });
+
+            } catch (error) {
+              console.error('❌ Error enviando notificación:', error.message);
+            }
+          } else {
+            timeoutManager.clearInterval(ctx.from);
+          }
+        }, 10 * 60 * 1000);
+
+        timeoutManager.setTimeout(ctx.from, async () => {
+          timeoutManager.clearInterval(ctx.from);
+
+          try {
+            const estadoActual = await state.getMyState();
+            if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+              console.log('⚠️ Usuario ya no está en proceso, omitiendo mensaje final');
+              return;
+            }
+
+            console.log(`✅ Enviando mensaje final a ${ctx.from} - ${nombreCompleto}`);
+
+            await flowDynamic([
+              '🎉 *¡Configuración completada exitosamente!* 🎉',
+              '',
+              '📋 **Tus credenciales de acceso actualizadas:**',
+              `👤 *Usuario:* \`${input}\``,
+              `🔐 *Contraseña:* \`${nuevaContrasena}\``,
+              `✅ *Estado:* Contraseña actualizada en sistema`,
+              '',
+              '🔒 **Instrucciones importantes:**',
+              '• Esta contraseña es temporal - cámbiala después del primer acceso',
+              '• Ya puedes usar tus nuevas credenciales para acceder al sistema',
+              '• Guarda estas credenciales en un lugar seguro',
+              '',
+              '🔙 Escribe *menú* para volver al menú principal.'
+            ].join('\n'));
+
+          } catch (error) {
+            console.error('❌ Error enviando mensaje final:', error.message);
+          }
+
+          await limpiarEstado(state);
+          await limpiarEstadoMySQL(ctx.from);
+
+        }, 30 * 60 * 1000);
+      } else {
+        await flowDynamic([
+          '❌ *Error en la actualización de contraseña*',
+          '',
+          '⚠️ No pudimos actualizar tu contraseña en el sistema.',
+          'Por favor contacta al centro de cómputo para asistencia:',
+          '',
+          '📞 **Centro de cómputo:** 449 910 50 02 EXT. 145',
+          '',
+          '🔙 Escribe *menú* para volver al menú principal.'
+        ].join('\n'));
+
+        await limpiarEstado(state);
+        return gotoFlow(flowMenu);
+      }
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowBloqueoActivo);
+    }
   );
-  
-  if (resultadoFallback.exito) {
-    await flowDynamic([
-      '✅ *Solicitud registrada con solución alternativa*',
-      '',
-      '📋 **Resumen de tu solicitud:**',
-      `👤 Nombre: ${nombreCompleto}`,
-      `🏢 Departamento: ${departamento}`,
-      `👤 Usuario: ${input}`,
-      `🔐 Contraseña temporal: ${contraseñaPreEncriptada}`,
-      `💡 *Nota:* Se usó contraseña pre-encriptada por compatibilidad`,
-      `💾 *Estado BD:* ✅ Actualizado`,
-      '',
-      '⏳ *Por favor espera aproximadamente 30 minutos*'
-    ].join('\n'));
-    
-    // Actualizar la variable para el mensaje al admin
-    resultadoActualizacion.exito = true;
-    nuevaContrasenaParaAdmin = contraseñaPreEncriptada;
-  }
-}
 
-// ==== FLUJO DE SOLICITUD DE NUEVO USUARIO ====
 const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     const userPhone = ctx.from;
@@ -2728,220 +2764,6 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
     }
   );
 
-// Función para verificar estructura de la tabla usuariosprueba
-async function verificarEstructuraTablaUsuarios() {
-  try {
-    await inicializarConexionRemota();
-    if (!conexionRemota) return false;
-
-    console.log('\n🔍 VERIFICANDO ESTRUCTURA DE TABLA usuariosprueba\n');
-    
-    const [columnas] = await conexionRemota.execute(`SHOW COLUMNS FROM usuariosprueba`);
-    console.log('📋 Columnas de usuariosprueba:');
-    columnas.forEach(col => {
-      console.log(`   ✅ ${col.Field} (${col.Type}) ${col.Null === 'YES' ? 'NULL' : 'NOT NULL'} ${col.Default ? `DEFAULT ${col.Default}` : ''}`);
-    });
-    
-    // Verificar tipos de datos específicos
-    const columnaPassword = columnas.find(col => col.Field.toLowerCase() === 'password');
-    if (columnaPassword) {
-      console.log(`\n📊 Información de columna password:`);
-      console.log(`   Tipo: ${columnaPassword.Type}`);
-      console.log(`   Puede ser NULL: ${columnaPassword.Null}`);
-      console.log(`   Valor por defecto: ${columnaPassword.Default || 'Ninguno'}`);
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Error verificando estructura:', error.message);
-    return false;
-  }
-}
-
-// Llama a esta función en el main()
-async function main() {
-  console.log('🚀 Iniciando bot ITA\n');
-  
-  try {
-    // Verificar estructura de tabla
-    await verificarEstructuraTablaUsuarios();
-    // ... resto del código
-  }
-}
-
-// Función para verificar conexión a la base de datos actextita
-async function verificarConexionActextita() {
-  try {
-    console.log('🔍 Verificando conexión a actextita...');
-
-    const connection = await mysql.createConnection({
-      host: '172.30.247.186',
-      user: 'root',
-      password: '',
-      database: 'actextita',
-      port: 3306
-    });
-
-    // Verificar tablas
-    const [tablas] = await connection.execute("SHOW TABLES");
-    console.log(`📋 Tablas encontradas en actextita: ${tablas.length}`);
-
-    // Verificar tabla admins específicamente
-    const [tablaAdmins] = await connection.execute("SHOW TABLES LIKE 'admins'");
-    console.log(`📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-
-    if (tablaAdmins.length > 0) {
-      // Verificar estructura de la tabla admins
-      const [columnas] = await connection.execute("DESCRIBE admins");
-      console.log('📋 Columnas de la tabla admins:');
-      columnas.forEach(col => {
-        console.log(`   ${col.Field} (${col.Type})`);
-      });
-
-      // Verificar si hay administradores
-      const [admins] = await connection.execute("SELECT COUNT(*) as total FROM admins");
-      console.log(`👥 Total de administradores: ${admins[0].total}`);
-    }
-
-    await connection.end();
-    return true;
-
-  } catch (error) {
-    console.error('❌ Error verificando conexión a actextita:', error.message);
-    return false;
-  }
-}
-
-// ==== FUNCIÓN ESPECIAL PARA ACTUALIZAR CONTRASEÑA (CON ENCRIPTACIÓN AUTOMÁTICA) ====
-async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaSinEncriptar, esEncriptada = false, telefono) {
-  try {
-    console.log(`\n🔍 INICIANDO ACTUALIZACIÓN PARA: ${usuario}`);
-    
-    await inicializarConexionRemota();
-    if (!conexionRemota) {
-      console.log('❌ No hay conexión a la BD remota');
-      return { exito: false, error: 'No hay conexión a la BD remota' };
-    }
-
-    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
-
-    // 🔐 DETERMINAR TIPO DE ENCRIPTACIÓN
-    const necesitaEncriptacionEspecial = usuario.toLowerCase() === 'dep_centro_de_computo';
-    let contrasenaParaGuardar = contrasenaSinEncriptar;
-    let tipoEncriptacion = 'sin_encriptar';
-    
-    if (necesitaEncriptacionEspecial) {
-      console.log('🎯 USUARIO ESPECIAL DETECTADO - Aplicando encriptación PHP compatible');
-      
-      // Usar tabla de valores conocidos para contraseñas específicas
-      const valoresConocidos = {
-        '12345678901': 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9'
-        // Agrega más contraseñas y sus valores encriptados aquí
-      };
-      
-      if (valoresConocidos[contrasenaSinEncriptar]) {
-        contrasenaParaGuardar = valoresConocidos[contrasenaSinEncriptar];
-        console.log(`🔐 Usando valor precalculado para ${contrasenaSinEncriptar}: ${contrasenaParaGuardar}`);
-      } else {
-        // Si no está en la tabla, usar encriptación normal
-        const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-        if (contrasenaEncriptada && contrasenaEncriptada !== contrasenaSinEncriptar) {
-          contrasenaParaGuardar = contrasenaEncriptada;
-          console.log(`🔐 Contraseña encriptada: ${contrasenaEncriptada.substring(0, 30)}...`);
-        } else {
-          console.warn('⚠️ Encriptación fallida o igual al original, usando contraseña sin encriptar');
-        }
-      }
-      tipoEncriptacion = 'encriptado_especial';
-    } else if (esEncriptada) {
-      const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-      if (contrasenaEncriptada && contrasenaEncriptada !== contrasenaSinEncriptar) {
-        contrasenaParaGuardar = contrasenaEncriptada;
-        console.log(`🔐 Contraseña encriptada: ${contrasenaEncriptada.substring(0, 30)}...`);
-        tipoEncriptacion = 'encriptado';
-      }
-    }
-
-    // Verificar si el usuario existe
-    console.log(`🔍 Verificando existencia de usuario: ${usuario}`);
-    const queryVerificar = `SELECT id_usuario, usuario, password FROM usuariosprueba WHERE usuario = ?`;
-    const [usuarios] = await conexionRemota.execute(queryVerificar, [usuario]);
-
-    if (usuarios.length === 0) {
-      console.log(`❌ Usuario no encontrado en usuariosprueba: ${usuario}`);
-      
-      // Listar algunos usuarios existentes para diagnóstico
-      const [todosUsuarios] = await conexionRemota.execute(
-        'SELECT usuario FROM usuariosprueba LIMIT 5'
-      );
-      console.log('📋 Usuarios existentes (primeros 5):');
-      todosUsuarios.forEach(u => console.log(`  - ${u.usuario}`));
-      
-      return { exito: false, error: 'Usuario no encontrado' };
-    }
-
-    console.log(`✅ Usuario encontrado: ID=${usuarios[0].id_usuario}`);
-
-    // Actualizar contraseña
-    console.log(`🔄 Actualizando contraseña para ${usuario}...`);
-    const queryActualizar = `
-      UPDATE usuariosprueba 
-      SET password = ?, fecha_insert = NOW()
-      WHERE usuario = ?
-    `;
-
-    const [result] = await conexionRemota.execute(queryActualizar, [
-      contrasenaParaGuardar,
-      usuario
-    ]);
-
-    console.log(`✅ Resultado: ${result.affectedRows} filas afectadas`);
-
-    if (result.affectedRows > 0) {
-      console.log(`🎉 Contraseña actualizada exitosamente para: ${usuario}`);
-      console.log(`📊 Tipo: ${tipoEncriptacion}`);
-      
-      // Verificar lo guardado
-      const [verificacion] = await conexionRemota.execute(
-        'SELECT password FROM usuariosprueba WHERE usuario = ?',
-        [usuario]
-      );
-      
-      if (verificacion.length > 0) {
-        const passwordGuardado = verificacion[0].password;
-        console.log(`📝 Contraseña guardada: ${passwordGuardado.substring(0, 30)}...`);
-        
-        // Verificar longitud (importante para encriptación)
-        console.log(`📏 Longitud de password guardado: ${passwordGuardado.length} caracteres`);
-      }
-      
-      return {
-        exito: true,
-        contrasenaSinEncriptar: contrasenaSinEncriptar,
-        tipo: tipoEncriptacion,
-        mensaje: 'Actualización exitosa'
-      };
-    } else {
-      console.log(`⚠️ No se afectaron filas - posible error en la consulta`);
-      return { exito: false, error: 'No se afectaron filas' };
-    }
-    
-  } catch (error) {
-    console.error('❌ Error en actualizarContrasenaEnusuariospruebaEspecial:', error.message);
-    console.error('❌ Error SQL Code:', error.code);
-    console.error('❌ Error SQL State:', error.sqlState);
-    console.error('❌ Stack:', error.stack);
-    
-    return { 
-      exito: false, 
-      error: error.message,
-      code: error.code,
-      sqlState: error.sqlState
-    };
-  }
-}
-
-// ==== FLUJO DE CAPTURA DE ÁREA ====
 const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
     const userPhone = ctx.from;
@@ -2993,39 +2815,36 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
       }
 
       const nuevoUsuario = formatearNombreUsuario(input);
-      const nuevaContrasena = generarContrasenaSegura(); // Esto ya lo tienes bien
+      const nuevaContrasena = generarContrasenaSegura();
 
       console.log(`🔧 Generando nuevo usuario: ${nuevoUsuario} para ${nombreCompleto}`);
+      console.log(`🔐 Contraseña generada: ${nuevaContrasena}`);
 
-      let insercionExitosa = false;
+      const necesitaEncriptacionEspecial = nuevoUsuario.toLowerCase() === 'dep_centro_de_computo';
 
-      console.log(`🔧 Generando nuevo usuario: ${nuevoUsuario} para ${nombreCompleto}`);
-console.log(`🔐 Contraseña generada: ${nuevaContrasena}`);
+      let insercionExitosa = { exito: false };
 
-// Verificar si es un usuario especial que necesita encriptación
-const necesitaEncriptacionEspecial = nuevoUsuario.toLowerCase() === 'dep_centro_de_computo';
+      try {
+        console.log(`📝 INSERTANDO DIRECTAMENTE en usuariosprueba: ${nuevoUsuario}`);
 
-try {
-  console.log(`📝 INSERTANDO DIRECTAMENTE en usuariosprueba: ${nuevoUsuario}`);
+        insercionExitosa = await insertarUsuarioDirectoEnusuariosprueba(
+          nombreCompleto,
+          input,
+          nuevoUsuario,
+          nuevaContrasena,
+          userPhone
+        );
 
-  insercionExitosa = await insertarUsuarioDirectoEnusuariosprueba(
-    nombreCompleto,
-    input,
-    nuevoUsuario,
-    nuevaContrasena,
-    userPhone
-  );
+        console.log(`✅ Resultado inserción DIRECTA usuariosprueba: ${insercionExitosa.exito ? 'EXITOSA' : 'FALLIDA'}`);
 
-  console.log(`✅ Resultado inserción DIRECTA usuariosprueba: ${insercionExitosa.exito ? 'EXITOSA' : 'FALLIDA'}`);
+        if (necesitaEncriptacionEspecial && insercionExitosa.exito) {
+          console.log('🎯 Usuario especial creado - La contraseña se almacenó encriptada');
+        }
 
-  if (necesitaEncriptacionEspecial && insercionExitosa.exito) {
-    console.log('🎯 Usuario especial creado - La contraseña se almacenó encriptada');
-  }
-
-} catch (error) {
-  console.error('❌ Error insertando DIRECTAMENTE en usuariosprueba:', error.message);
-  insercionExitosa = { exito: false };
-}
+      } catch (error) {
+        console.error('❌ Error insertando DIRECTAMENTE en usuariosprueba:', error.message);
+        insercionExitosa = { exito: false };
+      }
 
       const metadataProceso = {
         tipo: "👤 Solicitud de Nuevo Usuario del Sistema",
@@ -3042,7 +2861,7 @@ try {
 
       await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, metadataProceso);
 
-      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${input}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${userPhone}\n💾 *INSERTADO EN usuariosprueba:* ${insercionExitosa ? '✅ EXITOSO' : '❌ FALLÓ'}\n🏠 *Servidor:* 172.30.247.184\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${input}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${userPhone}\n💾 *INSERTADO EN usuariosprueba:* ${insercionExitosa.exito ? '✅ EXITOSO' : '❌ FALLÓ'}\n🏠 *Servidor:* 172.30.247.184\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -3053,16 +2872,16 @@ try {
         `👤 Nombre: ${nombreCompleto}`,
         `🏢 Área: ${input}`,
         `👤 Usuario generado: ${nuevoUsuario}`,
-        `💾 *Estado inserción:* ${insercionExitosa ? '✅ EXITOSA - Usuario creado' : '❌ FALLÓ - Contactar soporte'}`,
+        `💾 *Estado inserción:* ${insercionExitosa.exito ? '✅ EXITOSA - Usuario creado' : '❌ FALLÓ - Contactar soporte'}`,
         '',
-        insercionExitosa
+        insercionExitosa.exito
           ? '🎉 *¡Usuario creado exitosamente en el sistema!*'
           : '⚠️ *Error al crear usuario, contacta a soporte*',
         '',
         '⏳ *Procesando configuración final... (30 minutos)*'
       ].join('\n'));
 
-      if (insercionExitosa) {
+      if (insercionExitosa.exito) {
         let notificacionesEnviadas = 0;
         const maxNotificaciones = 3;
 
@@ -3164,7 +2983,6 @@ try {
     }
   );
 
-// ==== FLUJO DE EDUCACIÓN A DISTANCIA ====
 const flowDistancia = addKeyword(utils.setEvent('FLOW_DISTANCIA'))
   .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -3187,7 +3005,6 @@ const flowDistancia = addKeyword(utils.setEvent('FLOW_DISTANCIA'))
     return;
   });
 
-// ==== FLUJO DE SIE ====
 const flowSIE = addKeyword(utils.setEvent('FLOW_SIE'))
   .addAnswer(
     '📚 *SISTEMA SIE*\n\n' +
@@ -3221,7 +3038,6 @@ const flowSIE = addKeyword(utils.setEvent('FLOW_SIE'))
     }
   );
 
-// ==== FLUJO DE GRACIAS ====
 const flowGracias = addKeyword(utils.setEvent('FLOW_GRACIAS'))
   .addAction(async (ctx, { flowDynamic }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -3240,7 +3056,6 @@ const flowGracias = addKeyword(utils.setEvent('FLOW_GRACIAS'))
     console.log('✅ Mensaje de agradecimiento enviada correctamente \n')
   });
 
-// ==== FLUJO DE INFORMACIÓN DE CREDENCIALES ====
 const flowInfoCredenciales = addKeyword(utils.setEvent('FLOW_INFO_CREDENCIALES'))
   .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -3277,8 +3092,7 @@ const flowInfoCredenciales = addKeyword(utils.setEvent('FLOW_INFO_CREDENCIALES')
     ].join('\n'));
   });
 
-// ==== Flujo para comandos especiales durante procesos (SIMPLIFICADO) ====
-const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
+const flowComandosEspeciales = addKeyword(['estado'])
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     await debugFlujo(ctx, 'flowComandosEspeciales');
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -3310,7 +3124,6 @@ const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
       }
     }
 
-    // 🔧 Siempre regresar al flujo de bloqueo después de mostrar estado
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       return gotoFlow(flowBloqueoActivo);
     }
@@ -3318,7 +3131,6 @@ const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
     return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
   });
 
-// ==== FLUJO DE BLOQUEO ACTIVO ====
 const flowBloqueoActivo = addKeyword(utils.setEvent('BLOQUEO_ACTIVO'))
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -3373,56 +3185,6 @@ const flowBloqueoActivo = addKeyword(utils.setEvent('BLOQUEO_ACTIVO'))
     return;
   });
 
-// ==== FLUJO INTERCEPTOR GLOBAL - SIMPLIFICADO ====
-const flowInterceptorGlobal = addKeyword([''])
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
-    try {
-      // 🔧 NORMALIZAR ID PRIMERO
-      const remitenteNormalizado = normalizarIdWhatsAppBusiness(ctx.from);
-      ctx.from = remitenteNormalizado;
-
-      console.log(`🔍 INTERCEPTOR - Usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
-
-      const adminNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
-
-      // 🔧 EXCLUIR ADMIN
-      if (ctx.from === adminNormalizado) {
-        console.log('🚫 Mensaje del administrador, omitiendo interceptor');
-        return;
-      }
-
-      // 🔧 VERIFICAR SI ESTÁ EN PROCESO LARGO
-      const myState = await state.getMyState();
-
-      if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-        console.log(`🔒 Usuario ${ctx.from} está en proceso largo`);
-        await mostrarEstadoBloqueado(flowDynamic, myState);
-        return gotoFlow(flowBloqueoActivo);
-      }
-
-      // 🔧 PERMITIR QUE LOS MENSAJES PASEN A OTROS FLUJOS
-      console.log(`✅ Permitir mensaje: "${ctx.body}" - Dejar pasar al siguiente flujo`);
-      return;
-
-    } catch (error) {
-      console.error('❌ Error en interceptor global:', error);
-      // En caso de error, permitir que el mensaje continúe
-      return;
-    }
-  });
-
-// ==== FLUJO PARA BLOQUEAR AL ADMINISTRADOR ====
-const flowBlockAdmin = addKeyword([''])
-  .addAction(async (ctx, { state }) => {
-    const adminNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
-    const ctxNormalizado = normalizarIdWhatsAppBusiness(ctx.from);
-
-    if (ctxNormalizado === adminNormalizado) {
-      console.log('🚫 Mensaje del administrador bloqueado - No se procesará')
-      return
-    }
-  })
-
 const flowPrincipal = addKeyword([
   'hola', 'Hola', 'Hola!', 'HOLA', 'Holi', 'holi', 'holis', 'Holis',
   'holaa', 'Holaa', 'holaaa', 'Holaaa', 'holaaaa', 'Holaaaa',
@@ -3432,7 +3194,6 @@ const flowPrincipal = addKeyword([
   'ayuda', 'Ayuda', 'start', 'Start', 'hello', 'Hello', 'hi', 'Hi'
 ])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow, provider }) => {
-    // 🔧 NORMALIZAR ID PRIMERO (AGREGAR ESTA LÍNEA)
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
 
     console.log(`🎯 FLOW PRINCIPAL - ID Normalizado: ${ctx.from}`);
@@ -3441,7 +3202,6 @@ const flowPrincipal = addKeyword([
 
     if (ctx.from === normalizarIdWhatsAppBusiness(CONTACTO_ADMIN)) return;
 
-    // 🔧 VERIFICAR BLOQUEO PRIMERO
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
     }
@@ -3449,21 +3209,17 @@ const flowPrincipal = addKeyword([
     const input = ctx.body?.toLowerCase().trim();
     console.log(`🔍 FLOW PRINCIPAL - Mensaje: "${input}"`);
 
-    // 🔧 MEJORAR LA DETECCIÓN DE SALUDOS
     const esSaludo = esSaludoValido(input);
 
     if (!esSaludo) {
       console.log(`⚠️ Mensaje no reconocido como saludo: "${input}"`);
-      // Pero como llegó aquí por palabra clave, procedemos igual
     }
 
     console.log(`✅ BOT ACTIVADO por: "${input}"`);
 
-    // LIMPIAR ESTADO Y PROCEDER
     await limpiarEstado(state);
     await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_MENU);
 
-    // ENVIAR BIENVENIDA
     try {
       await flowDynamic([{
         body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
@@ -3476,7 +3232,6 @@ const flowPrincipal = addKeyword([
     return gotoFlow(flowMenu);
   });
 
-// ==== FLUJO MENÚ PRINCIPAL ====
 const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7', '8'])
   .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -3485,33 +3240,27 @@ const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7',
 
     if (ctx.from === normalizarIdWhatsAppBusiness(CONTACTO_ADMIN)) return;
 
-    // 🔧 VERIFICAR BLOQUEO PRIMERO
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
     }
 
     const opcion = ctx.body.trim();
 
-    // 🔧 ACTUALIZAR ESTADO AL ESTAR EN MENÚ
     await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_MENU);
 
-    // Si es un comando de menú, mostrar opciones
     if (opcion === 'menu' || opcion === 'menú') {
       await mostrarOpcionesMenu(flowDynamic);
       return;
     }
 
-    // Si es una opción numérica, procesarla
     if (['1', '2', '3', '4', '5', '6', '7', '8'].includes(opcion)) {
       await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
       return;
     }
 
-    // Si no es ninguna de las anteriores, mostrar menú
     await mostrarOpcionesMenu(flowDynamic);
   });
 
-// ==== FLUJO POR DEFECTO ====
 const flowDefault = addKeyword([''])
   .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
@@ -3562,7 +3311,6 @@ const flowDefault = addKeyword([''])
     ]);
   });
 
-// ==== VERIFICACIÓN DE BASE DE DATOS ====
 async function verificarBaseDeDatos() {
   try {
     console.log('🔍 Verificando conexión a MySQL...');
@@ -3622,7 +3370,7 @@ async function verificarBaseDeDatos() {
 
             let tipoColumna = 'BOOLEAN DEFAULT FALSE';
             if (columna === 'timestamp_identificacion') tipoColumna = 'TIMESTAMP NULL';
-            if (columna === 'correo_institucional') tipoColumna = 'VARCHAR(255) NULL';
+            if (columna === 'correoInstitucional') tipoColumna = 'VARCHAR(255) NULL';
             if (columna === 'info_identificacion') tipoColumna = 'JSON';
 
             await connection.execute(`
@@ -3649,7 +3397,44 @@ async function verificarBaseDeDatos() {
   }
 }
 
-// ==== CONFIGURACIÓN FINAL DEL BOT ====
+async function verificarConexionActextita() {
+  try {
+    console.log('🔍 Verificando conexión a actextita...');
+
+    const connection = await mysql.createConnection({
+      host: '172.30.247.186',
+      user: 'root',
+      password: '',
+      database: 'actextita',
+      port: 3306
+    });
+
+    const [tablas] = await connection.execute("SHOW TABLES");
+    console.log(`📋 Tablas encontradas en actextita: ${tablas.length}`);
+
+    const [tablaAdmins] = await connection.execute("SHOW TABLES LIKE 'admins'");
+    console.log(`📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
+
+    if (tablaAdmins.length > 0) {
+      const [columnas] = await connection.execute("DESCRIBE admins");
+      console.log('📋 Columnas de la tabla admins:');
+      columnas.forEach(col => {
+        console.log(`   ${col.Field} (${col.Type})`);
+      });
+
+      const [admins] = await connection.execute("SELECT COUNT(*) as total FROM admins");
+      console.log(`👥 Total de administradores: ${admins[0].total}`);
+    }
+
+    await connection.end();
+    return true;
+
+  } catch (error) {
+    console.error('❌ Error verificando conexión a actextita:', error.message);
+    return false;
+  }
+}
+
 const main = async () => {
   console.log('🚀 Iniciando bot ITA - Versión Completa con Bases de Datos\n');
 
@@ -3658,15 +3443,8 @@ const main = async () => {
 
     await verificarConexionesBD();
 
-    await verificarBaseDeDatos();
-
     console.log('🔐 Probando sistema de encriptación...');
     probarEncriptacion();
-
-    console.log('🔐 Probando sistema de encriptación...');
-    probarEncriptacion();
-
-    await verificarBaseDeDatos();
 
     const adapterProvider = createProvider(Provider, {
       name: 'ITA-Bot-WhatsApp',
@@ -3692,58 +3470,35 @@ const main = async () => {
     });
 
     const adapterFlow = createFlow([
-      // ==================== 🎯 FLUJO PRINCIPAL (PRIMERO) ====================
-      flowPrincipal,             // 🔥 PRIMERO - Captura todos los saludos e inicios (Listo)
-
-      // ==================== 📱 MENÚ PRINCIPAL ====================
-      flowMenu,                  // 🔥 SEGUNDO - Menú principal (Listo)
-
-      // ==================== 🔄 COMANDOS ESPECIALES ====================
-      flowComandosEspeciales,    // 📊 Comando "estado" (Listo)
-
-      // ==================== 🎪 SUBMENÚS DE OPCIONES ====================
-      flowSubMenuContrasena,              // 🔐 Submenú contraseña (Listo)
-      flowSubMenuAutenticador,            // 🔑 Submenú autenticador (Listo)
-
-      // ==================== 🗃️ CONSULTAS Y BASE DE DATOS ====================
-      flowConsultaUsuario,               // 🔍 Consulta usuarios (Listo)
-      flowBuscarUsuarioEspecifico,       // 🔎 Búsqueda específica (Listo)
-      flowListarTodosUsuarios,           // 📋 Listar todos usuarios
-      flowConexionBaseDatos,             // 🗃️ Base datos Actextita
-      flowCapturaNumeroControlBaseDatos, // 🔢 Captura número control BD
-      flowCapturaUsuarioAdmin,           // 👨‍💼 Captura usuario admin
-
-      // ==================== 📝 FLUJOS DE CAPTURA BÁSICA ====================
-      flowCapturaNumeroControl,           // 🔢 Número control (contraseña)
-      flowCapturaNombre,                  // 📝 Nombre (contraseña)
-      flowCapturaCorreoTrabajador,        // 📧 Correo trabajador
-
-      // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
-      flowCapturaIdentificacion,          // 📸 Identificación
-
-      // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
-      flowGestionServicios,               // 👨‍💼 Menú gestión servicios
-      flowRestablecimientoSistema,        // 🔐 Restablecimiento sistema
-      flowCapturaDepartamento,            // 🏢 Captura departamento
-      flowCapturaUsuarioSistema,          // 👤 Captura usuario sistema
-      flowNuevoUsuario,                   // 👤 Solicitud nuevo usuario
-      flowCapturaArea,                    // 🏢 Captura área
-
-      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
-      flowContrasena,                     // ⏳ Proceso largo contraseña
-      flowAutenticador,                   // ⏳ Proceso largo autenticador
-
-      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
-      flowDistancia,             // 🎓 Educación a distancia
-      flowGracias,               // 🙏 Agradecimiento
-      flowInfoCredenciales,      // ❓ Información credenciales
-      flowSIE,                   // 📊 Sistema SIE
-
-      // ==================== 🔒 FLUJO DE BLOQUEO ====================
-      flowBloqueoActivo,                  // 🔒 Bloqueo durante procesos
-
-      // ==================== ❓ FLUJO POR DEFECTO (SIEMPRE ÚLTIMO) ====================
-      flowDefault                         // 🤖 Manejo mensajes no entendidos
+      flowPrincipal,
+      flowMenu,
+      flowComandosEspeciales,
+      flowSubMenuContrasena,
+      flowSubMenuAutenticador,
+      flowConsultaUsuario,
+      flowBuscarUsuarioEspecifico,
+      flowListarTodosUsuarios,
+      flowConexionBaseDatos,
+      flowCapturaNumeroControlBaseDatos,
+      flowCapturaUsuarioAdmin,
+      flowCapturaNumeroControl,
+      flowCapturaNombre,
+      flowCapturaCorreoTrabajador,
+      flowCapturaIdentificacion,
+      flowGestionServicios,
+      flowRestablecimientoSistema,
+      flowCapturaDepartamento,
+      flowCapturaUsuarioSistema,
+      flowNuevoUsuario,
+      flowCapturaArea,
+      flowContrasena,
+      flowAutenticador,
+      flowDistancia,
+      flowGracias,
+      flowInfoCredenciales,
+      flowSIE,
+      flowBloqueoActivo,
+      flowDefault
     ]);
 
     const adapterDB = new Database();
