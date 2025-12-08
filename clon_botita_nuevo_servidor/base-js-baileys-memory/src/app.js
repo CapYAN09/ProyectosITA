@@ -617,22 +617,16 @@ async function verificarCompatibilidadEncriptacion() {
   console.log('\n🔐 VERIFICANDO COMPATIBILIDAD DE ENCRIPTACIÓN PHP-NODE\n');
 
   // Contraseña de prueba
-  const testPassword = 'Test123$%';
+  const testPassword = '123456789';
 
-  // Encriptar en Node.js
-  const encryptedNode = getEncryptedPassword(testPassword);
+  // Encriptar en Node.js usando la función IMPORTADA
+  const encryptedNode = encriptarContrasena(testPassword);  // ✅ CORRECTO
   console.log(`🔐 Node.js - Contraseña encriptada: ${encryptedNode}`);
 
   // Desencriptar en Node.js
-  const decryptedNode = getUnencryptedPassword(encryptedNode);
+  const decryptedNode = desencriptarContrasena(encryptedNode);
   console.log(`🔓 Node.js - Contraseña desencriptada: ${decryptedNode}`);
   console.log(`✅ Node.js coincide: ${testPassword === decryptedNode}`);
-
-  // Nota: Para verificar con PHP, necesitarías:
-  console.log('\n📋 Para verificar con PHP:');
-  console.log(`1. Ejecuta en PHP: getEncryptedPassword('${testPassword}')`);
-  console.log(`2. Compara el resultado con: ${encryptedNode}`);
-  console.log('3. Deben ser idénticos si las constantes coinciden');
 
   return encryptedNode;
 }

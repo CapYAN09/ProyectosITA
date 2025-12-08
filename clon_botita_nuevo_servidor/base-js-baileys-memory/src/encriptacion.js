@@ -1,7 +1,7 @@
-// src/encriptacion.js - ES Module version
+// src/encriptacion.js - VERSIÓN ES MODULE
 import crypto from 'crypto';
 
-// 🔐 CONSTANTES DE ENCRIPTACIÓN - DEBEN COINCIDIR CON PHP
+// 🔐 CONSTANTES DE ENCRIPTACIÓN - DEBEN COINCIDIR EXACTAMENTE CON PHP
 const ENCRYPT_METHOD = 'aes-256-cbc';
 const ENCRYPT_SECRET_KEY = 'Tecnologico';
 const ENCRYPT_SECRET_IV = '990520';
@@ -69,7 +69,7 @@ export function desencriptarContrasena(contrasenaEncriptada) {
 export function probarEncriptacion() {
     console.log('\n🔍 PROBANDO SISTEMA DE ENCRIPTACIÓN\n');
     
-    const testPassword = 'Test123$%';
+    const testPassword = '123456789';
     console.log('🔐 Contraseña de prueba:', testPassword);
     
     const encriptado = encriptarContrasena(testPassword);
@@ -80,6 +80,12 @@ export function probarEncriptacion() {
         
         console.log('📊 Resultado:');
         console.log(`✅ Encriptación/Desencriptación: ${coincide ? 'CORRECTO' : 'FALLIDO'}`);
+        
+        if (coincide) {
+            console.log('🎉 ¡Encriptación funcionando correctamente!');
+        } else {
+            console.log('⚠️ La encriptación/desencriptación no coincide');
+        }
         
         return encriptado;
     }
