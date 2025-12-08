@@ -95,12 +95,16 @@ const ESTADOS_USUARIO = {
 // ==== CONEXIONES A BASES DE DATOS ====================
 let conexionMySQL = null;
 let conexionRemota = null;
-let reconectando = false;
+let conexionActextita = null;
 
-// Conexión MySQL Local
-async function crearConexionMySQL() {
+// ==== FUNCIÓN PARA INICIAR TODAS LAS CONEXIONES AL INICIO ====
+async function iniciarTodasLasConexiones() {
+  console.log('🚀 INICIANDO TODAS LAS CONEXIONES A BASES DE DATOS...\n');
+  
+  // 1. Conexión MySQL Local
+  console.log('1. 🔗 Conectando a MySQL Local (bot_whatsapp)...');
   try {
-    const connection = await mysql.createConnection({
+    conexionMySQL = await mysql.createConnection({
       host: 'localhost',
       user: 'root',
       password: '',
@@ -112,66 +116,138 @@ async function crearConexionMySQL() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
-
-    connection.on('error', (err) => {
+    
+    await conexionMySQL.execute('SELECT 1');
+    console.log('✅ MySQL Local: CONECTADO\n');
+    
+    // Configurar manejo de errores para reconexión automática
+    conexionMySQL.on('error', (err) => {
       console.error('❌ Error en conexión MySQL:', err.message);
       if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
         console.log('🔄 Reconectando a MySQL...');
-        reconectarMySQL();
+        setTimeout(() => {
+          iniciarTodasLasConexiones();
+        }, 5000);
       }
     });
-
-    console.log('✅ Conexión MySQL creada exitosamente');
-    return connection;
+    
   } catch (error) {
-    console.error('❌ Error creando conexión MySQL:', error.message);
-    return null;
+    console.error('❌ Error conectando a MySQL Local:', error.message, '\n');
   }
+
+  // 2. Conexión a usuariosprueba (172.30.247.185)
+  console.log('2. 🔗 Conectando a usuariosprueba (172.30.247.185)...');
+  try {
+    conexionRemota = await mysql.createConnection({
+      host: '172.30.247.185',
+      user: 'ccomputo',
+      password: 'Jarjar0904$',
+      database: 'b1o04dzhm1guhvmjcrwb',
+      port: 3306,
+      connectTimeout: 30000,
+      acquireTimeout: 30000,
+      timeout: 30000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
+    });
+    
+    await conexionRemota.execute('SELECT 1');
+    console.log('✅ usuariosprueba: CONECTADO\n');
+    
+    // Verificar tabla usuariosprueba
+    try {
+      const [tablas] = await conexionRemota.execute("SHOW TABLES LIKE 'usuariosprueba'");
+      if (tablas.length > 0) {
+        console.log('📊 Tabla usuariosprueba: ENCONTRADA');
+        const [conteo] = await conexionRemota.execute("SELECT COUNT(*) as total FROM usuariosprueba");
+        console.log(`👥 Total usuarios: ${conteo[0].total}`);
+      } else {
+        console.log('⚠️ Tabla usuariosprueba: NO ENCONTRADA');
+      }
+    } catch (error) {
+      console.error('❌ Error verificando tabla usuariosprueba:', error.message);
+    }
+    
+    // Configurar manejo de errores para reconexión automática
+    conexionRemota.on('error', (err) => {
+      console.error('❌ Error en conexión usuariosprueba:', err.message);
+      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+        console.log('🔄 Reconectando a usuariosprueba...');
+        setTimeout(() => {
+          reconectarBaseRemota();
+        }, 5000);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error conectando a usuariosprueba:', error.message, '\n');
+  }
+
+  // 3. Conexión a actextita (172.30.247.186)
+  console.log('3. 🔗 Conectando a actextita (172.30.247.186)...');
+  try {
+    conexionActextita = await mysql.createConnection({
+      host: '172.30.247.186',
+      user: 'root',
+      password: '',
+      database: 'actextita',
+      port: 3306,
+      connectTimeout: 30000,
+      acquireTimeout: 30000,
+      timeout: 30000,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
+    });
+    
+    await conexionActextita.execute('SELECT 1');
+    console.log('✅ actextita: CONECTADO\n');
+    
+    // Verificar tabla admins
+    try {
+      const [tablas] = await conexionActextita.execute("SHOW TABLES LIKE 'admins'");
+      if (tablas.length > 0) {
+        console.log('📊 Tabla admins: ENCONTRADA');
+        const [conteo] = await conexionActextita.execute("SELECT COUNT(*) as total FROM admins");
+        console.log(`👥 Total administradores: ${conteo[0].total}`);
+      } else {
+        console.log('⚠️ Tabla admins: NO ENCONTRADA');
+      }
+    } catch (error) {
+      console.error('❌ Error verificando tabla admins:', error.message);
+    }
+    
+    // Configurar manejo de errores para reconexión automática
+    conexionActextita.on('error', (err) => {
+      console.error('❌ Error en conexión actextita:', err.message);
+      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+        console.log('🔄 Reconectando a actextita...');
+        setTimeout(() => {
+          reconectarActextita();
+        }, 5000);
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Error conectando a actextita:', error.message, '\n');
+  }
+
+  console.log('══════════════════════════════════════════════════');
+  console.log('📊 RESUMEN DE CONEXIONES:');
+  console.log(`✅ MySQL Local: ${conexionMySQL ? 'CONECTADO' : 'DESCONECTADO'}`);
+  console.log(`✅ usuariosprueba (185): ${conexionRemota ? 'CONECTADO' : 'DESCONECTADO'}`);
+  console.log(`✅ actextita (186): ${conexionActextita ? 'CONECTADO' : 'DESCONECTADO'}`);
+  console.log('══════════════════════════════════════════════════\n');
 }
 
-async function reconectarMySQL() {
-  if (reconectando) return;
-  reconectando = true;
-
+// Funciones de reconexión específicas
+async function reconectarBaseRemota() {
+  console.log('🔄 Reconectando a usuariosprueba...');
   try {
-    if (conexionMySQL) {
-      try { await conexionMySQL.end(); } catch (e) { }
+    if (conexionRemota) {
+      try { await conexionRemota.end(); } catch (e) { }
     }
-
-    conexionMySQL = await crearConexionMySQL();
-    reconectando = false;
-
-    if (conexionMySQL) {
-      console.log('✅ Reconexión a MySQL exitosa');
-    }
-  } catch (error) {
-    console.error('❌ Error en reconexión MySQL:', error.message);
-    reconectando = false;
-    setTimeout(() => reconectarMySQL(), 5000);
-  }
-}
-
-async function inicializarMySQL() {
-  try {
-    if (!conexionMySQL || conexionMySQL._closing) {
-      conexionMySQL = await crearConexionMySQL();
-    }
-
-    if (conexionMySQL) {
-      await conexionMySQL.execute('SELECT 1');
-    }
-    return conexionMySQL;
-  } catch (error) {
-    console.error('❌ Error en inicializarMySQL:', error.message);
-    await reconectarMySQL();
-    return conexionMySQL;
-  }
-}
-
-// Conexión BD Remota (usuariosprueba)
-async function crearConexionRemota() {
-  try {
-    const connection = await mysql.createConnection({
+    
+    conexionRemota = await mysql.createConnection({
       host: '172.30.247.185',
       user: 'ccomputo',
       password: 'Jarjar0904$',
@@ -181,54 +257,107 @@ async function crearConexionRemota() {
       acquireTimeout: 30000,
       timeout: 30000
     });
-
-    console.log('✅ Conexión DIRECTA a usuariosprueba establecida');
-    return connection;
+    
+    console.log('✅ Reconexión a usuariosprueba exitosa');
   } catch (error) {
-    console.error('❌ Error creando conexión DIRECTA a usuariosprueba:', error.message);
-    return null;
+    console.error('❌ Error en reconexión a usuariosprueba:', error.message);
+    setTimeout(() => reconectarBaseRemota(), 10000);
   }
 }
 
-async function inicializarConexionRemota() {
-  if (!conexionRemota) {
-    conexionRemota = await crearConexionRemota();
-  }
-
-  if (conexionRemota) {
-    try {
-      await conexionRemota.execute('SELECT 1');
-      return conexionRemota;
-    } catch (error) {
-      console.log('🔄 Conexión remota inactiva, reconectando...');
-      try { await conexionRemota.end(); } catch (e) { }
-      conexionRemota = await crearConexionRemota();
+async function reconectarActextita() {
+  console.log('🔄 Reconectando a actextita...');
+  try {
+    if (conexionActextita) {
+      try { await conexionActextita.end(); } catch (e) { }
     }
+    
+    conexionActextita = await mysql.createConnection({
+      host: '172.30.247.186',
+      user: 'root',
+      password: '',
+      database: 'actextita',
+      port: 3306,
+      connectTimeout: 30000,
+      acquireTimeout: 30000,
+      timeout: 30000
+    });
+    
+    console.log('✅ Reconexión a actextita exitosa');
+  } catch (error) {
+    console.error('❌ Error en reconexión a actextita:', error.message);
+    setTimeout(() => reconectarActextita(), 10000);
   }
+}
 
-  return conexionRemota;
+// Función para verificar el estado de todas las conexiones
+async function verificarEstadoConexiones() {
+  console.log('\n📊 ESTADO ACTUAL DE CONEXIONES:');
+  
+  const estados = [];
+  
+  // Verificar MySQL Local
+  try {
+    if (conexionMySQL) {
+      await conexionMySQL.execute('SELECT 1');
+      estados.push('✅ MySQL Local: ACTIVA');
+    } else {
+      estados.push('❌ MySQL Local: INACTIVA');
+    }
+  } catch (error) {
+    estados.push('❌ MySQL Local: ERROR - ' + error.message);
+  }
+  
+  // Verificar usuariosprueba
+  try {
+    if (conexionRemota) {
+      await conexionRemota.execute('SELECT 1');
+      estados.push('✅ usuariosprueba (185): ACTIVA');
+    } else {
+      estados.push('❌ usuariosprueba (185): INACTIVA');
+    }
+  } catch (error) {
+    estados.push('❌ usuariosprueba (185): ERROR - ' + error.message);
+  }
+  
+  // Verificar actextita
+  try {
+    if (conexionActextita) {
+      await conexionActextita.execute('SELECT 1');
+      estados.push('✅ actextita (186): ACTIVA');
+    } else {
+      estados.push('❌ actextita (186): INACTIVA');
+    }
+  } catch (error) {
+    estados.push('❌ actextita (186): ERROR - ' + error.message);
+  }
+  
+  estados.forEach(estado => console.log(estado));
+  console.log('');
+  
+  return {
+    mysqlLocal: conexionMySQL ? true : false,
+    usuariosprueba: conexionRemota ? true : false,
+    actextita: conexionActextita ? true : false
+  };
 }
 
 // ==== FUNCIONES DE BASE DE DATOS ====================
 
 // 1. Consultar alumno en base de datos actextita
 async function consultarAlumnoEnBaseDatos(numeroControl) {
-  let connection;
   try {
-    connection = await mysql.createConnection({
-      host: '172.30.247.186',
-      user: 'root',
-      password: '',
-      database: 'actextita',
-      port: 3306
-    });
+    if (!conexionActextita) {
+      console.log('⚠️ No hay conexión a actextita');
+      return { encontrado: false, error: 'No hay conexión a actextita' };
+    }
 
-    const [anuevoIngreso] = await connection.execute(
+    const [anuevoIngreso] = await conexionActextita.execute(
       'SELECT * FROM anuevo_ingreso WHERE numero_control = ?',
       [numeroControl]
     );
 
-    const [aResagados] = await connection.execute(
+    const [aResagados] = await conexionActextita.execute(
       'SELECT * FROM a_resagados WHERE numero_control = ?',
       [numeroControl]
     );
@@ -244,22 +373,22 @@ async function consultarAlumnoEnBaseDatos(numeroControl) {
   } catch (error) {
     console.error('❌ Error consultando alumno:', error.message);
     return { encontrado: false, error: error.message };
-  } finally {
-    if (connection) await connection.end();
   }
 }
 
 // 2. Verificar administrador en base de datos actextita
 async function verificarAdministradorEnBaseDatos(usuario) {
-  let connection = null;
   try {
-    console.log(`🔍 Verificando administrador en 172.30.247.186 (actextita): ${usuario}`);
+    console.log(`🔍 Verificando administrador en actextita: ${usuario}`);
 
-    connection = await mysql.createConnection(DB_CONFIG.actextita);
+    if (!conexionActextita) {
+      console.log('❌ No hay conexión a actextita');
+      return false;
+    }
 
     // Primero, verificar si la tabla existe
     try {
-      const [tablas] = await connection.execute(
+      const [tablas] = await conexionActextita.execute(
         "SHOW TABLES LIKE 'admins'"
       );
 
@@ -272,7 +401,7 @@ async function verificarAdministradorEnBaseDatos(usuario) {
       return false;
     }
 
-    const [resultados] = await connection.execute(
+    const [resultados] = await conexionActextita.execute(
       'SELECT usuario, estado, fecha_creacion FROM admins WHERE usuario = ? AND estado = "activo"',
       [usuario]
     );
@@ -287,27 +416,21 @@ async function verificarAdministradorEnBaseDatos(usuario) {
     }
 
   } catch (error) {
-    console.error('❌ Error verificando administrador en 172.30.247.186:', error.message);
+    console.error('❌ Error verificando administrador en actextita:', error.message);
     return false;
-  } finally {
-    if (connection) {
-      try {
-        await connection.end();
-      } catch (e) {
-        console.error('❌ Error cerrando conexión actextita:', e.message);
-      }
-    }
   }
 }
 
 // 3. Actualizar contraseña de admin en actextita
 async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
-  let connection = null;
   try {
-    console.log(`🔐 Procesando actualización para admin en 172.30.247.186: ${usuario}`);
+    console.log(`🔐 Procesando actualización para admin en actextita: ${usuario}`);
     console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
 
-    connection = await mysql.createConnection(DB_CONFIG.actextita);
+    if (!conexionActextita) {
+      console.error('❌ Error: No hay conexión a actextita');
+      return false;
+    }
 
     // 🔐 ENCRIPTAR LA CONTRASEÑA
     const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
@@ -321,7 +444,7 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
 
     // Verificar que la tabla admins existe
     try {
-      const [tablas] = await connection.execute(
+      const [tablas] = await conexionActextita.execute(
         "SHOW TABLES LIKE 'admins'"
       );
 
@@ -335,7 +458,7 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
     }
 
     // Actualizar contraseña
-    const [resultado] = await connection.execute(
+    const [resultado] = await conexionActextita.execute(
       'UPDATE admins SET contraseña = ? WHERE usuario = ?',
       [contrasenaEncriptada, usuario]
     );
@@ -346,7 +469,7 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
       console.log(`✅ Contraseña actualizada exitosamente para admin: ${usuario}`);
 
       // Verificar lo que se guardó
-      const [verificacion] = await connection.execute(
+      const [verificacion] = await conexionActextita.execute(
         'SELECT contraseña FROM admins WHERE usuario = ?',
         [usuario]
       );
@@ -363,114 +486,19 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
     }
 
   } catch (error) {
-    console.error('❌ Error actualizando contraseña de admin en 172.30.247.186:', error.message);
+    console.error('❌ Error actualizando contraseña de admin en actextita:', error.message);
     console.error('❌ Error stack:', error.stack);
     return false;
-  } finally {
-    if (connection) {
-      try {
-        await connection.end();
-      } catch (e) {
-        console.error('❌ Error cerrando conexión actextita:', e.message);
-      }
-    }
   }
-}
-
-// Función para verificar todas las conexiones a bases de datos
-async function verificarConexionesBD() {
-  console.log('\n🔍 VERIFICANDO CONEXIONES A BASES DE DATOS\n');
-
-  // 1. Verificar actextita
-  console.log('1️⃣ Verificando actextita (172.30.247.186)...');
-  try {
-    const connectionActextita = await mysql.createConnection(DB_CONFIG.actextita);
-
-    const [tablasActextita] = await connectionActextita.execute("SHOW TABLES");
-    console.log(`   📋 Tablas encontradas en actextita: ${tablasActextita.length}`);
-
-    const [tablaAdmins] = await connectionActextita.execute("SHOW TABLES LIKE 'admins'");
-    console.log(`   📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-
-    if (tablaAdmins.length > 0) {
-      const [columnasAdmins] = await connectionActextita.execute("DESCRIBE admins");
-      console.log('   📋 Columnas de la tabla admins:');
-      columnasAdmins.forEach(col => {
-        console.log(`      ${col.Field} (${col.Type})`);
-      });
-
-      const [admins] = await connectionActextita.execute("SELECT COUNT(*) as total FROM admins");
-      console.log(`   👥 Total de administradores: ${admins[0].total}`);
-
-      const [ejemplos] = await connectionActextita.execute("SELECT usuario, estado FROM admins LIMIT 3");
-      console.log('   👤 Ejemplos de administradores:');
-      ejemplos.forEach(admin => {
-        console.log(`      - ${admin.usuario} (${admin.estado})`);
-      });
-    }
-
-    await connectionActextita.end();
-    console.log('   ✅ Conexión a actextita exitosa\n');
-
-  } catch (error) {
-    console.error(`   ❌ Error conectando a actextita (172.30.247.186): ${error.message}\n`);
-  }
-
-  // 2. Verificar usuariosprueba
-  console.log('2️⃣ Verificando usuariosprueba (172.30.247.185)...');
-  try {
-    const connectionUsuarios = await mysql.createConnection(DB_CONFIG.usuariosprueba);
-
-    const [tablasUsuarios] = await connectionUsuarios.execute("SHOW TABLES");
-    console.log(`   📋 Tablas encontradas en usuariosprueba: ${tablasUsuarios.length}`);
-
-    const [tablaUsuarios] = await connectionUsuarios.execute("SHOW TABLES LIKE 'usuariosprueba'");
-    console.log(`   📊 Tabla 'usuariosprueba' existe: ${tablaUsuarios.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-
-    if (tablaUsuarios.length > 0) {
-      const [columnasUsuarios] = await connectionUsuarios.execute("DESCRIBE usuariosprueba");
-      console.log('   📋 Columnas de la tabla usuariosprueba:');
-      columnasUsuarios.forEach(col => {
-        console.log(`      ${col.Field} (${col.Type})`);
-      });
-
-      const [usuarios] = await connectionUsuarios.execute("SELECT COUNT(*) as total FROM usuariosprueba");
-      console.log(`   👥 Total de usuarios: ${usuarios[0].total}`);
-    }
-
-    await connectionUsuarios.end();
-    console.log('   ✅ Conexión a usuariosprueba exitosa\n');
-
-  } catch (error) {
-    console.error(`   ❌ Error conectando a usuariosprueba (172.30.247.185): ${error.message}\n`);
-  }
-
-  // 3. Verificar bot_whatsapp local
-  console.log('3️⃣ Verificando bot_whatsapp (localhost)...');
-  try {
-    const connectionLocal = await mysql.createConnection(DB_CONFIG.bot_whatsapp);
-
-    const [tablasLocal] = await connectionLocal.execute("SHOW TABLES");
-    console.log(`   📋 Tablas encontradas en bot_whatsapp: ${tablasLocal.length}`);
-
-    const [tablaUserStates] = await connectionLocal.execute("SHOW TABLES LIKE 'user_states'");
-    console.log(`   📊 Tabla 'user_states' existe: ${tablaUserStates.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-
-    await connectionLocal.end();
-    console.log('   ✅ Conexión a bot_whatsapp exitosa\n');
-
-  } catch (error) {
-    console.error(`   ❌ Error conectando a bot_whatsapp (localhost): ${error.message}\n`);
-  }
-
-  console.log('🔍 VERIFICACIÓN COMPLETADA\n');
 }
 
 // 4. Verificar usuario en sistema usuariosprueba
 async function verificarUsuarioEnSistema(usuario) {
   try {
-    await inicializarConexionRemota();
-    if (!conexionRemota) return null;
+    if (!conexionRemota) {
+      console.log('❌ No hay conexión a usuariosprueba');
+      return null;
+    }
 
     const query = `
       SELECT id_usuario, usuario, ubicacion, estado, fecha_insert 
@@ -496,8 +524,10 @@ async function verificarUsuarioEnSistema(usuario) {
 // 5. Insertar usuario directo en usuariosprueba
 async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasenaSinEncriptar, telefono) {
   try {
-    await inicializarConexionRemota();
-    if (!conexionRemota) return { exito: false };
+    if (!conexionRemota) {
+      console.log('❌ No hay conexión a usuariosprueba');
+      return { exito: false };
+    }
 
     const id_rol = 2;
     const id_persona = 0;
@@ -557,8 +587,10 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
 // 6. Consultar usuario en usuariosprueba
 async function consultarUsuarioEnusuariosprueba(criterio) {
   try {
-    await inicializarConexionRemota();
-    if (!conexionRemota) return null;
+    if (!conexionRemota) {
+      console.log('❌ No hay conexión a usuariosprueba');
+      return null;
+    }
 
     const query = `
       SELECT * FROM usuariosprueba 
@@ -584,8 +616,10 @@ async function consultarUsuarioEnusuariosprueba(criterio) {
 // 7. Listar todos usuariosprueba
 async function listarTodosusuariosprueba() {
   try {
-    await inicializarConexionRemota();
-    if (!conexionRemota) return [];
+    if (!conexionRemota) {
+      console.log('❌ No hay conexión a usuariosprueba');
+      return [];
+    }
 
     const query = `SELECT * FROM usuariosprueba ORDER BY id_usuario LIMIT 50`;
     const [rows] = await conexionRemota.execute(query);
@@ -603,7 +637,6 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
   try {
     console.log(`\n🔍 INICIANDO ACTUALIZACIÓN PARA: ${usuario}`);
 
-    await inicializarConexionRemota();
     if (!conexionRemota) {
       console.log('❌ No hay conexión a la BD remota');
       return { exito: false, error: 'No hay conexión a la BD remota' };
@@ -720,8 +753,10 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
 // 9. Verificar estructura usuariosprueba
 async function verificarEstructurausuariosprueba() {
   try {
-    await inicializarConexionRemota();
-    if (!conexionRemota) return false;
+    if (!conexionRemota) {
+      console.log('❌ No hay conexión a usuariosprueba');
+      return false;
+    }
 
     console.log('🔍 VERIFICANDO ESTRUCTURA DE TABLA usuariosprueba:');
 
@@ -741,8 +776,10 @@ async function verificarEstructurausuariosprueba() {
 // 10. Guardar estado en MySQL local
 async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
   try {
-    await inicializarMySQL();
-    if (!conexionMySQL) return false;
+    if (!conexionMySQL) {
+      console.log('❌ No hay conexión a MySQL local');
+      return false;
+    }
 
     if (!userPhone) {
       console.error('❌ userPhone es null/undefined en guardarEstadoMySQL');
@@ -789,8 +826,10 @@ async function obtenerEstadoMySQL(userPhone) {
   try {
     if (!userPhone) return null;
 
-    await inicializarMySQL();
-    if (!conexionMySQL) return null;
+    if (!conexionMySQL) {
+      console.log('❌ No hay conexión a MySQL local');
+      return null;
+    }
 
     const query = `SELECT * FROM user_states WHERE user_phone = ?`;
     const [rows] = await conexionMySQL.execute(query, [userPhone]);
@@ -825,8 +864,10 @@ async function obtenerEstadoMySQL(userPhone) {
 // 12. Limpiar estado en MySQL
 async function limpiarEstadoMySQL(userPhone) {
   try {
-    await inicializarMySQL();
-    if (!conexionMySQL) return;
+    if (!conexionMySQL) {
+      console.log('❌ No hay conexión a MySQL local');
+      return;
+    }
 
     const query = `DELETE FROM user_states WHERE user_phone = ?`;
     await conexionMySQL.execute(query, [userPhone]);
@@ -841,7 +882,6 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
   console.log('\n🔍 DIAGNÓSTICO PARA Dep_centro_de_computo\n');
 
   try {
-    await inicializarConexionRemota();
     if (!conexionRemota) {
       console.log('❌ No hay conexión a la BD remota');
       return false;
@@ -1407,7 +1447,8 @@ async function mostrarEstadoBloqueado(flowDynamic, myState) {
   ].join('\n'));
 }
 
-// ==== DEFINICIÓN DE FLUJOS ====================
+// ==== FLUJOS ====================
+
 const flowConexionBaseDatos = addKeyword(utils.setEvent('CONEXION_BASE_DATOS'))
   .addAnswer(
     '🔐 *ACCESO AL SISTEMA - BASE DE DATOS ACTEXTITA* 🔐\n\n' +
@@ -2063,7 +2104,7 @@ const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
     });
 
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n💾 *MySQL:* ✅ CONECTADO\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ Reacciona para validar que está listo`;
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n💾 *MySQL:* ${conexionMySQL ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ Reacciona para validar que está listo`;
 
     await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -2208,7 +2249,7 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
     });
 
     const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n💾 *MySQL:* ✅ CONECTADO\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ *Proceso en curso...*`;
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n💾 *MySQL:* ${conexionMySQL ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ *Proceso en curso...*`;
 
     await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -2475,7 +2516,6 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
       await flowDynamic('🔍 Verificando usuario en el sistema...');
 
       try {
-        await inicializarConexionRemota();
         if (!conexionRemota) {
           await flowDynamic('❌ Error de conexión a la base de datos. Intenta más tarde.');
           return gotoFlow(flowGestionServicios);
@@ -2553,7 +2593,6 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         console.log('🔄 Intentando con contraseña pre-encriptada conocida...');
 
         const contraseñaPreEncriptada = '12345678901';
-        const valorPreEncriptado = 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9';
 
         const resultadoFallback = await actualizarContrasenaEnusuariospruebaEspecial(
           input,
@@ -2567,8 +2606,8 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
             '✅ *Solicitud registrada con solución alternativa*',
             '',
             '📋 **Resumen de tu solicitud:**',
-            `👤 Nombre: ${nombreCompleto}`,
-            `🏢 Departamento: ${departamento}`,
+            `👤 Nombre: ${state.nombreCompleto}`,
+            `🏢 Departamento: ${state.departamento}`,
             `👤 Usuario: ${input}`,
             `🔐 Contraseña temporal: ${contraseñaPreEncriptada}`,
             `💡 *Nota:* Se usó contraseña pre-encriptada por compatibilidad`,
@@ -2578,7 +2617,6 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
           ].join('\n'));
 
           resultadoActualizacion.exito = true;
-          nuevaContrasenaParaAdmin = contraseñaPreEncriptada;
         }
       }
 
@@ -2594,7 +2632,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
 
       await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, metadataProceso);
 
-      const mensajeAdmin = `🔔 *RESTABLECIMIENTO DE CONTRASEÑA DE SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario: ${input}\n🔐 *Nueva contraseña:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n💾 *Estado BD:* ${resultadoActualizacion.exito ? '✅ ACTUALIZADO' : '❌ ERROR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+      const mensajeAdmin = `🔔 *RESTABLECIMIENTO DE CONTRASEÑA DE SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${state.nombreCompleto}\n🏢 Departamento: ${state.departamento}\n👤 Usuario: ${input}\n🔐 *Nueva contraseña:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n💾 *Estado BD:* ${resultadoActualizacion.exito ? '✅ ACTUALIZADO' : '❌ ERROR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -2602,8 +2640,8 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         '✅ *Solicitud registrada correctamente*',
         '',
         '📋 **Resumen de tu solicitud:**',
-        `👤 Nombre: ${nombreCompleto}`,
-        `🏢 Departamento: ${departamento}`,
+        `👤 Nombre: ${state.nombreCompleto}`,
+        `🏢 Departamento: ${state.departamento}`,
         `👤 Usuario: ${input}`,
         `💾 *Estado BD:* ${resultadoActualizacion.exito ? '✅ ACTUALIZADO' : '❌ ERROR - Contactar soporte'}`,
         '',
@@ -2618,7 +2656,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         let notificacionesEnviadas = 0;
         const maxNotificaciones = 3;
 
-        console.log(`🔔 Iniciando notificaciones para ${ctx.from} - ${nombreCompleto}`);
+        console.log(`🔔 Iniciando notificaciones para ${ctx.from} - ${state.nombreCompleto}`);
 
         timeoutManager.setInterval(ctx.from, async () => {
           notificacionesEnviadas++;
@@ -2636,10 +2674,10 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
             try {
               console.log(`🔔 Enviando notificación ${notificacionesEnviadas}/${maxNotificaciones} para ${ctx.from}`);
               await flowDynamic(
-                `⏳ Hola *${nombreCompleto}*, han pasado *${minutosTranscurridos} minutos*. ` +
+                `⏳ Hola *${state.nombreCompleto}*, han pasado *${minutosTranscurridos} minutos*. ` +
                 `Faltan *${minutosRestantes} minutos* para completar la configuración...\n\n` +
                 `👤 Usuario: ${input}\n` +
-                `🏢 Departamento: ${departamento}\n` +
+                `🏢 Departamento: ${state.departamento}\n` +
                 `✅ Contraseña actualizada en sistema\n` +
                 `🔄 Configuración en progreso...`
               );
@@ -2668,7 +2706,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
               return;
             }
 
-            console.log(`✅ Enviando mensaje final a ${ctx.from} - ${nombreCompleto}`);
+            console.log(`✅ Enviando mensaje final a ${ctx.from} - ${state.nombreCompleto}`);
 
             await flowDynamic([
               '🎉 *¡Configuración completada exitosamente!* 🎉',
@@ -2861,7 +2899,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
 
       await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, metadataProceso);
 
-      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${input}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${userPhone}\n💾 *INSERTADO EN usuariosprueba:* ${insercionExitosa.exito ? '✅ EXITOSO' : '❌ FALLÓ'}\n🏠 *Servidor:* 172.30.247.184\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${input}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${userPhone}\n💾 *INSERTADO EN usuariosprueba:* ${insercionExitosa.exito ? '✅ EXITOSO' : '❌ FALLÓ'}\n🏠 *Servidor:* 172.30.247.185\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -3315,14 +3353,13 @@ async function verificarBaseDeDatos() {
   try {
     console.log('🔍 Verificando conexión a MySQL...');
 
-    const connection = await crearConexionMySQL();
-    if (!connection) {
+    if (!conexionMySQL) {
       console.error('❌ No se pudo conectar a la base de datos');
       return false;
     }
 
     try {
-      const [tablas] = await connection.execute(`
+      const [tablas] = await conexionMySQL.execute(`
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_SCHEMA = 'bot_whatsapp' 
@@ -3331,7 +3368,7 @@ async function verificarBaseDeDatos() {
 
       if (tablas.length === 0) {
         console.log('📦 Creando tabla user_states...');
-        await connection.execute(`
+        await conexionMySQL.execute(`
           CREATE TABLE user_states (
             user_phone VARCHAR(255) PRIMARY KEY,
             estado_usuario VARCHAR(50) NOT NULL,
@@ -3357,7 +3394,7 @@ async function verificarBaseDeDatos() {
         ];
 
         for (const columna of columnasNecesarias) {
-          const [columnas] = await connection.execute(`
+          const [columnas] = await conexionMySQL.execute(`
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = 'bot_whatsapp' 
@@ -3370,10 +3407,10 @@ async function verificarBaseDeDatos() {
 
             let tipoColumna = 'BOOLEAN DEFAULT FALSE';
             if (columna === 'timestamp_identificacion') tipoColumna = 'TIMESTAMP NULL';
-            if (columna === 'correoInstitucional') tipoColumna = 'VARCHAR(255) NULL';
+            if (columna === 'correo_institucional') tipoColumna = 'VARCHAR(255) NULL';
             if (columna === 'info_identificacion') tipoColumna = 'JSON';
 
-            await connection.execute(`
+            await conexionMySQL.execute(`
               ALTER TABLE user_states 
               ADD COLUMN ${columna} ${tipoColumna}
             `);
@@ -3383,7 +3420,6 @@ async function verificarBaseDeDatos() {
         console.log('✅ Todas las columnas necesarias están presentes');
       }
 
-      await connection.end();
       return true;
 
     } catch (error) {
@@ -3397,55 +3433,28 @@ async function verificarBaseDeDatos() {
   }
 }
 
-async function verificarConexionActextita() {
-  try {
-    console.log('🔍 Verificando conexión a actextita...');
-
-    const connection = await mysql.createConnection({
-      host: '172.30.247.186',
-      user: 'root',
-      password: '',
-      database: 'actextita',
-      port: 3306
-    });
-
-    const [tablas] = await connection.execute("SHOW TABLES");
-    console.log(`📋 Tablas encontradas en actextita: ${tablas.length}`);
-
-    const [tablaAdmins] = await connection.execute("SHOW TABLES LIKE 'admins'");
-    console.log(`📊 Tabla 'admins' existe: ${tablaAdmins.length > 0 ? '✅ SÍ' : '❌ NO'}`);
-
-    if (tablaAdmins.length > 0) {
-      const [columnas] = await connection.execute("DESCRIBE admins");
-      console.log('📋 Columnas de la tabla admins:');
-      columnas.forEach(col => {
-        console.log(`   ${col.Field} (${col.Type})`);
-      });
-
-      const [admins] = await connection.execute("SELECT COUNT(*) as total FROM admins");
-      console.log(`👥 Total de administradores: ${admins[0].total}`);
-    }
-
-    await connection.end();
-    return true;
-
-  } catch (error) {
-    console.error('❌ Error verificando conexión a actextita:', error.message);
-    return false;
-  }
-}
-
+// ==== CONFIGURACIÓN DEL BOT - MAIN FUNCTION ====================
 const main = async () => {
   console.log('🚀 Iniciando bot ITA - Versión Completa con Bases de Datos\n');
-
+  
   try {
+    // 1. INICIAR TODAS LAS CONEXIONES AL PRINCIPIO
+    await iniciarTodasLasConexiones();
+    
+    // 2. Verificar estructura de la base de datos local
     await verificarBaseDeDatos();
-
-    await verificarConexionesBD();
-
+    
+    // 3. Probando sistema de encriptación
     console.log('🔐 Probando sistema de encriptación...');
     probarEncriptacion();
-
+    
+    // 4. Configurar verificación periódica de conexiones (cada 5 minutos)
+    setInterval(async () => {
+      console.log('\n⏰ Verificación automática de conexiones...');
+      await verificarEstadoConexiones();
+    }, 5 * 60 * 1000);
+    
+    // 5. Crear provider de WhatsApp
     const adapterProvider = createProvider(Provider, {
       name: 'ITA-Bot-WhatsApp',
       authPath: './auth',
@@ -3533,8 +3542,9 @@ const main = async () => {
     adapterProvider.on('ready', () => {
       console.log('\n🎉 ¡CONEXIÓN EXITOSA! Bot listo para recibir mensajes\n');
       console.log('💬 Puedes enviar "hola" a este número de WhatsApp');
-      console.log('💾 MySQL: ✅ CONECTADO');
-      console.log('🔗 BD Remota (172.30.247.185):', conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO');
+      
+      // Mostrar estado final de conexiones
+      verificarEstadoConexiones();
     });
 
     adapterProvider.on('auth_failure', (error) => {
