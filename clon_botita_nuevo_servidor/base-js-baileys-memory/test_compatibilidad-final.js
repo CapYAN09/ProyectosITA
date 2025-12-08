@@ -1,30 +1,20 @@
-// test-compatibilidad-final.js
-import { probarEncriptacion } from './src/encriptacion.js';
+// test-simple.js
+import { encriptarContrasena, desencriptarContrasena } from './src/encriptacion.js';
 
-console.log('🧪 PRUEBA FINAL DE COMPATIBILIDAD PHP-NODE.JS 🧪\n');
-console.log('='.repeat(60));
+console.log('🧪 PRUEBA SIMPLE DE ENCRIPTACIÓN\n');
 
-const compatible = probarEncriptacion();
+const password = '123456789';
 
-console.log('\n' + '='.repeat(60));
-console.log('ESTADO FINAL:', compatible ? '✅ COMPATIBLE' : '❌ NO COMPATIBLE');
+console.log('1. 🔐 Encriptando contraseña:', password);
+const encriptado = encriptarContrasena(password);
 
-if (!compatible) {
-    console.log('\n🔄 Prueba alternativa con valores exactos del hash...');
-    
-    // Calcular el hash exacto
-    const crypto = await import('crypto');
-    
-    const keyHash = crypto.createHash('sha256')
-        .update('Tecnologico')
-        .digest('hex');
-    
-    const ivHash = crypto.createHash('sha256')
-        .update('990520')
-        .digest('hex');
-    
-    console.log('\n🔑 Key hash:', keyHash);
-    console.log('🔐 IV hash completo:', ivHash);
-    console.log('🔐 IV primeros 16 chars:', ivHash.substring(0, 16));
-    console.log('🔐 IV como bytes:', Buffer.from(ivHash.substring(0, 16), 'utf8'));
-}
+console.log('\n2. 🎯 Resultado obtenido:', encriptado);
+console.log('   Resultado esperado PHP:', 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09');
+
+console.log('\n3. 🔓 Desencriptando...');
+const desencriptado = desencriptarContrasena(encriptado);
+console.log('   Contraseña desencriptada:', desencriptado);
+
+console.log('\n4. ✅ Verificación:');
+console.log('   ¿Coincide con original?:', desencriptado === password ? '✅ SÍ' : '❌ NO');
+console.log('   ¿Coincide con PHP?:', encriptado === 'ck1TTUM3ZHp0dmlERmY1bnJUbkEwUT09' ? '✅ SÍ' : '❌ NO');
