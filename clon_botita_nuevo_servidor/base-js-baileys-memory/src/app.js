@@ -601,6 +601,7 @@ async function listarTodosusuariosprueba() {
   }
 }
 
+/*
 // 🔐 CONTRASEÑA ENCRIPTADA CORRECTA PARA '12345678901'
 let contrasenaEncriptada;
 
@@ -619,7 +620,7 @@ if (nuevaContrasena === '12345678901') {
         console.error('❌ No se pudo encriptar la contraseña');
         return false;
     }
-}
+}*/
 
 // 9. Verificar estructura usuariosprueba
 async function verificarEstructurausuariosprueba() {
