@@ -18,20 +18,20 @@ async function debugFlujo(ctx, nombreFlujo) {
 
 // ==== CONFIGURACIONES DE BASE DE DATOS ====================
 const DB_CONFIG = {
-    actextita: {
-        host: '172.30.247.186',
-        user: 'root',
-        password: '',
-        database: 'actextita',
-        port: 3306
-    },
-    bot_whatsapp: {
-        host: 'localhost',
-        user: 'root',
-        password: '',
-        database: 'bot_whatsapp',
-        port: 3306
-    }
+  actextita: {
+    host: '172.30.247.186',
+    user: 'root',
+    password: '',
+    database: 'actextita',
+    port: 3306
+  },
+  bot_whatsapp: {
+    host: 'localhost',
+    user: 'root',
+    password: '',
+    database: 'bot_whatsapp',
+    port: 3306
+  }
 };
 
 // ==== CLASE TIMEOUT MANAGER ====================
@@ -351,16 +351,16 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     `;
 
     const [result] = await conexionRemota.execute(query, [
-      id_rol, 
-      id_persona, 
-      usuario, 
+      id_rol,
+      id_persona,
+      usuario,
       contrasenaEncriptada, // Contraseña encriptada
-      ubicacion, 
+      ubicacion,
       estado
     ]);
 
     console.log(`✅ Usuario insertado en usuariosprueba: ${usuario}, ID: ${result.insertId}`);
-    
+
     return true;
   } catch (error) {
     console.error('❌ Error insertando usuario en usuariosprueba:', error.message);
@@ -423,7 +423,7 @@ async function actualizarContrasenaEnusuariosprueba(usuario, nuevaContrasena, te
 
     // 🔐 ENCRIPTAR LA CONTRASEÑA (USANDO LA FUNCIÓN IMPORTADA)
     const contrasenaEncriptada = encriptarContrasena(nuevaContrasena);
-    
+
     if (!contrasenaEncriptada) {
       console.error('❌ Error al encriptar la contraseña');
       return false;
@@ -457,22 +457,22 @@ async function actualizarContrasenaEnusuariosprueba(usuario, nuevaContrasena, te
 
     if (result.affectedRows > 0) {
       console.log(`✅ Contraseña actualizada exitosamente para usuario: ${usuario}`);
-      
+
       // 🔍 Verificar que se guardó correctamente
       const [verificacion] = await conexionRemota.execute(
         'SELECT password FROM usuariosprueba WHERE usuario = ?',
         [usuario]
       );
-      
+
       if (verificacion.length > 0) {
         const contrasenaGuardada = verificacion[0].password;
         console.log(`📝 Contraseña guardada en BD: ${contrasenaGuardada}`);
-        
+
         // Verificar que es diferente a la original
         if (contrasenaGuardada !== nuevaContrasena) {
           console.log('✅ La contraseña se almacenó encriptada');
         }
-        
+
         // Verificar que se puede desencriptar
         const contrasenaDesencriptada = desencriptarContrasena(contrasenaGuardada);
         if (contrasenaDesencriptada === nuevaContrasena) {
@@ -481,7 +481,7 @@ async function actualizarContrasenaEnusuariosprueba(usuario, nuevaContrasena, te
           console.log('⚠️ La desencriptación no coincide');
         }
       }
-      
+
       return true;
     } else {
       console.log(`❌ No se pudo actualizar la contraseña para usuario: ${usuario}`);
@@ -615,25 +615,25 @@ async function limpiarEstadoMySQL(userPhone) {
 // ==== FUNCIÓN PARA VERIFICAR COMPATIBILIDAD PHP-NODE ====
 async function verificarCompatibilidadEncriptacion() {
   console.log('\n🔐 VERIFICANDO COMPATIBILIDAD DE ENCRIPTACIÓN PHP-NODE\n');
-  
+
   // Contraseña de prueba
   const testPassword = 'Test123$%';
-  
+
   // Encriptar en Node.js
   const encryptedNode = getEncryptedPassword(testPassword);
   console.log(`🔐 Node.js - Contraseña encriptada: ${encryptedNode}`);
-  
+
   // Desencriptar en Node.js
   const decryptedNode = getUnencryptedPassword(encryptedNode);
   console.log(`🔓 Node.js - Contraseña desencriptada: ${decryptedNode}`);
   console.log(`✅ Node.js coincide: ${testPassword === decryptedNode}`);
-  
+
   // Nota: Para verificar con PHP, necesitarías:
   console.log('\n📋 Para verificar con PHP:');
   console.log(`1. Ejecuta en PHP: getEncryptedPassword('${testPassword}')`);
   console.log(`2. Compara el resultado con: ${encryptedNode}`);
   console.log('3. Deben ser idénticos si las constantes coinciden');
-  
+
   return encryptedNode;
 }
 
@@ -1679,7 +1679,7 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
     [
       '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
       '',
-      'Es importante que solamente respondas con la fotografía de tu credencial escolar del ITA. No envíes mensajes de texto ni otros tipos de archivos. \n en caso de no contar con tu credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
+      'Es importante que solamente respondas con la fotografía de tu credencial escolar del ITA. No envíes mensajes de texto ni otros tipos de archivos. \nEn caso de no contar con tu credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
       '',
       '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP:**',
       '• Usa la cámara de tu celular, NO la computadora',
@@ -1688,18 +1688,7 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
       '• Toma una foto NUEVA de tu credencial',
       '• Asegúrate de que sea CLARA y legible',
       '',
-      '📋 **Credencial requerida:**',
-      '• Credencial escolar CON FOTO del ITA',
-      '• Debe ser actual y vigente',
-      '• Todos los datos deben ser visibles',
-      '',
-      '⏰ **Tienes 4 minutos** para enviar la fotografía',
-      '',
-      '❌ **NO se aceptan:**',
-      '• Fotos de galería o archivos antiguos',
-      '• Capturas de pantalla',
-      '• Documentos escaneados o PDF',
-      '• Fotos borrosas o oscuras'
+      '⏰ **Tienes 4 minutos** para enviar la fotografía'
     ].join('\n'),
     { capture: true },
     async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
@@ -1709,8 +1698,6 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
       timeoutManager.clearTimeout(ctx.from);
 
       if (!esImagenValida(ctx)) {
-        console.log('❌ Imagen no válida - Información detallada:', infoImagen);
-
         await flowDynamic([
           '❌ *No recibimos una fotografía válida*',
           '',
@@ -1721,11 +1708,6 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
           '4. Toma foto NUEVA de tu credencial',
           '5. Envíala directamente',
           '',
-          '📱 **Si usas WhatsApp en computadora:**',
-          '• La foto debe tomarse con tu celular',
-          '• NO uses la cámara de la computadora',
-          '• NO envíes archivos de galería',
-          '',
           '🔄 **Intenta de nuevo por favor.**'
         ].join('\n'));
 
@@ -1734,45 +1716,13 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
 
       await state.update({
         identificacionSubida: true,
-        infoIdentificacion: infoImagen,
         timestampIdentificacion: Date.now(),
-        imagenIdentificacion: ctx,
-        fotoEnVivo: true,
-        tipoValidacion: esDeCamara ? 'fotografia_en_tiempo_real' : 'fotografia_de_galeria',
-        esWhatsAppWeb: !esDeCamara 
+        fotoEnVivo: true
       });
 
-      // Mensaje según el tipo de imagen
-      if (esDeCamara) {
-        await flowDynamic([
-          '✅ *¡Perfecto! Foto tomada correctamente con la cámara*',
-          '',
-          '📋 **Hemos validado:**',
-          '• Fotografía en tiempo real ✓',
-          '• Credencial con foto visible ✓',
-          '• Datos legibles ✓',
-          '',
-          '🔄 Continuando con el proceso...'
-        ].join('\n'));
-      } else {
-        await flowDynamic([
-          '✅ *¡Identificación recibida!*',
-          '',
-          '📋 Continuamos con el proceso...',
-          '',
-          '⚠️ **Nota:** Para mayor seguridad, recomendamos',
-          'tomar fotos directamente con la cámara la próxima vez.'
-        ].join('\n'));
-      }
+      await flowDynamic('✅ *¡Perfecto! Foto tomada correctamente con la cámara*\n\n📋 Continuando con el proceso...');
 
       const myState = await state.getMyState();
-
-      console.log('📸 Identificación recibida y validada');
-      console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
-      console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
-      console.log(`📱 Tipo: ${esDeCamara ? 'Foto de cámara' : 'Posible archivo/galería'}`);
-      console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
-
       const tipoProceso = myState.tipoProceso || 'CONTRASENA';
 
       if (tipoProceso === 'AUTENTICADOR') {
@@ -1782,6 +1732,131 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
       }
     }
   );
+
+/*
+// ==== FLUJO DE CAPTURA DE IDENTIFICACIÓN ====
+const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICACION'))
+.addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  const userPhone = ctx.from;
+
+  timeoutManager.setTimeout(userPhone, async () => {
+    try {
+      console.log('⏱️ Timeout de 4 minutos en identificación');
+      await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
+      await limpiarEstado(state);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+    } catch (error) {
+      console.error('❌ Error en timeout de captura:', error);
+    }
+  }, 4 * 60 * 1000);
+})
+.addAnswer(
+  [
+    '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
+    '',
+    'Es importante que solamente respondas con la fotografía de tu credencial escolar del ITA. No envíes mensajes de texto ni otros tipos de archivos. \n en caso de no contar con tu credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
+    '',
+    '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP:**',
+    '• Usa la cámara de tu celular, NO la computadora',
+    '• Toca el ícono de 📎 (clip)',
+    '• Selecciona "Cámara" o "Camera"',
+    '• Toma una foto NUEVA de tu credencial',
+    '• Asegúrate de que sea CLARA y legible',
+    '',
+    '📋 **Credencial requerida:**',
+    '• Credencial escolar CON FOTO del ITA',
+    '• Debe ser actual y vigente',
+    '• Todos los datos deben ser visibles',
+    '',
+    '⏰ **Tienes 4 minutos** para enviar la fotografía',
+    '',
+    '❌ **NO se aceptan:**',
+    '• Fotos de galería o archivos antiguos',
+    '• Capturas de pantalla',
+    '• Documentos escaneados o PDF',
+    '• Fotos borrosas o oscuras'
+  ].join('\n'),
+  { capture: true },
+  async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    timeoutManager.clearTimeout(ctx.from);
+
+    if (!esImagenValida(ctx)) {
+      console.log('❌ Imagen no válida - Información detallada:', infoImagen);
+
+      await flowDynamic([
+        '❌ *No recibimos una fotografía válida*',
+        '',
+        '⚠️ **Para WhatsApp Web/Desktop:**',
+        '1. Usa tu CELULAR para tomar la foto',
+        '2. Toca el clip 📎 en WhatsApp',
+        '3. Selecciona "Cámara" (NO "Galería")',
+        '4. Toma foto NUEVA de tu credencial',
+        '5. Envíala directamente',
+        '',
+        '📱 **Si usas WhatsApp en computadora:**',
+        '• La foto debe tomarse con tu celular',
+        '• NO uses la cámara de la computadora',
+        '• NO envíes archivos de galería',
+        '',
+        '🔄 **Intenta de nuevo por favor.**'
+      ].join('\n'));
+
+      return gotoFlow(flowCapturaIdentificacion);
+    }
+
+    await state.update({
+      identificacionSubida: true,
+      infoIdentificacion: infoImagen,
+      timestampIdentificacion: Date.now(),
+      imagenIdentificacion: ctx,
+      fotoEnVivo: true,
+      tipoValidacion: esDeCamara ? 'fotografia_en_tiempo_real' : 'fotografia_de_galeria',
+      esWhatsAppWeb: !esDeCamara 
+    });
+
+    // Mensaje según el tipo de imagen
+    if (esDeCamara) {
+      await flowDynamic([
+        '✅ *¡Perfecto! Foto tomada correctamente con la cámara*',
+        '',
+        '📋 **Hemos validado:**',
+        '• Fotografía en tiempo real ✓',
+        '• Credencial con foto visible ✓',
+        '• Datos legibles ✓',
+        '',
+        '🔄 Continuando con el proceso...'
+      ].join('\n'));
+    } else {
+      await flowDynamic([
+        '✅ *¡Identificación recibida!*',
+        '',
+        '📋 Continuamos con el proceso...',
+        '',
+        '⚠️ **Nota:** Para mayor seguridad, recomendamos',
+        'tomar fotos directamente con la cámara la próxima vez.'
+      ].join('\n'));
+    }
+
+    const myState = await state.getMyState();
+
+    console.log('📸 Identificación recibida y validada');
+    console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
+    console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
+    console.log(`📱 Tipo: ${esDeCamara ? 'Foto de cámara' : 'Posible archivo/galería'}`);
+    console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
+
+    const tipoProceso = myState.tipoProceso || 'CONTRASENA';
+
+    if (tipoProceso === 'AUTENTICADOR') {
+      return gotoFlow(flowAutenticador);
+    } else {
+      return gotoFlow(flowContrasena);
+    }
+  }
+);*/
 
 // ==== FLUJO FINAL DE CONTRASEÑA ====
 const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
@@ -2901,7 +2976,7 @@ const flowBlockAdmin = addKeyword([''])
   .addAction(async (ctx, { state }) => {
     const adminNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
     const ctxNormalizado = normalizarIdWhatsAppBusiness(ctx.from);
-    
+
     if (ctxNormalizado === adminNormalizado) {
       console.log('🚫 Mensaje del administrador bloqueado - No se procesará')
       return
@@ -3143,7 +3218,7 @@ const main = async () => {
 
     console.log('🔐 Probando sistema de encriptación...');
     probarEncriptacion();
-    
+
     await verificarBaseDeDatos();
 
     const adapterProvider = createProvider(Provider, {
@@ -3170,59 +3245,59 @@ const main = async () => {
     });
 
     const adapterFlow = createFlow([
-  // ==================== 🎯 FLUJO PRINCIPAL (PRIMERO) ====================
-  flowPrincipal,             // 🔥 PRIMERO - Captura todos los saludos e inicios (Listo)
+      // ==================== 🎯 FLUJO PRINCIPAL (PRIMERO) ====================
+      flowPrincipal,             // 🔥 PRIMERO - Captura todos los saludos e inicios (Listo)
 
-  // ==================== 📱 MENÚ PRINCIPAL ====================
-  flowMenu,                  // 🔥 SEGUNDO - Menú principal (Listo)
+      // ==================== 📱 MENÚ PRINCIPAL ====================
+      flowMenu,                  // 🔥 SEGUNDO - Menú principal (Listo)
 
-  // ==================== 🔄 COMANDOS ESPECIALES ====================
-  flowComandosEspeciales,    // 📊 Comando "estado" (Listo)
+      // ==================== 🔄 COMANDOS ESPECIALES ====================
+      flowComandosEspeciales,    // 📊 Comando "estado" (Listo)
 
-  // ==================== 🎪 SUBMENÚS DE OPCIONES ====================
-  flowSubMenuContrasena,              // 🔐 Submenú contraseña (Listo)
-  flowSubMenuAutenticador,            // 🔑 Submenú autenticador (Listo)
+      // ==================== 🎪 SUBMENÚS DE OPCIONES ====================
+      flowSubMenuContrasena,              // 🔐 Submenú contraseña (Listo)
+      flowSubMenuAutenticador,            // 🔑 Submenú autenticador (Listo)
 
-  // ==================== 🗃️ CONSULTAS Y BASE DE DATOS ====================
-  flowConsultaUsuario,               // 🔍 Consulta usuarios (Listo)
-  flowBuscarUsuarioEspecifico,       // 🔎 Búsqueda específica (Listo)
-  flowListarTodosUsuarios,           // 📋 Listar todos usuarios
-  flowConexionBaseDatos,             // 🗃️ Base datos Actextita
-  flowCapturaNumeroControlBaseDatos, // 🔢 Captura número control BD
-  flowCapturaUsuarioAdmin,           // 👨‍💼 Captura usuario admin
+      // ==================== 🗃️ CONSULTAS Y BASE DE DATOS ====================
+      flowConsultaUsuario,               // 🔍 Consulta usuarios (Listo)
+      flowBuscarUsuarioEspecifico,       // 🔎 Búsqueda específica (Listo)
+      flowListarTodosUsuarios,           // 📋 Listar todos usuarios
+      flowConexionBaseDatos,             // 🗃️ Base datos Actextita
+      flowCapturaNumeroControlBaseDatos, // 🔢 Captura número control BD
+      flowCapturaUsuarioAdmin,           // 👨‍💼 Captura usuario admin
 
-  // ==================== 📝 FLUJOS DE CAPTURA BÁSICA ====================
-  flowCapturaNumeroControl,           // 🔢 Número control (contraseña)
-  flowCapturaNombre,                  // 📝 Nombre (contraseña)
-  flowCapturaCorreoTrabajador,        // 📧 Correo trabajador
+      // ==================== 📝 FLUJOS DE CAPTURA BÁSICA ====================
+      flowCapturaNumeroControl,           // 🔢 Número control (contraseña)
+      flowCapturaNombre,                  // 📝 Nombre (contraseña)
+      flowCapturaCorreoTrabajador,        // 📧 Correo trabajador
 
-  // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
-  flowCapturaIdentificacion,          // 📸 Identificación
+      // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
+      flowCapturaIdentificacion,          // 📸 Identificación
 
-  // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
-  flowGestionServicios,               // 👨‍💼 Menú gestión servicios
-  flowRestablecimientoSistema,        // 🔐 Restablecimiento sistema
-  flowCapturaDepartamento,            // 🏢 Captura departamento
-  flowCapturaUsuarioSistema,          // 👤 Captura usuario sistema
-  flowNuevoUsuario,                   // 👤 Solicitud nuevo usuario
-  flowCapturaArea,                    // 🏢 Captura área
+      // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
+      flowGestionServicios,               // 👨‍💼 Menú gestión servicios
+      flowRestablecimientoSistema,        // 🔐 Restablecimiento sistema
+      flowCapturaDepartamento,            // 🏢 Captura departamento
+      flowCapturaUsuarioSistema,          // 👤 Captura usuario sistema
+      flowNuevoUsuario,                   // 👤 Solicitud nuevo usuario
+      flowCapturaArea,                    // 🏢 Captura área
 
-  // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
-  flowContrasena,                     // ⏳ Proceso largo contraseña
-  flowAutenticador,                   // ⏳ Proceso largo autenticador
+      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
+      flowContrasena,                     // ⏳ Proceso largo contraseña
+      flowAutenticador,                   // ⏳ Proceso largo autenticador
 
-  // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
-  flowDistancia,             // 🎓 Educación a distancia
-  flowGracias,               // 🙏 Agradecimiento
-  flowInfoCredenciales,      // ❓ Información credenciales
-  flowSIE,                   // 📊 Sistema SIE
+      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
+      flowDistancia,             // 🎓 Educación a distancia
+      flowGracias,               // 🙏 Agradecimiento
+      flowInfoCredenciales,      // ❓ Información credenciales
+      flowSIE,                   // 📊 Sistema SIE
 
-  // ==================== 🔒 FLUJO DE BLOQUEO ====================
-  flowBloqueoActivo,                  // 🔒 Bloqueo durante procesos
+      // ==================== 🔒 FLUJO DE BLOQUEO ====================
+      flowBloqueoActivo,                  // 🔒 Bloqueo durante procesos
 
-  // ==================== ❓ FLUJO POR DEFECTO (SIEMPRE ÚLTIMO) ====================
-  flowDefault                         // 🤖 Manejo mensajes no entendidos
-]);
+      // ==================== ❓ FLUJO POR DEFECTO (SIEMPRE ÚLTIMO) ====================
+      flowDefault                         // 🤖 Manejo mensajes no entendidos
+    ]);
 
     const adapterDB = new Database();
 
