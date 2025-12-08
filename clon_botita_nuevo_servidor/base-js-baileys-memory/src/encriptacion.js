@@ -1,5 +1,5 @@
-// encriptacion.js
-const crypto = require('crypto');
+// src/encriptacion.js - ES Module version
+import crypto from 'crypto';
 
 // 🔐 CONSTANTES DE ENCRIPTACIÓN - DEBEN COINCIDIR CON PHP
 const ENCRYPT_METHOD = 'aes-256-cbc';
@@ -19,7 +19,7 @@ function generarClaveYIV() {
 }
 
 // 🔐 Encriptar contraseña (equivalente a getEncryptedPassword en PHP)
-function encriptarContrasena(contrasena) {
+export function encriptarContrasena(contrasena) {
     try {
         console.log('🔐 Iniciando encriptación...');
         console.log('📝 Contraseña original:', contrasena);
@@ -35,9 +35,6 @@ function encriptarContrasena(contrasena) {
         
         console.log('🔐 Contraseña encriptada:', encriptado);
         
-        // En PHP adicionalmente se hace: base64_encode($output)
-        // Pero como ya está en base64, no necesitamos hacer nada más
-        
         return encriptado;
     } catch (error) {
         console.error('❌ Error encriptando contraseña:', error.message);
@@ -46,10 +43,9 @@ function encriptarContrasena(contrasena) {
 }
 
 // 🔓 Desencriptar contraseña (equivalente a getUnencryptedPassword en PHP)
-function desencriptarContrasena(contrasenaEncriptada) {
+export function desencriptarContrasena(contrasenaEncriptada) {
     try {
         console.log('🔓 Iniciando desencriptación...');
-        console.log('📝 Contraseña encriptada:', contrasenaEncriptada);
         
         const { key, iv } = generarClaveYIV();
         
@@ -57,7 +53,6 @@ function desencriptarContrasena(contrasenaEncriptada) {
         const decipher = crypto.createDecipheriv(ENCRYPT_METHOD, key, iv);
         
         // Desencriptar
-        // Nota: En PHP se hace base64_decode primero
         let desencriptado = decipher.update(contrasenaEncriptada, 'base64', 'utf8');
         desencriptado += decipher.final('utf8');
         
@@ -70,53 +65,24 @@ function desencriptarContrasena(contrasenaEncriptada) {
     }
 }
 
-// 🔍 Verificar compatibilidad con PHP
-async function verificarCompatibilidadPHP() {
-    console.log('\n🔍 VERIFICANDO COMPATIBILIDAD CON PHP\n');
+// 🔍 Función para probar la encriptación
+export function probarEncriptacion() {
+    console.log('\n🔍 PROBANDO SISTEMA DE ENCRIPTACIÓN\n');
     
-    // Contraseña de prueba
     const testPassword = 'Test123$%';
+    console.log('🔐 Contraseña de prueba:', testPassword);
     
-    // 1. Encriptar en Node.js
-    const encriptadoNode = encriptarContrasena(testPassword);
+    const encriptado = encriptarContrasena(testPassword);
     
-    // 2. Desencriptar para verificar
-    if (encriptadoNode) {
-        const desencriptadoNode = desencriptarContrasena(encriptadoNode);
-        const coincide = testPassword === desencriptadoNode;
+    if (encriptado) {
+        const desencriptado = desencriptarContrasena(encriptado);
+        const coincide = testPassword === desencriptado;
         
-        console.log('📊 Resultados Node.js:');
-        console.log(`✅ Encriptación/Desencriptación: ${coincide ? 'CORRECTA' : 'FALLIDA'}`);
+        console.log('📊 Resultado:');
+        console.log(`✅ Encriptación/Desencriptación: ${coincide ? 'CORRECTO' : 'FALLIDO'}`);
         
-        // 3. Si tienes acceso a PHP, puedes comparar manualmente
-        console.log('\n📋 Para verificar con PHP:');
-        console.log('Ejecuta este código en PHP:');
-        console.log(`
-<?php
-define('ENCRYPT_METHOD','AES-256-CBC');
-define('ENCRYPT_SECRET_KEY','Tecnologico');
-define('ENCRYPT_SECRET_IV','990520');
-
-function getEncryptedPassword($password){
-    $output = FALSE;
-    $key = hash('sha256', ENCRYPT_SECRET_KEY);
-    $iv = substr(hash('sha256', ENCRYPT_SECRET_IV), 0, 16);
-    $output = openssl_encrypt($password, ENCRYPT_METHOD, $key, 0, $iv);
-    return base64_encode($output);
-}
-
-echo getEncryptedPassword('${testPassword}');
-?>
-        `);
-        console.log('\n🔐 Resultado esperado en Node.js:', encriptadoNode);
+        return encriptado;
     }
     
-    return encriptadoNode;
+    return null;
 }
-
-// Exportar funciones
-module.exports = {
-    encriptarContrasena,
-    desencriptarContrasena,
-    verificarCompatibilidadPHP
-};

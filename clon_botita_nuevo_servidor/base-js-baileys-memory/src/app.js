@@ -4,6 +4,9 @@ import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
 import QRCode from 'qrcode-terminal'
 import mysql from 'mysql2/promise'
 
+// 🔐 IMPORTAR FUNCIONES DE ENCRIPTACIÓN DESDE src/
+import { encriptarContrasena, desencriptarContrasena, probarEncriptacion } from './encriptacion.js'
+
 // Contacto específico donde se enviará la información
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
 const PORT = process.env.PORT ?? 3008
@@ -333,7 +336,7 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     console.log(`🔐 Contraseña original: ${contrasena}`);
 
     // 🔐 ENCRIPTAR LA CONTRASEÑA
-    const contrasenaEncriptada = getEncryptedPassword(contrasena);
+    const contrasenaEncriptada = encriptarContrasena(contrasena);
     if (!contrasenaEncriptada) {
       console.error('❌ Error al encriptar la contraseña para inserción');
       return false;
@@ -357,17 +360,6 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     ]);
 
     console.log(`✅ Usuario insertado en usuariosprueba: ${usuario}, ID: ${result.insertId}`);
-    
-    // 🔍 Verificar inserción (opcional)
-    const [verificacion] = await conexionRemota.execute(
-      'SELECT usuario, password FROM usuariosprueba WHERE id_usuario = ?',
-      [result.insertId]
-    );
-    
-    if (verificacion.length > 0) {
-      console.log(`📝 Usuario verificado: ${verificacion[0].usuario}`);
-      console.log(`📝 Password almacenado: ${verificacion[0].password}`);
-    }
     
     return true;
   } catch (error) {
@@ -421,9 +413,6 @@ async function listarTodosusuariosprueba() {
 }
 
 // ==== 8. Actualizar contraseña en usuariosprueba (VERSIÓN ENCRIPTADA) ====
-const { getEncryptedPassword } = require('./encriptacion'); // Ajusta la ruta según dónde guardes el archivo
-
-// ==== 8. Actualizar contraseña en usuariosprueba (VERSIÓN ENCRIPTADA) ====
 async function actualizarContrasenaEnusuariosprueba(usuario, nuevaContrasena, telefono) {
   try {
     await inicializarConexionRemota();
@@ -432,10 +421,7 @@ async function actualizarContrasenaEnusuariosprueba(usuario, nuevaContrasena, te
     console.log(`🔍 Buscando usuario: ${usuario} para actualizar contraseña`);
     console.log(`🔐 Contraseña original: ${nuevaContrasena}`);
 
-    // 🔐 IMPORTAR MÓDULO DE ENCRIPTACIÓN
-    const { encriptarContrasena } = require('./encriptacion'); // Ajusta la ruta
-    
-    // Encriptar la contraseña
+    // 🔐 ENCRIPTAR LA CONTRASEÑA (USANDO LA FUNCIÓN IMPORTADA)
     const contrasenaEncriptada = encriptarContrasena(nuevaContrasena);
     
     if (!contrasenaEncriptada) {
@@ -487,17 +473,12 @@ async function actualizarContrasenaEnusuariosprueba(usuario, nuevaContrasena, te
           console.log('✅ La contraseña se almacenó encriptada');
         }
         
-        // Opcional: Verificar que se puede desencriptar
-        try {
-          const { desencriptarContrasena } = require('./encriptacion');
-          const contrasenaDesencriptada = desencriptarContrasena(contrasenaGuardada);
-          if (contrasenaDesencriptada === nuevaContrasena) {
-            console.log('✅ Encriptación/desencriptación funciona correctamente');
-          } else {
-            console.log('⚠️ La desencriptación no coincide');
-          }
-        } catch (e) {
-          console.log('⚠️ No se pudo verificar desencriptación:', e.message);
+        // Verificar que se puede desencriptar
+        const contrasenaDesencriptada = desencriptarContrasena(contrasenaGuardada);
+        if (contrasenaDesencriptada === nuevaContrasena) {
+          console.log('✅ Encriptación/desencriptación funciona correctamente');
+        } else {
+          console.log('⚠️ La desencriptación no coincide');
         }
       }
       
@@ -3160,9 +3141,8 @@ const main = async () => {
   try {
     await verificarBaseDeDatos();
 
-    console.log('🔐 Probando compatibilidad de encriptación...');
-    const { verificarCompatibilidadPHP } = require('./encriptacion');
-    await verificarCompatibilidadPHP();
+    console.log('🔐 Probando sistema de encriptación...');
+    probarEncriptacion();
     
     await verificarBaseDeDatos();
 
