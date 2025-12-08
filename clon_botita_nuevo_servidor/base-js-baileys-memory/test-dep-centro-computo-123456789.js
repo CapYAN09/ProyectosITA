@@ -1,5 +1,6 @@
 // test-dep-centro-computo-123456789.js
 import { encriptarContrasena, desencriptarContrasena } from './src/encriptacion.js';
+import fs from 'fs';
 
 console.log('🧪 PRUEBA ESPECÍFICA: Dep_centro_de_computo con contraseña 123456789\n');
 
@@ -42,7 +43,7 @@ echo "🔐 CONTRASEÑA: 123456789\\n\\n";
 // 1. Encriptar en PHP
 \\$encriptada_php = getEncryptedPassword('123456789');
 echo "🔐 RESULTADO PHP:\\n";
-echo "\\$encriptada_php\\n";
+echo \\$encriptada_php . "\\n";
 echo "📏 Longitud: " . strlen(\\$encriptada_php) . " caracteres\\n\\n";
 
 // 2. Resultado esperado de Node.js
@@ -88,7 +89,6 @@ if (\\$encriptada_php === '${encriptadaNode}') {
 ?>`;
     
     // Guardar archivo PHP
-    import fs from 'fs';
     fs.writeFileSync('test_dep_centro_computo.php', phpTestCode);
     console.log('✅ Archivo PHP creado: test_dep_centro_computo.php');
     console.log('\n📤 INSTRUCCIONES:');
