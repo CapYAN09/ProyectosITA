@@ -2350,7 +2350,9 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         return gotoFlow(flowGestionServicios);
       }
 
-      const nuevaContrasena = generarContrasenaSegura();
+      // 🔐 CONTRASEÑA FIJA PARA PRUEBAS: 123456789
+      const nuevaContrasena = '123456789';
+      console.log(`🔐 Asignando contraseña fija para pruebas: ${nuevaContrasena}`);
 
       await state.update({
         usuarioSistema: input,
@@ -2370,14 +2372,43 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
 
       await flowDynamic('🔄 Actualizando contraseña en el sistema...');
 
-      // 🔐 IMPORTANTE: Aquí es donde se llama a la función que debe encriptar
-      const actualizacionExitosa = await actualizarContrasenaEnusuariosprueba(
+      // 🔐 DETECTAR SI ES Dep_centro_de_computo
+      let contrasenaParaGuardar = nuevaContrasena;
+      let esDepCentroComputo = false;
+      
+      if (usuarioSistema.toLowerCase() === 'dep_centro_de_computo') {
+        console.log('🎯 USUARIO ESPECIAL DETECTADO: Dep_centro_de_computo - Aplicando encriptación');
+        esDepCentroComputo = true;
+        
+        // Encriptar la contraseña
+        const contrasenaEncriptada = encriptarContrasena(nuevaContrasena);
+        
+        if (contrasenaEncriptada) {
+          contrasenaParaGuardar = contrasenaEncriptada;
+          console.log(`🔐 Contraseña encriptada para Dep_centro_de_computo: ${contrasenaEncriptada}`);
+          
+          // Verificar que se puede desencriptar
+          const contrasenaDesencriptada = desencriptarContrasena(contrasenaEncriptada);
+          if (contrasenaDesencriptada === nuevaContrasena) {
+            console.log('✅ Encriptación/desencriptación funciona correctamente');
+          } else {
+            console.log('⚠️ La desencriptación no coincide');
+          }
+        } else {
+          console.error('❌ Error al encriptar la contraseña para Dep_centro_de_computo');
+          console.log('⚠️ Guardando sin encriptar como fallback');
+        }
+      }
+
+      // Actualizar en la base de datos
+      const actualizacionExitosa = await actualizarContrasenaEnusuariospruebaEspecial(
         usuarioSistema,
-        nuevaContrasena, // Esta contraseña se encriptará dentro de la función
+        contrasenaParaGuardar,
+        esDepCentroComputo,
         ctx.from
       );
 
-      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n🔐 *Nueva contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n💾 *BD Remota:* ${actualizacionExitosa ? '✅ ACTUALIZADO' : '❌ ERROR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n🔐 *Nueva contraseña generada:* ${nuevaContrasena}\n${esDepCentroComputo ? '🔐 *Contraseña encriptada:* ' + contrasenaParaGuardar.substring(0, 20) + '...' : ''}\n📞 Teléfono: ${ctx.from}\n💾 *BD Remota:* ${actualizacionExitosa ? '✅ ACTUALIZADO' : '❌ ERROR'}\n${esDepCentroComputo ? '🔐 *Tipo:* ENCRIPTADO (PHP compatible)' : '🔐 *Tipo:* SIN ENCRIPTAR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
 
       const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
 
@@ -2390,7 +2421,8 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
           `🏢 Departamento: ${departamento}`,
           `👤 Usuario: ${usuarioSistema}`,
           `🔐 Contraseña temporal: ${nuevaContrasena}`,
-          `💾 *Estado BD:* ${actualizacionExitosa ? '✅ Actualizado (Encriptado)' : '⚠️ Pendiente'}`,
+          esDepCentroComputo ? `🔐 *Tipo almacenamiento:* Encriptado (compatible PHP)` : `🔐 *Tipo almacenamiento:* Sin encriptar`,
+          `💾 *Estado BD:* ${actualizacionExitosa ? '✅ Actualizado' : '⚠️ Pendiente'}`,
           '',
           '⏳ *Por favor espera aproximadamente 30 minutos*',
           'Nuestro equipo está procesando tu solicitud de restablecimiento de contraseña del sistema.',
@@ -2425,10 +2457,10 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
             '📋 **Tus nuevas credenciales de acceso:**',
             `👤 *Usuario:* \`${usuarioSistema}\``,
             `🔐 *Contraseña:* \`${nuevaContrasena}\``,
-            `💾 *Base de datos:* ${actualizacionExitosa ? '✅ Actualizado (Encriptado)' : '⚠️ Contactar soporte'}`,
+            esDepCentroComputo ? '🔐 *Estado:* Encriptado en base de datos (PHP compatible)' : '🔐 *Estado:* Sin encriptar en base de datos',
+            `💾 *Base de datos:* ${actualizacionExitosa ? '✅ Actualizado' : '⚠️ Contactar soporte'}`,
             '',
             '🔒 **Información importante:**',
-            '• La contraseña ha sido almacenada encriptada en la base de datos',
             '• Recibirás un correo con la confirmación',
             '• Cambia tu contraseña después del primer inicio de sesión',
             '• La contraseña es temporal por seguridad',
@@ -2446,7 +2478,8 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         estadoMetadata: {
           ...(await state.getMyState())?.estadoMetadata,
           timeoutId: timeoutId,
-          intervalId: intervalId
+          intervalId: intervalId,
+          esDepCentroComputo: esDepCentroComputo
         }
       });
 
@@ -2504,6 +2537,70 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
       return gotoFlow(flowCapturaArea);
     }
   );
+
+  // ==== FUNCIÓN ESPECIAL PARA ACTUALIZAR CONTRASEÑA (CON ENCRIPTACIÓN PARA Dep_centro_de_computo) ====
+async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasena, esEncriptada = false, telefono) {
+  try {
+    await inicializarConexionRemota();
+    if (!conexionRemota) return false;
+
+    console.log(`🔍 Actualizando contraseña para usuario: ${usuario}`);
+    console.log(`🔐 Contraseña a guardar: ${contrasena.substring(0, 20)}...`);
+    console.log(`🔐 ¿Está encriptada?: ${esEncriptada ? 'SÍ' : 'NO'}`);
+
+    // Verificar usuario existe
+    const queryVerificar = `SELECT id_usuario, usuario FROM usuariosprueba WHERE usuario = ?`;
+    const [usuarios] = await conexionRemota.execute(queryVerificar, [usuario]);
+
+    if (usuarios.length === 0) {
+      console.log(`❌ Usuario no encontrado en usuariosprueba: ${usuario}`);
+      return false;
+    }
+
+    // Actualizar contraseña
+    const queryActualizar = `
+      UPDATE usuariosprueba 
+      SET password = ?, fecha_insert = NOW()
+      WHERE usuario = ?
+    `;
+
+    const [result] = await conexionRemota.execute(queryActualizar, [
+      contrasena,
+      usuario
+    ]);
+
+    if (result.affectedRows > 0) {
+      console.log(`✅ Contraseña actualizada exitosamente para usuario: ${usuario}`);
+      
+      // Verificar lo guardado
+      const [verificacion] = await conexionRemota.execute(
+        'SELECT password FROM usuariosprueba WHERE usuario = ?',
+        [usuario]
+      );
+      
+      if (verificacion.length > 0) {
+        const contrasenaGuardada = verificacion[0].password;
+        console.log(`📝 Contraseña guardada en BD (primeros 30 chars): ${contrasenaGuardada.substring(0, 30)}...`);
+        
+        if (esEncriptada) {
+          // Intentar desencriptar para verificar
+          const contrasenaDesencriptada = desencriptarContrasena(contrasenaGuardada);
+          if (contrasenaDesencriptada) {
+            console.log(`🔓 Contraseña desencriptada desde BD: ${contrasenaDesencriptada}`);
+          }
+        }
+      }
+      
+      return true;
+    } else {
+      console.log(`❌ No se pudo actualizar la contraseña para usuario: ${usuario}`);
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error actualizando contraseña en usuariosprueba:', error.message);
+    return false;
+  }
+}
 
 // ==== FLUJO DE CAPTURA DE ÁREA ====
 const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
