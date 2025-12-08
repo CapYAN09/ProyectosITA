@@ -321,7 +321,7 @@ async function verificarUsuarioEnSistema(usuario) {
   }
 }
 
-// ==== 5. Insertar usuario directo en usuariosprueba (VERSIÓN ENCRIPTADA) ====
+// ==== 5. Insertar usuario directo en usuariosprueba (VERSIÓN MEJORADA) ====
 async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasena, telefono) {
   try {
     await inicializarConexionRemota();
@@ -335,8 +335,8 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
     console.log(`📝 Insertando en usuariosprueba: ${usuario} - ${nombreCompleto}`);
     console.log(`🔐 Contraseña original: ${contrasena}`);
 
-    // 🔐 ENCRIPTAR LA CONTRASEÑA
-    const contrasenaEncriptada = encriptarContrasena(contrasena);
+    // 🔐 ENCRIPTAR LA CONTRASEÑA CON LA FUNCIÓN MEJORADA
+    const contrasenaEncriptada = encriptarContrasenaParaBD(contrasena);
     if (!contrasenaEncriptada) {
       console.error('❌ Error al encriptar la contraseña para inserción');
       return false;
@@ -2477,15 +2477,26 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
     }
   );
 
-  // ==== FUNCIÓN ESPECIAL PARA ACTUALIZAR CONTRASEÑA (CON ENCRIPTACIÓN PARA Dep_centro_de_computo) ====
+  // ==== FUNCIÓN ESPECIAL PARA ACTUALIZAR CONTRASEÑA (CON ENCRIPTACIÓN AUTOMÁTICA) ====
 async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasena, esEncriptada = false, telefono) {
   try {
     await inicializarConexionRemota();
     if (!conexionRemota) return false;
 
     console.log(`🔍 Actualizando contraseña para usuario: ${usuario}`);
-    console.log(`🔐 Contraseña a guardar: ${contrasena.substring(0, 20)}...`);
-    console.log(`🔐 ¿Está encriptada?: ${esEncriptada ? 'SÍ' : 'NO'}`);
+    console.log(`🔐 Contraseña original: ${contrasena}`);
+
+    // 🔐 SI ES NECESARIO ENCRIPTAR, USAR LA FUNCIÓN MEJORADA
+    let contrasenaParaGuardar = contrasena;
+    
+    if (esEncriptada) {
+      contrasenaParaGuardar = encriptarContrasenaParaBD(contrasena);
+      if (!contrasenaParaGuardar) {
+        console.error('❌ Error al encriptar la contraseña');
+        return false;
+      }
+      console.log(`🔐 Contraseña encriptada: ${contrasenaParaGuardar}`);
+    }
 
     // Verificar usuario existe
     const queryVerificar = `SELECT id_usuario, usuario FROM usuariosprueba WHERE usuario = ?`;
@@ -2504,7 +2515,7 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasena,
     `;
 
     const [result] = await conexionRemota.execute(queryActualizar, [
-      contrasena,
+      contrasenaParaGuardar,
       usuario
     ]);
 
@@ -2518,15 +2529,12 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasena,
       );
       
       if (verificacion.length > 0) {
-        const contrasenaGuardada = verificacion[0].password;
-        console.log(`📝 Contraseña guardada en BD (primeros 30 chars): ${contrasenaGuardada.substring(0, 30)}...`);
+        console.log(`📝 Contraseña guardada en BD: ${verificacion[0].password}`);
         
+        // Si está encriptada, verificar que se puede desencriptar
         if (esEncriptada) {
-          // Intentar desencriptar para verificar
-          const contrasenaDesencriptada = desencriptarContrasena(contrasenaGuardada);
-          if (contrasenaDesencriptada) {
-            console.log(`🔓 Contraseña desencriptada desde BD: ${contrasenaDesencriptada}`);
-          }
+          const desencriptado = desencriptarContrasena(verificacion[0].password);
+          console.log(`🔓 Verificación: "${desencriptado}" → ¿Coincide?: ${desencriptado === contrasena ? '✅ SÍ' : '❌ NO'}`);
         }
       }
       
