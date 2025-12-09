@@ -3536,10 +3536,10 @@ const main = async () => {
 
     // 0. Limpiar sesiones corruptas al inicio
     await limpiarSesionCorrupta();
-    
+
     // 1. INICIAR TODAS LAS CONEXIONES AL PRINCIPIO
     await iniciarTodasLasConexiones();
-
+//a
     // 2. Verificar estructura de la base de datos local
     await verificarBaseDeDatos();
 
