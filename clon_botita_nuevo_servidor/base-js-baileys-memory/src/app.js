@@ -1,93 +1,16 @@
-import { createBot, createProvider, createFlow, addKeyword, utils, EVENTS } from '@builderbot/bot'
-import { MemoryDB as Database } from '@builderbot/bot'
-import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
-import QRCode from 'qrcode-terminal'
-import mysql from 'mysql2/promise'
-
-// 🔐 IMPORTAR FUNCIONES DE ENCRIPTACIÓN DESDE src/
-import { encriptarContrasena, desencriptarContrasena, probarEncriptacion, encriptarContrasenaParaBD } from './encriptacion.js'
-
-// Contacto específico donde se enviará la información
-const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
-const PORT = process.env.PORT ?? 3008
-
-// Función para limpiar sesiones corruptas
-async function limpiarSesionCorrupta() {
-  try {
-    console.log('🧹 Verificando sesiones anteriores...');
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const authPath = './auth';
-    if (fs.existsSync(authPath)) {
-      // Verificar si hay archivos de sesión corruptos
-      const files = fs.readdirSync(authPath);
-      const tieneCredencialesValidas = files.some(file => 
-        file.includes('creds') || file.includes('session')
-      );
-      
-      if (tieneCredencialesValidas) {
-        console.log('⚠️ Encontrada sesión anterior. Verificando...');
-        
-        // Verificar tamaño de archivos (sesiones corruptas suelen ser muy pequeñas)
-        let esCorrupta = false;
-        for (const file of files) {
-          const filePath = path.join(authPath, file);
-          const stats = fs.statSync(filePath);
-          if (stats.size < 100) { // Archivo muy pequeño probablemente corrupto
-            console.log(`⚠️ Archivo sospechoso: ${file} (${stats.size} bytes)`);
-            esCorrupta = true;
-          }
-        }
-        
-        if (esCorrupta) {
-          console.log('🧹 Eliminando sesión corrupta...');
-          fs.rmSync(authPath, { recursive: true, force: true });
-          console.log('✅ Sesión limpiada.');
-          return true;
-        }
-      }
-    }
-    
-    console.log('✅ Sin sesiones corruptas detectadas.');
-    return false;
-  } catch (error) {
-    console.error('❌ Error verificando sesión:', error.message);
-    return false;
-  }
-}
+const { createBot, createProvider, createFlow, addKeyword, EVENTS } = require('@bot-whatsapp/bot')
+const QRPortalWeb = require('@bot-whatsapp/portal')
+const BaileysProvider = require('@bot-whatsapp/provider/baileys')
+const MySQLAdapter = require('@bot-whatsapp/database/mysql')
 
 // ==== Función para debuggear flujos ====
 async function debugFlujo(ctx, nombreFlujo) {
   console.log(`🔍 [DEBUG] ${nombreFlujo} - Usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
 }
 
-// ==== CONFIGURACIONES DE BASE DE DATOS ====================
-const DB_CONFIG = {
-  actextita: {           // Para tabla admins
-    host: '172.30.247.186',
-    user: 'root',
-    password: '',
-    database: 'actextita',
-    port: 3306
-  },
-  bot_whatsapp: {        // Local para user_states
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'bot_whatsapp',
-    port: 3306
-  },
-  usuariosprueba: {      // Para tabla usuariosprueba
-    host: '172.30.247.185',
-    user: 'ccomputo',
-    password: 'Jarjar0904$',
-    database: 'b1o04dzhm1guhvmjcrwb',
-    port: 3306
-  }
-};
+// Contacto específico donde se enviará la información
+const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
 
-// ==== CLASE TIMEOUT MANAGER ====================
 class TimeoutManager {
   constructor() {
     this.timeouts = new Map();
@@ -128,282 +51,248 @@ class TimeoutManager {
   }
 }
 
-const timeoutManager = new TimeoutManager();
+//nuevo
 
-// ==== SISTEMA DE ESTADOS DEL USUARIO ====================
-const ESTADOS_USUARIO = {
-  LIBRE: 'libre',
-  EN_PROCESO_LARGO: 'en_proceso_largo',
-  ESPERANDO_DATOS: 'esperando_datos',
-  EN_MENU: 'en_menu'
-};
+// ==== FLUJO PARA OPCIÓN 8 - CONEXIÓN A BASE DE DATOS ACTEXTITA ====
+const flowConexionBaseDatos = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    '🔐 *ACCESO AL SISTEMA - BASE DE DATOS ACTEXTITA* 🔐\n\n' +
+    'Por favor selecciona tu tipo de usuario:\n\n' +
+    '1️⃣ 👨‍🎓 Soy alumno\n' +
+    '2️⃣ 👨‍💼 Soy administrador\n\n' +
+    '🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
 
-// ==== CONEXIONES A BASES DE DATOS ====================
-let conexionMySQL = null;
-let conexionRemota = null;
-let conexionActextita = null;
+      const opcion = ctx.body.trim().toLowerCase();
 
-// ==== FUNCIÓN PARA INICIAR TODAS LAS CONEXIONES AL INICIO ====
-async function iniciarTodasLasConexiones() {
-  console.log('🚀 INICIANDO TODAS LAS CONEXIONES A BASES DE DATOS...\n');
-
-  // 1. Conexión MySQL Local
-  console.log('1. 🔗 Conectando a MySQL Local (bot_whatsapp)...');
-  try {
-    conexionMySQL = await mysql.createConnection({
-      host: 'localhost',
-      user: 'root',
-      password: '',
-      database: 'bot_whatsapp',
-      port: 3306,
-      connectTimeout: 60000,
-      acquireTimeout: 60000,
-      timeout: 60000,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
-    });
-
-    await conexionMySQL.execute('SELECT 1');
-    console.log('✅ MySQL Local: CONECTADO\n');
-
-    // Configurar manejo de errores para reconexión automática
-    conexionMySQL.on('error', (err) => {
-      console.error('❌ Error en conexión MySQL:', err.message);
-      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
-        console.log('🔄 Reconectando a MySQL...');
-        setTimeout(() => {
-          iniciarTodasLasConexiones();
-        }, 5000);
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
+
+      if (opcion === '1') {
+        await flowDynamic('🎓 Identificado como alumno. Vamos a verificar tu número de control...');
+        return gotoFlow(flowCapturaNumeroControlBaseDatos);
+      }
+
+      if (opcion === '2') {
+        await flowDynamic('👨‍💼 Identificado como administrador. Vamos a verificar tus credenciales...');
+        return gotoFlow(flowCapturaUsuarioAdmin);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+      return gotoFlow(flowConexionBaseDatos);
+    }
+  );
+
+// ==== FLUJO PARA CAPTURAR NÚMERO DE CONTROL (ALUMNO) ====
+const flowCapturaNumeroControlBaseDatos = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en número de control - base datos');
+        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
     });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *número de control*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
 
-  } catch (error) {
-    console.error('❌ Error conectando a MySQL Local:', error.message, '\n');
-  }
+      timeoutManager.clearTimeout(ctx.from);
 
-  // 2. Conexión a usuariosprueba (172.30.247.185)
-  console.log('2. 🔗 Conectando a usuariosprueba (172.30.247.185)...');
-  try {
-    conexionRemota = await mysql.createConnection({
-      host: '172.30.247.185',
-      user: 'ccomputo',
-      password: 'Jarjar0904$',
-      database: 'b1o04dzhm1guhvmjcrwb',
-      port: 3306,
-      connectTimeout: 30000,
-      acquireTimeout: 30000,
-      timeout: 30000,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
-    });
+      const input = ctx.body.trim();
 
-    await conexionRemota.execute('SELECT 1');
-    console.log('✅ usuariosprueba: CONECTADO\n');
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
 
-    // Verificar tabla usuariosprueba
-    try {
-      const [tablas] = await conexionRemota.execute("SHOW TABLES LIKE 'usuariosprueba'");
-      if (tablas.length > 0) {
-        console.log('📊 Tabla usuariosprueba: ENCONTRADA');
-        const [conteo] = await conexionRemota.execute("SELECT COUNT(*) as total FROM usuariosprueba");
-        console.log(`👥 Total usuarios: ${conteo[0].total}`);
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu número de control. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNumeroControlBaseDatos);
+      }
+
+      // Validar formato básico de número de control
+      if (!/^[A-Za-z0-9]{8,9}$/.test(input)) {
+        await flowDynamic('❌ Formato de número de control inválido. Debe tener 8 o 9 caracteres alfanuméricos.');
+        return gotoFlow(flowCapturaNumeroControlBaseDatos);
+      }
+
+      await state.update({ numeroControl: input });
+      await flowDynamic(`✅ Recibimos tu número de control: *${input}*\n\n🔍 Consultando en la base de datos...`);
+
+      // Consultar en la base de datos
+      const resultado = await consultarAlumnoEnBaseDatos(input);
+
+      if (resultado.encontrado) {
+        await flowDynamic([
+          '✅ *¡Alumno encontrado en el sistema!* ✅',
+          '',
+          `📋 **Información del alumno:**`,
+          `🔢 Número de control: ${resultado.numero_control}`,
+          `👤 Nombre: ${resultado.nombre || 'No especificado'}`,
+          `📚 Carrera: ${resultado.carrera || 'No especificado'}`,
+          `📅 Semestre: ${resultado.semestre || 'No especificado'}`,
+          `📍 Grupo: ${resultado.grupo || 'No especificado'}`,
+          `🔄 Estado: ${resultado.estado || 'No especificado'}`,
+          '',
+          '💾 *Base de datos: actextita*',
+          '🔗 *Servidor: 172.30.247.186*'
+        ].join('\n'));
       } else {
-        console.log('⚠️ Tabla usuariosprueba: NO ENCONTRADA');
+        await flowDynamic([
+          '❌ *Alumno no encontrado*',
+          '',
+          `El número de control *${input}* no fue encontrado en las tablas:`,
+          '• anuevo_ingreso',
+          '• a_resagados',
+          '',
+          '💡 **Verifica:**',
+          '• Que el número de control sea correcto',
+          '• Que estés registrado en el sistema',
+          '',
+          '🔙 Escribe *menú* para volver al menú principal.'
+        ].join('\n'));
       }
-    } catch (error) {
-      console.error('❌ Error verificando tabla usuariosprueba:', error.message);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowEsperaMenu);
     }
+  );
 
-    // Configurar manejo de errores para reconexión automática
-    conexionRemota.on('error', (err) => {
-      console.error('❌ Error en conexión usuariosprueba:', err.message);
-      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
-        console.log('🔄 Reconectando a usuariosprueba...');
-        setTimeout(() => {
-          reconectarBaseRemota();
-        }, 5000);
+// ==== FLUJO PARA CAPTURAR USUARIO DE ADMINISTRADOR ====
+const flowCapturaUsuarioAdmin = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en usuario admin');
+        await flowDynamic('⏱️ No recibimos tu usuario. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
       }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
     });
+  })
+  .addAnswer(
+    '👤 Por favor escribe tu *nombre de usuario de administrador*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
 
-  } catch (error) {
-    console.error('❌ Error conectando a usuariosprueba:', error.message, '\n');
-  }
+      timeoutManager.clearTimeout(ctx.from);
 
-  // 3. Conexión a actextita (172.30.247.186)
-  console.log('3. 🔗 Conectando a actextita (172.30.247.186)...');
-  try {
-    conexionActextita = await mysql.createConnection({
-      host: '172.30.247.186',
-      user: 'root',
-      password: '',
-      database: 'actextita',
-      port: 3306,
-      connectTimeout: 30000,
-      acquireTimeout: 30000,
-      timeout: 30000,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000
-    });
+      const input = ctx.body.trim();
 
-    await conexionActextita.execute('SELECT 1');
-    console.log('✅ actextita: CONECTADO\n');
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
 
-    // Verificar tabla admins
-    try {
-      const [tablas] = await conexionActextita.execute("SHOW TABLES LIKE 'admins'");
-      if (tablas.length > 0) {
-        console.log('📊 Tabla admins: ENCONTRADA');
-        const [conteo] = await conexionActextita.execute("SELECT COUNT(*) as total FROM admins");
-        console.log(`👥 Total administradores: ${conteo[0].total}`);
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu usuario. Por favor escríbelo.');
+        return gotoFlow(flowCapturaUsuarioAdmin);
+      }
+
+      await state.update({ usuarioAdmin: input });
+      await flowDynamic(`✅ Recibimos tu usuario: *${input}*\n\n🔍 Verificando en la base de datos...`);
+
+      // Verificar administrador en la base de datos
+      const adminEncontrado = await verificarAdministradorEnBaseDatos(input);
+
+      if (adminEncontrado) {
+        await flowDynamic([
+          '✅ *¡Administrador verificado!* ✅',
+          '',
+          `👤 Usuario: ${input}`,
+          '🔄 Generando nueva contraseña segura...'
+        ].join('\n'));
+
+        // Generar nueva contraseña
+        const nuevaContrasena = generarContrasenaSegura();
+
+        // Actualizar contraseña en la base de datos
+        const actualizacionExitosa = await actualizarContrasenaAdmin(input, nuevaContrasena);
+
+        if (actualizacionExitosa) {
+          await flowDynamic([
+            '🔐 *Contraseña actualizada exitosamente* 🔐',
+            '',
+            `📋 **Tus nuevas credenciales:**`,
+            `👤 Usuario: ${input}`,
+            `🔐 Nueva contraseña: *${nuevaContrasena}*`,
+            '',
+            '⚠️ **Importante:**',
+            '• Guarda esta contraseña en un lugar seguro',
+            '• Cámbiala después del primer acceso',
+            '• No compartas tus credenciales',
+            '',
+            '💾 *Base de datos: actextita*',
+            '🔗 *Servidor: 172.30.247.186*',
+            '📊 *Tabla: admins*'
+          ].join('\n'));
+        } else {
+          await flowDynamic('❌ Error al actualizar la contraseña. Contacta al administrador del sistema.');
+        }
       } else {
-        console.log('⚠️ Tabla admins: NO ENCONTRADA');
+        await flowDynamic([
+          '❌ *Administrador no encontrado*',
+          '',
+          `El usuario *${input}* no existe en la tabla de administradores.`,
+          '',
+          '💡 **Verifica:**',
+          '• Que el usuario sea correcto',
+          '• Que tengas permisos de administrador',
+          '',
+          '🔙 Escribe *menú* para volver al menú principal.'
+        ].join('\n'));
       }
-    } catch (error) {
-      console.error('❌ Error verificando tabla admins:', error.message);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowEsperaMenu);
     }
+  );
 
-    // Configurar manejo de errores para reconexión automática
-    conexionActextita.on('error', (err) => {
-      console.error('❌ Error en conexión actextita:', err.message);
-      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
-        console.log('🔄 Reconectando a actextita...');
-        setTimeout(() => {
-          reconectarActextita();
-        }, 5000);
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Error conectando a actextita:', error.message, '\n');
-  }
-
-  console.log('══════════════════════════════════════════════════');
-  console.log('📊 RESUMEN DE CONEXIONES:');
-  console.log(`✅ MySQL Local: ${conexionMySQL ? 'CONECTADO' : 'DESCONECTADO'}`);
-  console.log(`✅ usuariosprueba (185): ${conexionRemota ? 'CONECTADO' : 'DESCONECTADO'}`);
-  console.log(`✅ actextita (186): ${conexionActextita ? 'CONECTADO' : 'DESCONECTADO'}`);
-  console.log('══════════════════════════════════════════════════\n');
-}
-
-// Funciones de reconexión específicas
-async function reconectarBaseRemota() {
-  console.log('🔄 Reconectando a usuariosprueba...');
-  try {
-    if (conexionRemota) {
-      try { await conexionRemota.end(); } catch (e) { }
-    }
-
-    conexionRemota = await mysql.createConnection({
-      host: '172.30.247.185',
-      user: 'ccomputo',
-      password: 'Jarjar0904$',
-      database: 'b1o04dzhm1guhvmjcrwb',
-      port: 3306,
-      connectTimeout: 30000,
-      acquireTimeout: 30000,
-      timeout: 30000
-    });
-
-    console.log('✅ Reconexión a usuariosprueba exitosa');
-  } catch (error) {
-    console.error('❌ Error en reconexión a usuariosprueba:', error.message);
-    setTimeout(() => reconectarBaseRemota(), 10000);
-  }
-}
-
-async function reconectarActextita() {
-  console.log('🔄 Reconectando a actextita...');
-  try {
-    if (conexionActextita) {
-      try { await conexionActextita.end(); } catch (e) { }
-    }
-
-    conexionActextita = await mysql.createConnection({
-      host: '172.30.247.186',
-      user: 'root',
-      password: '',
-      database: 'actextita',
-      port: 3306,
-      connectTimeout: 30000,
-      acquireTimeout: 30000,
-      timeout: 30000
-    });
-
-    console.log('✅ Reconexión a actextita exitosa');
-  } catch (error) {
-    console.error('❌ Error en reconexión a actextita:', error.message);
-    setTimeout(() => reconectarActextita(), 10000);
-  }
-}
-
-// Función para verificar el estado de todas las conexiones
-async function verificarEstadoConexiones() {
-  console.log('\n📊 ESTADO ACTUAL DE CONEXIONES:');
-
-  const estados = [];
-
-  // Verificar MySQL Local
-  try {
-    if (conexionMySQL) {
-      await conexionMySQL.execute('SELECT 1');
-      estados.push('✅ MySQL Local: ACTIVA');
-    } else {
-      estados.push('❌ MySQL Local: INACTIVA');
-    }
-  } catch (error) {
-    estados.push('❌ MySQL Local: ERROR - ' + error.message);
-  }
-
-  // Verificar usuariosprueba
-  try {
-    if (conexionRemota) {
-      await conexionRemota.execute('SELECT 1');
-      estados.push('✅ usuariosprueba (185): ACTIVA');
-    } else {
-      estados.push('❌ usuariosprueba (185): INACTIVA');
-    }
-  } catch (error) {
-    estados.push('❌ usuariosprueba (185): ERROR - ' + error.message);
-  }
-
-  // Verificar actextita
-  try {
-    if (conexionActextita) {
-      await conexionActextita.execute('SELECT 1');
-      estados.push('✅ actextita (186): ACTIVA');
-    } else {
-      estados.push('❌ actextita (186): INACTIVA');
-    }
-  } catch (error) {
-    estados.push('❌ actextita (186): ERROR - ' + error.message);
-  }
-
-  estados.forEach(estado => console.log(estado));
-  console.log('');
-
-  return {
-    mysqlLocal: conexionMySQL ? true : false,
-    usuariosprueba: conexionRemota ? true : false,
-    actextita: conexionActextita ? true : false
-  };
-}
-
-// ==== FUNCIONES DE BASE DE DATOS ====================
-
-// 1. Consultar alumno en base de datos actextita
 async function consultarAlumnoEnBaseDatos(numeroControl) {
+  let connection;
   try {
-    if (!conexionActextita) {
-      console.log('⚠️ No hay conexión a actextita');
-      return { encontrado: false, error: 'No hay conexión a actextita' };
-    }
+    connection = await mysql.createConnection({
+      host: '172.30.247.186',
+      user: 'root',
+      password: '', // 🔧 AGREGAR contraseña si es necesaria
+      database: 'actextita',
+      port: 3306
+    });
 
-    const [anuevoIngreso] = await conexionActextita.execute(
+    // Consultar en ambas tablas
+    const [anuevoIngreso] = await connection.execute(
       'SELECT * FROM anuevo_ingreso WHERE numero_control = ?',
       [numeroControl]
     );
 
-    const [aResagados] = await conexionActextita.execute(
+    const [aResagados] = await connection.execute(
       'SELECT * FROM a_resagados WHERE numero_control = ?',
       [numeroControl]
     );
@@ -419,130 +308,72 @@ async function consultarAlumnoEnBaseDatos(numeroControl) {
   } catch (error) {
     console.error('❌ Error consultando alumno:', error.message);
     return { encontrado: false, error: error.message };
+  } finally {
+    if (connection) await connection.end();
   }
 }
 
-// 2. Verificar administrador en base de datos actextita
+// ❌ PROBLEMA: Configuración de conexión faltante
+// ✅ SOLUCIÓN: Completar la configuración
+
 async function verificarAdministradorEnBaseDatos(usuario) {
   try {
-    console.log(`🔍 Verificando administrador en actextita: ${usuario}`);
+    const connection = await mysql.createConnection({
+      host: '172.30.247.186',
+      user: 'root',
+      password: '', // 🔧 CONTRASEÑA FALTANTE
+      database: 'actextita',
+      port: 3306
+    });
 
-    if (!conexionActextita) {
-      console.log('❌ No hay conexión a actextita');
-      return false;
-    }
-
-    // Primero, verificar si la tabla existe
-    try {
-      const [tablas] = await conexionActextita.execute(
-        "SHOW TABLES LIKE 'admins'"
-      );
-
-      if (tablas.length === 0) {
-        console.log('❌ La tabla "admins" no existe en actextita');
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error verificando tabla admins:', error.message);
-      return false;
-    }
-
-    const [resultados] = await conexionActextita.execute(
+    const [resultados] = await connection.execute(
       'SELECT usuario, estado, fecha_creacion FROM admins WHERE usuario = ? AND estado = "activo"',
       [usuario]
     );
 
-    if (resultados.length > 0) {
-      console.log(`✅ Administrador encontrado en actextita: ${usuario}`);
-      console.log(`📊 Estado: ${resultados[0].estado}, Fecha: ${resultados[0].fecha_creacion}`);
-      return true;
-    } else {
-      console.log(`❌ Administrador no encontrado o inactivo en actextita: ${usuario}`);
-      return false;
-    }
+    await connection.end();
+    return resultados.length > 0;
 
   } catch (error) {
-    console.error('❌ Error verificando administrador en actextita:', error.message);
+    console.error('❌ Error verificando administrador:', error.message);
     return false;
   }
 }
 
-// 3. Actualizar contraseña de admin en actextita
-async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
+// ==== FUNCIÓN PARA ACTUALIZAR CONTRASEÑA DE ADMINISTRADOR ====
+async function actualizarContrasenaAdmin(usuario, nuevaContrasena) {
   try {
-    console.log(`🔐 Procesando actualización para admin en actextita: ${usuario}`);
-    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
+    console.log(`🔐 Actualizando contraseña para admin: ${usuario}`);
 
-    if (!conexionActextita) {
-      console.error('❌ Error: No hay conexión a actextita');
-      return false;
-    }
+    const connection = await mysql.createConnection({
+      host: '172.30.247.186',
+      user: 'root',
+      password: '',
+      database: 'actextita',
+      port: 3306
+    });
 
-    // 🔐 ENCRIPTAR LA CONTRASEÑA
-    const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-
-    if (!contrasenaEncriptada) {
-      console.error('❌ Error: No se pudo encriptar la contraseña');
-      return false;
-    }
-
-    console.log(`🔐 Contraseña encriptada para BD: ${contrasenaEncriptada.substring(0, 30)}...`);
-
-    // Verificar que la tabla admins existe
-    try {
-      const [tablas] = await conexionActextita.execute(
-        "SHOW TABLES LIKE 'admins'"
-      );
-
-      if (tablas.length === 0) {
-        console.error('❌ Error: La tabla "admins" no existe en actextita');
-        return false;
-      }
-    } catch (error) {
-      console.error('❌ Error verificando tabla admins:', error.message);
-      return false;
-    }
-
-    // Actualizar contraseña
-    const [resultado] = await conexionActextita.execute(
+    const [resultado] = await connection.execute(
       'UPDATE admins SET contraseña = ? WHERE usuario = ?',
-      [contrasenaEncriptada, usuario]
+      [nuevaContrasena, usuario]
     );
 
-    console.log(`✅ Resultado actualización en actextita: ${resultado.affectedRows} filas afectadas`);
+    await connection.end();
 
-    if (resultado.affectedRows > 0) {
-      console.log(`✅ Contraseña actualizada exitosamente para admin: ${usuario}`);
-
-      // Verificar lo que se guardó
-      const [verificacion] = await conexionActextita.execute(
-        'SELECT contraseña FROM admins WHERE usuario = ?',
-        [usuario]
-      );
-
-      if (verificacion.length > 0) {
-        console.log(`📝 Contraseña guardada en actextita (primeros 30 chars): ${verificacion[0].contraseña.substring(0, 30)}...`);
-      }
-
-      // Devolver la contraseña sin encriptar para mostrarla al usuario
-      return contrasenaSinEncriptar;
-    } else {
-      console.log(`⚠️ No se encontró el usuario admin en actextita: ${usuario} o no hubo cambios`);
-      return false;
-    }
+    return resultado.affectedRows > 0;
 
   } catch (error) {
-    console.error('❌ Error actualizando contraseña de admin en actextita:', error.message);
-    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error actualizando contraseña de admin:', error.message);
     return false;
   }
 }
 
-// 4. Verificar usuario en sistema usuariosprueba
+// ==== Función para verificar si un usuario existe ====
 async function verificarUsuarioEnSistema(usuario) {
   try {
+    await inicializarConexionRemota();
     if (!conexionRemota) {
-      console.log('❌ No hay conexión a usuariosprueba');
+      console.error('❌ No hay conexión a BD para verificar usuario');
       return null;
     }
 
@@ -567,74 +398,792 @@ async function verificarUsuarioEnSistema(usuario) {
   }
 }
 
-// 5. Insertar usuario directo en usuariosprueba
-async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasenaSinEncriptar, telefono) {
+// ==== Función CORREGIDA para insertar DIRECTAMENTE en usuariosprueba ====
+async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasena, telefono) {
   try {
+    console.log(`🎯 INSERTANDO DIRECTAMENTE en usuariosprueba: ${usuario}`);
+
+    await inicializarConexionRemota();
     if (!conexionRemota) {
-      console.log('❌ No hay conexión a usuariosprueba');
-      return { exito: false };
+      console.error('❌ No hay conexión a BD usuariosprueba');
+      return false;
     }
 
+    // 🔧 VALORES PARA LA INSERCIÓN DIRECTA
     const id_rol = 2;
     const id_persona = 0;
-    const ubicacion = area || 'Sin ubicacion';
+    const ubicacion = area || 'Sin ubicacion'; // 🔧 SIN TILDE
     const estado = 'Activo';
 
-    console.log(`📝 Insertando en usuariosprueba: ${usuario} - ${nombreCompleto}`);
-    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
+    console.log(`📊 Datos para inserción directa:`, {
+      usuario: usuario,
+      contrasena: contrasena,
+      nombre: nombreCompleto,
+      area: area,
+      telefono: telefono
+    });
 
-    const necesitaEncriptacionEspecial = usuario.toLowerCase() === 'dep_centro_de_computo';
-
-    let contrasenaParaGuardar = contrasenaSinEncriptar;
-
-    if (necesitaEncriptacionEspecial) {
-      console.log('🎯 USUARIO ESPECIAL DETECTADO - Aplicando encriptación PHP compatible');
-      const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-
-      if (contrasenaEncriptada) {
-        contrasenaParaGuardar = contrasenaEncriptada;
-        console.log(`🔐 Contraseña encriptada para ${usuario}: ${contrasenaEncriptada}`);
-      } else {
-        console.error('❌ Error al encriptar la contraseña para usuario especial');
-        console.log('⚠️ Guardando sin encriptar como fallback');
-      }
+    // 🔧 PRIMERO: VERIFICAR LA ESTRUCTURA DE LA TABLA
+    try {
+      const [columnas] = await conexionRemota.execute(`
+        SHOW COLUMNS FROM usuariosprueba
+      `);
+      console.log('🔍 Estructura de la tabla usuariosprueba:');
+      columnas.forEach(col => {
+        console.log(`   - ${col.Field} (${col.Type})`);
+      });
+    } catch (error) {
+      console.error('❌ Error obteniendo estructura de tabla:', error.message);
     }
 
+    // 🔧 INSERCIÓN DIRECTA EN usuariosprueba - COLUMNA CORREGIDA
     const query = `
       INSERT INTO usuariosprueba 
       (id_rol, id_persona, usuario, password, ubicacion, fecha_insert, estado)
       VALUES (?, ?, ?, ?, ?, NOW(), ?)
     `;
 
+    console.log(`📝 Ejecutando query: ${query}`);
+    console.log(`📦 Valores:`, [id_rol, id_persona, usuario, contrasena, ubicacion, estado]);
+
     const [result] = await conexionRemota.execute(query, [
       id_rol,
       id_persona,
       usuario,
-      contrasenaParaGuardar,
+      contrasena,
       ubicacion,
       estado
     ]);
 
-    console.log(`✅ Usuario insertado en usuariosprueba: ${usuario}, ID: ${result.insertId}`);
+    console.log(`✅ INSERCIÓN DIRECTA EXITOSA en usuariosprueba:`);
+    console.log(`   - Usuario: ${usuario}`);
+    console.log(`   - ID generado: ${result.insertId}`);
+    console.log(`   - Filas afectadas: ${result.affectedRows}`);
+    console.log(`   - Contraseña: ${contrasena}`);
 
-    return {
-      exito: true,
-      contrasenaSinEncriptar: contrasenaSinEncriptar,
-      contrasenaGuardada: contrasenaParaGuardar,
-      necesitaEncriptacionEspecial: necesitaEncriptacionEspecial,
-      mensaje: necesitaEncriptacionEspecial ? 'Contraseña almacenada encriptada (PHP compatible)' : 'Contraseña almacenada normalmente'
-    };
+    return true;
+
   } catch (error) {
-    console.error('❌ Error insertando usuario en usuariosprueba:', error.message);
-    return { exito: false, error: error.message };
+    console.error('❌ ERROR en inserción directa usuariosprueba:', error.message);
+    console.error('🔍 Detalles del error:', {
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
+
+    return false;
   }
 }
 
-// 6. Consultar usuario en usuariosprueba
+const timeoutManager = new TimeoutManager();
+
+async function enviarMensajeBusiness(provider, destinatario, mensaje) {
+  try {
+    if (!provider?.vendor?.sendMessage) {
+      console.error('❌ Provider no está listo');
+      return false;
+    }
+
+    const sock = provider.vendor;
+
+    // 🔧 NORMALIZACIÓN MEJORADA
+    const destinatarioNormalizado = normalizarIdWhatsAppBusiness(destinatario);
+
+    console.log(`📤 ENVIANDO A: ${destinatarioNormalizado}`);
+    console.log(`💬 Mensaje: ${mensaje.substring(0, 50)}...`);
+
+    // 🔧 VERIFICAR QUE EL DESTINATARIO SEA VÁLIDO
+    if (!destinatarioNormalizado.includes('@s.whatsapp.net') &&
+      !destinatarioNormalizado.includes('@g.us')) {
+      console.error('❌ Destinatario no válido:', destinatarioNormalizado);
+      return false;
+    }
+
+    // 🔧 PAUSA PARA ESTABILIDAD
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const resultado = await sock.sendMessage(destinatarioNormalizado, {
+      text: mensaje
+    });
+
+    console.log('✅ Mensaje enviado correctamente a:', destinatarioNormalizado);
+    return true;
+
+  } catch (error) {
+    console.error('❌ Error enviando mensaje:', error.message);
+
+    // 🔧 DIAGNÓSTICO DETALLADO
+    if (error.message.includes('not-authorized')) {
+      console.log('🔍 El usuario no tiene al bot agregado como contacto');
+    } else if (error.message.includes('blocked')) {
+      console.log('🔍 El usuario tiene bloqueado al bot');
+    } else if (error.message.includes('chat')) {
+      console.log('🔍 Error de chat - posible ID incorrecto');
+    } else if (error.message.includes('timed out')) {
+      console.log('🔍 Timeout en envío');
+    } else if (error.message.includes('group')) {
+      console.log('🔍 Posible problema con chat grupal');
+    }
+
+    return false;
+  }
+}
+
+// ==== Función para manejar inactividad - CORREGIDA ====
+async function manejarInactividad(ctx, state, flowDynamic, gotoFlow) {
+  if (ctx.from === CONTACTO_ADMIN) return;
+
+  const userPhone = ctx.from;
+
+  // Limpiar timeout anterior si existe
+  timeoutManager.clearTimeout(userPhone);
+
+  // Configurar nuevo timeout para 2 minutos
+  timeoutManager.setTimeout(userPhone, async () => {
+    try {
+      const myState = await state.getMyState();
+
+      // Solo mostrar mensaje si no está en proceso largo
+      if (myState?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+        await flowDynamic([
+          '⏰ *Sesión Inactiva*',
+          '',
+          'He notado que no has interactuado conmigo en los últimos 2 minutos.',
+          '',
+          '💡 **Para reactivar el bot, escribe:**',
+          '• *hola* - Para reiniciar la conversación',
+          '• *inicio* - Para volver al menú principal',
+          '',
+          '¡Estoy aquí para ayudarte! 🐦'
+        ].join('\n'));
+
+        // Limpiar estado temporal pero mantener información básica
+        await state.update({
+          estadoUsuario: ESTADOS_USUARIO.LIBRE,
+          ultimaInteraccion: Date.now()
+        });
+      }
+    } catch (error) {
+      console.error('❌ Error en manejo de inactividad:', error);
+    }
+  }, 2 * 60 * 1000); // 2 minutos
+}
+
+// ==== Función para reiniciar inactividad - NUEVA ====
+async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
+  await manejarInactividad(ctx, state, flowDynamic, gotoFlow);
+}
+
+// ✅ Configuración centralizada
+const DB_CONFIG = {
+  actextita: {
+    host: '172.30.247.186',
+    user: 'root',
+    password: '', // 🔧 COMPLETAR
+    database: 'actextita',
+    port: 3306
+  },
+  bot_whatsapp: {
+    host: 'localhost',
+    user: 'root',
+    password: '', // 🔧 COMPLETAR si es necesaria
+    database: 'bot_whatsapp',
+    port: 3306
+  }
+};
+
+// ==== Configuración para XAMPP ====
+const adapterDB = new MySQLAdapter({
+  host: 'localhost',
+  user: 'root',
+  database: 'bot_whatsapp',
+  password: '',
+  port: 3306,
+})
+
+// ==== ALTERNATIVA: Crear nuestra propia conexión MySQL ====
+const mysql = require('mysql2/promise');
+
+// Variable global para nuestra conexión
+let conexionMySQL = null;
+
+let reconectando = false;
+
+async function crearConexionMySQL() {
+  try {
+    const connection = await mysql.createConnection({
+      host: 'localhost',
+      user: 'root',
+      password: '',
+      database: 'bot_whatsapp',
+      port: 3306,
+      // 🔧 CONFIGURACIONES CORRECTAS para mysql2
+      connectTimeout: 60000,
+      acquireTimeout: 60000,
+      timeout: 60000,
+      // Configuraciones para mantener conexión activa
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000
+    });
+
+    // 🔧 MANEJADOR DE ERRORES MEJORADO
+    connection.on('error', (err) => {
+      console.error('❌ Error en conexión MySQL:', err.message);
+      if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
+        console.log('🔄 Reconectando a MySQL...');
+        reconectarMySQL();
+      }
+    });
+
+    console.log('✅ Conexión MySQL creada exitosamente');
+    return connection;
+  } catch (error) {
+    console.error('❌ Error creando conexión MySQL:', error.message);
+    return null;
+  }
+}
+
+async function reconectarMySQL() {
+  if (reconectando) return;
+
+  reconectando = true;
+  console.log('🔄 Iniciando reconexión a MySQL...');
+
+  try {
+    if (conexionMySQL) {
+      try {
+        await conexionMySQL.end();
+      } catch (e) {
+        console.log('⚠️ Cerrando conexión anterior...');
+      }
+    }
+
+    conexionMySQL = await crearConexionMySQL();
+    reconectando = false;
+
+    if (conexionMySQL) {
+      console.log('✅ Reconexión a MySQL exitosa');
+    }
+  } catch (error) {
+    console.error('❌ Error en reconexión MySQL:', error.message);
+    reconectando = false;
+
+    // Reintentar después de 5 segundos
+    setTimeout(() => {
+      reconectarMySQL();
+    }, 5000);
+  }
+}
+
+// ==== Funciones para MySQL usando nuestra propia conexión ====
+async function inicializarMySQL() {
+  try {
+    if (!conexionMySQL || conexionMySQL._closing) {
+      conexionMySQL = await crearConexionMySQL();
+    }
+
+    if (conexionMySQL) {
+      await conexionMySQL.execute('SELECT 1');
+    }
+    return conexionMySQL;
+  } catch (error) {
+    console.error('❌ Error en inicializarMySQL:', error.message);
+    await reconectarMySQL();
+    return conexionMySQL;
+  }
+}
+
+// ==== FUNCIÓN LIMPIAR ESTADO MYSQL ====
+async function limpiarEstadoMySQL(userPhone) {
+  try {
+    await inicializarMySQL();
+    if (!conexionMySQL) return;
+
+    const query = `DELETE FROM user_states WHERE user_phone = ?`;
+    await conexionMySQL.execute(query, [userPhone]);
+    console.log(`✅ Estado limpiado en MySQL para: ${userPhone}`);
+  } catch (error) {
+    console.error('❌ Error limpiando estado en MySQL:', error.message);
+  }
+}
+
+// ==== Función CORREGIDA para guardar estado en MySQL ====
+async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
+  try {
+    await inicializarMySQL();
+    if (!conexionMySQL) {
+      console.log('⚠️ No hay conexión MySQL, omitiendo guardado');
+      return false;
+    }
+
+    // 🔧 VALIDAR QUE userPhone NO SEA NULL O UNDEFINED
+    if (!userPhone) {
+      console.error('❌ userPhone es null/undefined en guardarEstadoMySQL');
+      return false;
+    }
+
+    console.log(`💾 Guardando estado para: ${userPhone}`);
+
+    const query = `
+      INSERT INTO user_states (user_phone, estado_usuario, estado_metadata, numero_control, nombre_completo, identificacion_subida, timestamp_identificacion)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+      ON DUPLICATE KEY UPDATE 
+      estado_usuario = VALUES(estado_usuario),
+      estado_metadata = VALUES(estado_metadata),
+      numero_control = VALUES(numero_control),
+      nombre_completo = VALUES(nombre_completo),
+      identificacion_subida = VALUES(identificacion_subida),
+      timestamp_identificacion = VALUES(timestamp_identificacion),
+      updated_at = CURRENT_TIMESTAMP
+    `;
+
+    const values = [
+      userPhone, // 🔧 Asegurar que no sea null
+      estado,
+      JSON.stringify(metadata),
+      userData.numeroControl || null,
+      userData.nombreCompleto || null,
+      userData.identificacionSubida || false,
+      userData.timestampIdentificacion || null
+    ];
+
+    console.log(`📦 Valores para guardar estado:`, {
+      userPhone: userPhone,
+      estado: estado,
+      metadataKeys: Object.keys(metadata)
+    });
+
+    await conexionMySQL.execute(query, values);
+    console.log(`✅ Estado guardado en MySQL para: ${userPhone}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error guardando estado en MySQL:', error.message);
+
+    // 🔧 DETALLES DEL ERROR
+    if (error.message.includes('user_phone') && error.message.includes('null')) {
+      console.error('🔍 El user_phone está llegando como null al ejecutar la query');
+    }
+
+    return false;
+  }
+}
+
+// ==== FUNCIÓN MEJORADA OBTENER ESTADO MYSQL ====
+async function obtenerEstadoMySQL(userPhone) {
+  try {
+    // 🔧 VALIDAR userPhone
+    if (!userPhone) {
+      console.error('❌ userPhone es null en obtenerEstadoMySQL');
+      return null;
+    }
+
+    await inicializarMySQL();
+    if (!conexionMySQL) return null;
+
+    const query = `SELECT * FROM user_states WHERE user_phone = ?`;
+    const [rows] = await conexionMySQL.execute(query, [userPhone]);
+
+    if (rows.length > 0) {
+      const estado = rows[0];
+      let estadoMetadata = {};
+
+      try {
+        estadoMetadata = JSON.parse(estado.estado_metadata || '{}');
+      } catch (e) {
+        console.error('❌ Error parseando estado_metadata:', e);
+      }
+
+      return {
+        estadoUsuario: estado.estado_usuario,
+        estadoMetadata: estadoMetadata,
+        numeroControl: estado.numero_control,
+        nombreCompleto: estado.nombre_completo,
+        correoInstitucional: estado.correo_institucional,
+        esTrabajador: estado.es_trabajador
+      };
+    }
+  } catch (error) {
+    console.error('❌ Error obteniendo estado de MySQL:', error.message);
+  }
+
+  return null;
+}
+
+// ==== CONEXIÓN A BASE DE DATOS REMOTA PARA USUARIOS ====
+let conexionRemota = null;
+
+// ==== CONEXIÓN MEJORADA a BD usuariosprueba ====
+async function crearConexionRemota() {
+  try {
+    console.log('🔗 Conectando a BD usuariosprueba en localhost...');
+
+    const connection = await mysql.createConnection({
+      host: '172.30.247.185',
+      user: 'ccomputo',
+      password: 'Jarjar0904$',
+      database: 'b1o04dzhm1guhvmjcrwb',
+      port: 3306,
+      connectTimeout: 30000,
+      acquireTimeout: 30000,
+      timeout: 30000
+    });
+
+    console.log('✅ Conexión DIRECTA a usuariosprueba establecida');
+
+    // Verificar que podemos hacer queries
+    const [rows] = await connection.execute('SELECT COUNT(*) as count FROM usuariosprueba');
+    console.log(`📊 usuariosprueba tiene: ${rows[0].count} registros`);
+
+    return connection;
+  } catch (error) {
+    console.error('❌ Error creando conexión DIRECTA a usuariosprueba:', error.message);
+
+    // Intentar con IP local como fallback
+    try {
+      console.log('🔄 Intentando conexión con IP local 172.30.247.184...');
+      const connectionFallback = await mysql.createConnection({
+        host: 'localhost',
+        user: 'root',
+        password: '',
+        database: 'b1o04dzhm1guhvmjcrwb',
+        port: 3306
+      });
+      console.log('✅ Conexión exitosa con IP local');
+      return connectionFallback;
+    } catch (error2) {
+      console.error('❌ Error en conexión fallback:', error2.message);
+      return null;
+    }
+  }
+}
+
+// ✅ MEJORA: Agregar manejo robusto de errores
+
+async function inicializarConexionRemota() {
+  if (!conexionRemota) {
+    conexionRemota = await crearConexionRemota();
+  }
+
+  // Verificar si la conexión sigue activa
+  if (conexionRemota) {
+    try {
+      await conexionRemota.execute('SELECT 1');
+      return conexionRemota;
+    } catch (error) {
+      console.log('🔄 Conexión remota inactiva, reconectando...');
+      try {
+        await conexionRemota.end();
+      } catch (e) {
+        console.log('⚠️ Error cerrando conexión anterior:', e.message);
+      }
+      conexionRemota = await crearConexionRemota();
+    }
+  }
+
+  return conexionRemota;
+}
+
+// ==== Sistema de Estados del Usuario ====
+const ESTADOS_USUARIO = {
+  LIBRE: 'libre',
+  EN_PROCESO_LARGO: 'en_proceso_largo',
+  ESPERANDO_DATOS: 'esperando_datos',
+  EN_MENU: 'en_menu'
+};
+
+// ❌ PROBLEMA: Posible recursividad infinita
+// ✅ SOLUCIÓN: Agregar validación adicional
+
+async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
+  try {
+    const myState = await state.getMyState();
+
+    // 🔧 PROTECCIÓN MÁS ROBUSTA CONTRA RECURSIVIDAD
+    if (myState?.redirigiendo || myState?.enRedireccion) {
+      console.log('⚠️ Ya se está redirigiendo, evitando recursividad');
+      return;
+    }
+
+    // 🔧 MARCAR INICIO DE REDIRECCIÓN
+    await state.update({
+      redirigiendo: true,
+      enRedireccion: true
+    });
+
+    await limpiarEstado(state);
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // 🔧 LIMPIAR BANDERAS DESPUÉS DE LA REDIRECCIÓN
+    setTimeout(async () => {
+      await state.update({
+        redirigiendo: false,
+        enRedireccion: false
+      });
+    }, 1000);
+
+    return gotoFlow(flowMenu);
+  } catch (error) {
+    console.error('❌ Error en redirección al menú:', error);
+
+    // 🔧 ASEGURAR LIMPIEZA DE BANDERAS EN CASO DE ERROR
+    await state.update({
+      redirigiendo: false,
+      enRedireccion: false
+    });
+
+    await flowDynamic('🔧 Reiniciando bot... Por favor escribe *menú* para continuar.');
+    await limpiarEstado(state);
+    return gotoFlow(flowMenu);
+  }
+}
+
+// ==== Función CORREGIDA para actualizar estado ====
+async function actualizarEstado(ctx, state, nuevoEstado, metadata = {}) {
+  try {
+    // 🔧 VALIDACIÓN ROBUSTA DE PARÁMETROS
+    if (!ctx || !ctx.from) {
+      console.error('❌ ctx o ctx.from es null en actualizarEstado');
+      return;
+    }
+
+    const estadoActual = await state.getMyState();
+    const userPhone = ctx.from;
+
+    if (!userPhone) {
+      console.error('❌ userPhone es null en actualizarEstado');
+      return;
+    }
+
+    // 🔧 LIMPIAR METADATA DE OBJETOS COMPLEJOS
+    const metadataLimpio = {};
+
+    Object.keys(metadata).forEach(key => {
+      const valor = metadata[key];
+
+      // Solo guardar propiedades serializables
+      if (valor === null ||
+        typeof valor === 'string' ||
+        typeof valor === 'number' ||
+        typeof valor === 'boolean' ||
+        Array.isArray(valor)) {
+
+        try {
+          JSON.stringify(valor);
+          metadataLimpio[key] = valor;
+        } catch (e) {
+          console.log(`⚠️ Excluyendo propiedad no serializable: ${key}`);
+          metadataLimpio[key] = `[${typeof valor}]`;
+        }
+      } else if (typeof valor === 'object') {
+        // Para objetos, intentar serializar solo propiedades simples
+        const objLimpio = {};
+        Object.keys(valor).forEach(subKey => {
+          const subValor = valor[subKey];
+          if (subValor === null ||
+            typeof subValor === 'string' ||
+            typeof subValor === 'number' ||
+            typeof subValor === 'boolean') {
+            objLimpio[subKey] = subValor;
+          }
+        });
+        metadataLimpio[key] = objLimpio;
+      }
+    });
+
+    metadataLimpio.ultimaActualizacion = Date.now();
+
+    const userData = {
+      numeroControl: estadoActual?.numeroControl || null,
+      nombreCompleto: estadoActual?.nombreCompleto || null,
+      correoInstitucional: estadoActual?.correoInstitucional || null,
+      esTrabajador: estadoActual?.esTrabajador || false,
+      identificacionSubida: estadoActual?.identificacionSubida || false,
+      timestampIdentificacion: estadoActual?.timestampIdentificacion || null
+    };
+
+    await state.update({
+      estadoUsuario: nuevoEstado,
+      estadoMetadata: metadataLimpio,
+      ...userData
+    });
+
+    console.log(`✅ Estado actualizado a: ${nuevoEstado} para: ${userPhone}`);
+
+    // Guardar también en MySQL si es un proceso largo
+    if (nuevoEstado === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      await guardarEstadoMySQL(userPhone, nuevoEstado, metadataLimpio, userData);
+    }
+
+  } catch (error) {
+    console.error('❌ Error actualizando estado:', error);
+  }
+}
+
+// ==== ACTUALIZAR FUNCIÓN LIMPIAR ESTADO ====
+async function limpiarEstado(state) {
+  try {
+    const myState = await state.getMyState();
+    const userPhone = state.id;
+
+    if (userPhone) {
+      timeoutManager.clearAll(userPhone);
+      // ... (limpiar timeouts existentes)
+    }
+
+    // 🔧 LIMPIAR ESTADO EN MEMORIA (AGREGAR NUEVOS CAMPOS)
+    await state.update({
+      estadoUsuario: ESTADOS_USUARIO.LIBRE,
+      estadoMetadata: {},
+      numeroControl: null,
+      nombreCompleto: null,
+      correoInstitucional: null,
+      esTrabajador: null,
+      identificacionSubida: false,        // 🔧 NUEVO
+      infoIdentificacion: null,           // 🔧 NUEVO
+      timestampIdentificacion: null,      // 🔧 NUEVO
+      ultimaInteraccion: Date.now()
+    });
+
+    // ... resto del código de limpieza
+  } catch (error) {
+    console.error('❌ Error limpiando estado:', error);
+  }
+}
+
+async function restaurarEstadoInicial(ctx, state) {
+  if (!ctx.from) return false;
+
+  try {
+    const estadoMySQL = await obtenerEstadoMySQL(ctx.from);
+
+    if (estadoMySQL && estadoMySQL.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      // Verificar si el proceso ya expiró (más de 30 minutos)
+      const tiempoTranscurrido = Date.now() - (estadoMySQL.estadoMetadata.ultimaActualizacion || Date.now());
+      const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
+
+      if (minutosTranscurridos > 30) {
+        // Proceso expirado, limpiar estado
+        await limpiarEstadoMySQL(ctx.from);
+        return false;
+      }
+
+      // Restaurar el estado desde MySQL
+      await state.update({
+        estadoUsuario: estadoMySQL.estadoUsuario,
+        estadoMetadata: estadoMySQL.estadoMetadata,
+        numeroControl: estadoMySQL.numeroControl,
+        nombreCompleto: estadoMySQL.nombreCompleto
+      });
+
+      console.log(`🔄 Estado restaurado para: ${ctx.from}`);
+      return true;
+    }
+  } catch (error) {
+    console.error('❌ Error restaurando estado inicial:', error);
+  }
+
+  return false;
+}
+
+// ==== Función para mostrar estado de bloqueo - ACTUALIZADA CON TIEMPOS ====
+async function mostrarEstadoBloqueado(flowDynamic, myState) {
+  const metadata = myState.estadoMetadata || {};
+  const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
+  const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
+  const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
+
+  // Calcular la última interacción (usamos ultimaActualizacion como referencia)
+  const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
+  const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
+
+  await flowDynamic([
+    '🔒 *Proceso en Curso* 🔒',
+    '',
+    `📋 ${metadata.tipo || 'Proceso largo'}`,
+    `⏰ Tiempo transcurrido: ${minutosTranscurridos} minutos`,
+    `⏳ Tiempo restante: ${minutosRestantes} minutos`,
+    `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
+    `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
+    '',
+    '🔄 **Estamos trabajando en tu solicitud...**',
+    '📱 Por favor espera, *este proceso toma aproximadamente 30 minutos*',
+    '',
+    '💡 **Para ver el progreso actual escribe:**',
+    '*estado*',
+    '',
+    '⏰ El proceso continuará automáticamente.'
+  ].join('\n'));
+}
+
+// ==== Función de verificación MEJORADA - CON ACTUALIZACIÓN DE INTERACCIÓN ====
+async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
+  if (ctx.from === CONTACTO_ADMIN) return false;
+
+  try {
+    const myState = await state.getMyState();
+
+    if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      console.log(`🔒 Bloqueando mensaje de ${ctx.from} - Proceso en curso`);
+
+      const input = ctx.body?.toLowerCase().trim();
+
+      // 🔧 ACTUALIZAR LA ÚLTIMA INTERACCIÓN USANDO TU FUNCIÓN actualizarEstado
+      if (input) {
+        await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+          ...myState.estadoMetadata,
+          // Mantenemos todos los metadatos existentes
+        });
+      }
+
+      // 🔧 SI ESCRIBE "estado", MOSTRAR INFORMACIÓN DETALLADA
+      if (input === 'estado') {
+        await mostrarEstadoBloqueado(flowDynamic, myState);
+      } else if (input && input !== 'estado') {
+        // 🔧 CALCULAR TIEMPOS PARA EL MENSAJE GENÉRICO
+        const metadata = myState.estadoMetadata || {};
+        const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
+        const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
+        const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
+
+        const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
+        const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
+
+        await flowDynamic([
+          '⏳ *Proceso en curso* ⏳',
+          '',
+          '📋 Tu solicitud está siendo procesada activamente...',
+          '',
+          `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
+          `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
+          '',
+          '🔄 **No es necesario que escribas nada**',
+          '⏰ El proceso continuará automáticamente',
+          '',
+          '💡 **Solo escribe:**',
+          '*estado* - Para ver el progreso actual',
+          '',
+          '¡Gracias por tu paciencia! 🙏'
+        ].join('\n'));
+      }
+
+      return true;
+    }
+  } catch (error) {
+    console.error('❌ Error en verificación de estado bloqueado:', error);
+  }
+
+  return false;
+}
+
+// ==== FUNCIONES PARA CONSULTAR EN TABLA usuariosprueba ====
+
+// ==== Función para consultar usuario en usuariosprueba ====
 async function consultarUsuarioEnusuariosprueba(criterio) {
   try {
+    await inicializarConexionRemota();
     if (!conexionRemota) {
-      console.log('❌ No hay conexión a usuariosprueba');
+      console.error('❌ No hay conexión a BD remota');
       return null;
     }
 
@@ -659,11 +1208,12 @@ async function consultarUsuarioEnusuariosprueba(criterio) {
   }
 }
 
-// 7. Listar todos usuariosprueba
+// ==== Función para listar todos los usuarios de usuariosprueba ====
 async function listarTodosusuariosprueba() {
   try {
+    await inicializarConexionRemota();
     if (!conexionRemota) {
-      console.log('❌ No hay conexión a usuariosprueba');
+      console.error('❌ No hay conexión a BD remota');
       return [];
     }
 
@@ -678,139 +1228,92 @@ async function listarTodosusuariosprueba() {
   }
 }
 
-// 8. Actualizar contraseña en usuariosprueba
-async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaSinEncriptar, esEncriptada = false, telefono) {
+// ==== Función CORREGIDA para insertar usuario en usuariosprueba ====
+async function insertarUsuarioEnusuariosprueba(nombreCompleto, area, usuario, contrasena, telefono) {
   try {
-    console.log(`\n🔍 INICIANDO ACTUALIZACIÓN PARA: ${usuario}`);
-
+    await inicializarConexionRemota();
     if (!conexionRemota) {
-      console.log('❌ No hay conexión a la BD remota');
-      return { exito: false, error: 'No hay conexión a la BD remota' };
+      console.error('❌ No hay conexión a BD usuariosprueba');
+      return false;
     }
 
-    console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
+    // 🔧 VALORES POR DEFECTO
+    const id_rol = 2;
+    const id_persona = 0;
+    const ubicacion = area || 'Sin ubicacion'; // 🔧 CORREGIDO: sin tilde
+    const estado = 'Activo';
 
-    const necesitaEncriptacionEspecial = usuario.toLowerCase() === 'dep_centro_de_computo';
-    let contrasenaParaGuardar = contrasenaSinEncriptar;
-    let tipoEncriptacion = 'sin_encriptar';
+    console.log(`📝 Insertando en usuariosprueba: ${usuario} - ${nombreCompleto}`);
 
-    if (necesitaEncriptacionEspecial) {
-      console.log('🎯 USUARIO ESPECIAL DETECTADO - Aplicando encriptación PHP compatible');
-
-      const valoresConocidos = {
-        '12345678901': 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9'
-      };
-
-      if (valoresConocidos[contrasenaSinEncriptar]) {
-        contrasenaParaGuardar = valoresConocidos[contrasenaSinEncriptar];
-        console.log(`🔐 Usando valor precalculado para ${contrasenaSinEncriptar}: ${contrasenaParaGuardar}`);
-      } else {
-        const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-        if (contrasenaEncriptada && contrasenaEncriptada !== contrasenaSinEncriptar) {
-          contrasenaParaGuardar = contrasenaEncriptada;
-          console.log(`🔐 Contraseña encriptada: ${contrasenaEncriptada.substring(0, 30)}...`);
-        } else {
-          console.warn('⚠️ Encriptación fallida o igual al original, usando contraseña sin encriptar');
-        }
-      }
-      tipoEncriptacion = 'encriptado_especial';
-    } else if (esEncriptada) {
-      const contrasenaEncriptada = encriptarContrasenaParaBD(contrasenaSinEncriptar);
-      if (contrasenaEncriptada && contrasenaEncriptada !== contrasenaSinEncriptar) {
-        contrasenaParaGuardar = contrasenaEncriptada;
-        console.log(`🔐 Contraseña encriptada: ${contrasenaEncriptada.substring(0, 30)}...`);
-        tipoEncriptacion = 'encriptado';
-      }
-    }
-
-    console.log(`🔍 Verificando existencia de usuario: ${usuario}`);
-    const queryVerificar = `SELECT id_usuario, usuario, password FROM usuariosprueba WHERE usuario = ?`;
-    const [usuarios] = await conexionRemota.execute(queryVerificar, [usuario]);
-
-    if (usuarios.length === 0) {
-      console.log(`❌ Usuario no encontrado en usuariosprueba: ${usuario}`);
-
-      const [todosUsuarios] = await conexionRemota.execute(
-        'SELECT usuario FROM usuariosprueba LIMIT 5'
-      );
-      console.log('📋 Usuarios existentes (primeros 5):');
-      todosUsuarios.forEach(u => console.log(`  - ${u.usuario}`));
-
-      return { exito: false, error: 'Usuario no encontrado' };
-    }
-
-    console.log(`✅ Usuario encontrado: ID=${usuarios[0].id_usuario}`);
-
-    console.log(`🔄 Actualizando contraseña para ${usuario}...`);
-    const queryActualizar = `
-      UPDATE usuariosprueba 
-      SET password = ?, fecha_insert = NOW()
-      WHERE usuario = ?
+    const query = `
+      INSERT INTO usuariosprueba 
+      (id_rol, id_persona, usuario, password, ubicacion, fecha_insert, estado)
+      VALUES (?, ?, ?, ?, ?, NOW(), ?)
     `;
 
-    const [result] = await conexionRemota.execute(queryActualizar, [
-      contrasenaParaGuardar,
-      usuario
+    const [result] = await conexionRemota.execute(query, [
+      id_rol,
+      id_persona,
+      usuario,
+      contrasena,
+      ubicacion,
+      estado
     ]);
 
-    console.log(`✅ Resultado: ${result.affectedRows} filas afectadas`);
+    console.log(`✅ Usuario insertado en usuariosprueba: ${usuario}, ID: ${result.insertId}`);
+    return true;
+  } catch (error) {
+    console.error('❌ Error insertando usuario en usuariosprueba:', error.message);
 
-    if (result.affectedRows > 0) {
-      console.log(`🎉 Contraseña actualizada exitosamente para: ${usuario}`);
-      console.log(`📊 Tipo: ${tipoEncriptacion}`);
-
-      const [verificacion] = await conexionRemota.execute(
-        'SELECT password FROM usuariosprueba WHERE usuario = ?',
-        [usuario]
-      );
-
-      if (verificacion.length > 0) {
-        const passwordGuardado = verificacion[0].password;
-        console.log(`📝 Contraseña guardada: ${passwordGuardado.substring(0, 30)}...`);
-        console.log(`📏 Longitud de password guardado: ${passwordGuardado.length} caracteres`);
-      }
-
-      return {
-        exito: true,
-        contrasenaSinEncriptar: contrasenaSinEncriptar,
-        tipo: tipoEncriptacion,
-        mensaje: 'Actualización exitosa'
-      };
-    } else {
-      console.log(`⚠️ No se afectaron filas - posible error en la consulta`);
-      return { exito: false, error: 'No se afectaron filas' };
+    // 🔧 DETALLES DEL ERROR PARA DIAGNÓSTICO
+    if (error.code === 'ER_DUP_ENTRY') {
+      console.log('🔍 El usuario ya existe en la base de datos');
+    } else if (error.code === 'ER_NO_SUCH_TABLE') {
+      console.log('🔍 La tabla usuariosprueba no existe');
+    } else if (error.code === 'ER_ACCESS_DENIED_ERROR') {
+      console.log('🔍 Error de acceso - verificar usuario/contraseña');
+    } else if (error.code === 'ER_BAD_FIELD_ERROR') {
+      console.log('🔍 Error en nombre de columna - verificar estructura de tabla');
     }
 
-  } catch (error) {
-    console.error('❌ Error en actualizarContrasenaEnusuariospruebaEspecial:', error.message);
-    console.error('❌ Error SQL Code:', error.code);
-    console.error('❌ Error SQL State:', error.sqlState);
-    console.error('❌ Stack:', error.stack);
-
-    return {
-      exito: false,
-      error: error.message,
-      code: error.code,
-      sqlState: error.sqlState
-    };
+    return false;
   }
 }
 
-// 9. Verificar estructura usuariosprueba
+// ==== Función para verificar estructura de tabla usuariosprueba ====
 async function verificarEstructurausuariosprueba() {
   try {
+    await inicializarConexionRemota();
     if (!conexionRemota) {
-      console.log('❌ No hay conexión a usuariosprueba');
+      console.error('❌ No hay conexión para verificar estructura');
       return false;
     }
 
     console.log('🔍 VERIFICANDO ESTRUCTURA DE TABLA usuariosprueba:');
 
-    const [columnas] = await conexionRemota.execute(`SHOW COLUMNS FROM usuariosprueba`);
+    const [columnas] = await conexionRemota.execute(`
+      SHOW COLUMNS FROM usuariosprueba
+    `);
+
     console.log('📋 Columnas de usuariosprueba:');
     columnas.forEach(col => {
-      console.log(`   ✅ ${col.Field} (${col.Type})`);
+      console.log(`   ✅ ${col.Field} (${col.Type}) ${col.Null === 'YES' ? 'NULL' : 'NOT NULL'} ${col.Key || ''}`);
     });
+
+    // Verificar datos existentes
+    const [datos] = await conexionRemota.execute(`
+      SELECT COUNT(*) as total, 
+             MAX(id_usuario) as max_id,
+             MIN(fecha_insert) as fecha_min,
+             MAX(fecha_insert) as fecha_max
+      FROM usuariosprueba
+    `);
+
+    console.log('📊 Estadísticas de usuariosprueba:');
+    console.log(`   - Total registros: ${datos[0].total}`);
+    console.log(`   - ID máximo: ${datos[0].max_id}`);
+    console.log(`   - Fecha mínimo: ${datos[0].fecha_min}`);
+    console.log(`   - Fecha máximo: ${datos[0].fecha_max}`);
 
     return true;
   } catch (error) {
@@ -819,216 +1322,320 @@ async function verificarEstructurausuariosprueba() {
   }
 }
 
-// 10. Guardar estado en MySQL local
-async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
+// ==== Función MEJORADA para actualizar contraseña en usuariosprueba ====
+async function actualizarContrasenaEnusuariosprueba(usuario, nuevaContrasena, telefono) {
   try {
-    if (!conexionMySQL) {
-      console.log('❌ No hay conexión a MySQL local');
-      return false;
-    }
-
-    if (!userPhone) {
-      console.error('❌ userPhone es null/undefined en guardarEstadoMySQL');
-      return false;
-    }
-
-    console.log(`💾 Guardando estado para: ${userPhone}`);
-
-    const query = `
-      INSERT INTO user_states (user_phone, estado_usuario, estado_metadata, 
-      numero_control, nombre_completo, identificacion_subida, timestamp_identificacion)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-      ON DUPLICATE KEY UPDATE 
-      estado_usuario = VALUES(estado_usuario),
-      estado_metadata = VALUES(estado_metadata),
-      numero_control = VALUES(numero_control),
-      nombre_completo = VALUES(nombre_completo),
-      identificacion_subida = VALUES(identificacion_subida),
-      timestamp_identificacion = VALUES(timestamp_identificacion),
-      updated_at = CURRENT_TIMESTAMP
-    `;
-
-    const values = [
-      userPhone,
-      estado,
-      JSON.stringify(metadata),
-      userData.numeroControl || null,
-      userData.nombreCompleto || null,
-      userData.identificacionSubida || false,
-      userData.timestampIdentificacion || null
-    ];
-
-    await conexionMySQL.execute(query, values);
-    console.log(`✅ Estado guardado en MySQL para: ${userPhone}`);
-    return true;
-  } catch (error) {
-    console.error('❌ Error guardando estado en MySQL:', error.message);
-    return false;
-  }
-}
-
-// 11. Obtener estado de MySQL
-async function obtenerEstadoMySQL(userPhone) {
-  try {
-    if (!userPhone) return null;
-
-    if (!conexionMySQL) {
-      console.log('❌ No hay conexión a MySQL local');
-      return null;
-    }
-
-    const query = `SELECT * FROM user_states WHERE user_phone = ?`;
-    const [rows] = await conexionMySQL.execute(query, [userPhone]);
-
-    if (rows.length > 0) {
-      const estado = rows[0];
-      let estadoMetadata = {};
-
-      try {
-        estadoMetadata = JSON.parse(estado.estado_metadata || '{}');
-      } catch (e) {
-        console.error('❌ Error parseando estado_metadata:', e);
-      }
-
-      return {
-        estadoUsuario: estado.estado_usuario,
-        estadoMetadata: estadoMetadata,
-        numeroControl: estado.numero_control,
-        nombreCompleto: estado.nombre_completo,
-        correoInstitucional: estado.correo_institucional,
-        esTrabajador: estado.es_trabajador,
-        identificacionSubida: estado.identificacion_subida
-      };
-    }
-  } catch (error) {
-    console.error('❌ Error obteniendo estado de MySQL:', error.message);
-  }
-
-  return null;
-}
-
-// 12. Limpiar estado en MySQL
-async function limpiarEstadoMySQL(userPhone) {
-  try {
-    if (!conexionMySQL) {
-      console.log('❌ No hay conexión a MySQL local');
-      return;
-    }
-
-    const query = `DELETE FROM user_states WHERE user_phone = ?`;
-    await conexionMySQL.execute(query, [userPhone]);
-    console.log(`✅ Estado limpiado en MySQL para: ${userPhone}`);
-  } catch (error) {
-    console.error('❌ Error limpiando estado en MySQL:', error.message);
-  }
-}
-
-// Función de diagnóstico para Dep_centro_de_computo
-async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
-  console.log('\n🔍 DIAGNÓSTICO PARA Dep_centro_de_computo\n');
-
-  try {
+    await inicializarConexionRemota();
     if (!conexionRemota) {
-      console.log('❌ No hay conexión a la BD remota');
+      console.error('❌ No hay conexión a BD usuariosprueba');
       return false;
     }
 
-    console.log('1. 🔍 Verificando existencia del usuario...');
-    const [usuarios] = await conexionRemota.execute(
-      'SELECT id_usuario, usuario, password FROM usuariosprueba WHERE usuario = ?',
-      [usuario]
-    );
+    console.log(`🔍 Buscando usuario: ${usuario} para actualizar contraseña`);
+
+    // 🔧 PRIMERO: Verificar que el usuario existe
+    const queryVerificar = `SELECT id_usuario, usuario FROM usuariosprueba WHERE usuario = ?`;
+    const [usuarios] = await conexionRemota.execute(queryVerificar, [usuario]);
 
     if (usuarios.length === 0) {
-      console.log(`❌ El usuario ${usuario} NO existe en la tabla usuariosprueba`);
+      console.log(`❌ Usuario no encontrado en usuariosprueba: ${usuario}`);
       return false;
     }
 
-    console.log(`✅ Usuario encontrado: ID=${usuarios[0].id_usuario}, Password actual: ${usuarios[0].password?.substring(0, 30)}...`);
+    const usuarioEncontrado = usuarios[0];
+    console.log(`✅ Usuario encontrado: ${usuarioEncontrado.usuario} (ID: ${usuarioEncontrado.id_usuario})`);
 
-    console.log('\n2. 🔐 Probando encriptación...');
-    const contrasenaEncriptada = encriptarContrasenaParaBD(nuevaContrasena);
-    console.log(`Contraseña original: ${nuevaContrasena}`);
-    console.log(`Contraseña encriptada: ${contrasenaEncriptada}`);
+    // 🔧 SEGUNDO: Actualizar SOLO la contraseña
+    const queryActualizar = `
+      UPDATE usuariosprueba 
+      SET password = ?, fecha_insert = NOW()
+      WHERE usuario = ?
+    `;
 
-    console.log('\n3. 🔄 Probando actualización directa...');
-    try {
-      const [resultado] = await conexionRemota.execute(
-        'UPDATE usuariosprueba SET password = ?, fecha_insert = NOW() WHERE usuario = ?',
-        [contrasenaEncriptada, usuario]
+    console.log(`📝 Actualizando contraseña para usuario: ${usuario}`);
+    console.log(`🔐 Nueva contraseña: ${nuevaContrasena}`);
+
+    const [result] = await conexionRemota.execute(queryActualizar, [
+      nuevaContrasena,
+      usuario
+    ]);
+
+    if (result.affectedRows > 0) {
+      console.log(`✅ Contraseña actualizada exitosamente para usuario: ${usuario}`);
+      console.log(`📊 Filas afectadas: ${result.affectedRows}`);
+
+      // 🔧 OPCIONAL: Verificar que se actualizó correctamente
+      const [verificacion] = await conexionRemota.execute(
+        'SELECT usuario, password FROM usuariosprueba WHERE usuario = ?',
+        [usuario]
       );
 
-      console.log(`✅ Filas afectadas: ${resultado.affectedRows}`);
-
-      if (resultado.affectedRows > 0) {
-        console.log('\n4. 📋 Verificando cambio...');
-        const [verificacion] = await conexionRemota.execute(
-          'SELECT password FROM usuariosprueba WHERE usuario = ?',
-          [usuario]
-        );
-
-        if (verificacion.length > 0) {
-          console.log(`✅ Password actual en BD: ${verificacion[0].password}`);
-          console.log(`¿Coincide con el esperado?: ${verificacion[0].password === contrasenaEncriptada ? '✅ SÍ' : '❌ NO'}`);
-        }
-        return true;
-      } else {
-        console.log('❌ No se afectaron filas - posiblemente el usuario no existe');
-        return false;
+      if (verificacion.length > 0) {
+        console.log(`🔍 Verificación: Usuario ${verificacion[0].usuario} - Contraseña actualizada: ${verificacion[0].password === nuevaContrasena ? '✅' : '❌'}`);
       }
 
-    } catch (error) {
-      console.error('❌ Error en actualización directa:', error.message);
-      console.error('SQL Error Code:', error.code);
+      return true;
+    } else {
+      console.log(`❌ No se pudo actualizar la contraseña para usuario: ${usuario}`);
       return false;
     }
-
   } catch (error) {
-    console.error('❌ Error en diagnóstico:', error.message);
+    console.error('❌ Error actualizando contraseña en usuariosprueba:', error.message);
+    console.error('🔍 Detalles del error:', {
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
     return false;
   }
 }
 
-// ==== FUNCIÓN PARA VERIFICAR COMPATIBILIDAD PHP-NODE ====
-async function verificarCompatibilidadEncriptacion() {
-  console.log('\n🔐 VERIFICANDO COMPATIBILIDAD DE ENCRIPTACIÓN PHP-NODE\n');
+// ==== FLUJO PARA BUSCAR USUARIO ESPECÍFICO EN usuariosprueba ====
+const flowBuscarUsuarioEspecifico = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    '🔎 Escribe el *ID de usuario, nombre de usuario o ID de persona* a buscar:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
 
-  const testPassword = '12345678901';
+      const input = ctx.body.trim();
 
-  const encryptedNode = encriptarContrasena(testPassword);
-  console.log(`🔐 Node.js - Contraseña encriptada: ${encryptedNode}`);
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
 
-  const decryptedNode = desencriptarContrasena(encryptedNode);
-  console.log(`🔓 Node.js - Contraseña desencriptada: ${decryptedNode}`);
-  console.log(`✅ Node.js coincide: ${testPassword === decryptedNode}`);
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos el dato a buscar. Por favor escríbelo.');
+        return gotoFlow(flowBuscarUsuarioEspecifico);
+      }
 
-  return encryptedNode;
+      // Realizar consulta en la tabla usuariosprueba
+      await flowDynamic('🔍 Consultando información en la base de datos remota (172.30.247.185)...');
+
+      const usuario = await consultarUsuarioEnusuariosprueba(input);
+
+      if (usuario) {
+        await flowDynamic([
+          '✅ *Usuario encontrado* ✅',
+          '',
+          `📋 **Información del usuario:**`,
+          `🆔 ID Usuario: ${usuario.id_usuario}`,
+          `👤 Usuario: ${usuario.usuario}`,
+          `👥 ID Rol: ${usuario.id_rol}`,
+          `👤 ID Persona: ${usuario.id_persona}`,
+          `📍 Ubicación: ${usuario.ubicación || 'No especificada'}`,
+          `📅 Fecha inserción: ${usuario.fecha_insert || 'No especificada'}`,
+          `🔄 Estado: ${usuario.estado || 'No especificado'}`,
+          '',
+          //'💡 *Información confidencial - Base de datos: 172.30.247.185*'
+        ].join('\n'));
+      } else {
+        await flowDynamic([
+          '❌ *Usuario no encontrado*',
+          '',
+          'El usuario no fue encontrado en la tabla usuariosprueba.',
+          '',
+          '💡 **Verifica:**',
+          '• El ID de usuario',
+          '• El nombre de usuario',
+          '• El ID de persona',
+          '',
+          //'🔗 *Base de datos: 172.30.247.185*'
+        ].join('\n'));
+      }
+
+      await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
+      return gotoFlow(flowEsperaMenu);
+    }
+  );
+
+// ==== FLUJO PARA LISTAR TODOS LOS USUARIOS DE usuariosprueba ====
+const flowListarTodosUsuarios = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    await flowDynamic('📋 Consultando todos los usuarios en usuariosprueba...');
+
+    const usuarios = await listarTodosusuariosprueba();
+
+    if (usuarios.length > 0) {
+      let mensaje = '👥 *LISTA DE USUARIOS - usuariosprueba* 👥\n\n';
+
+      usuarios.forEach((usuario, index) => {
+        mensaje += `${index + 1}. ${usuario.usuario} \n`;
+        mensaje += `   🆔 ID: ${usuario.id_usuario} | Rol: ${usuario.id_rol} | Persona: ${usuario.id_persona}\n`;
+        mensaje += `   📍 ${usuario.ubicación || 'Sin ubicación'} | 🔄 ${usuario.estado || 'Sin estado'}\n`;
+        mensaje += `   📅 ${usuario.fecha_insert || 'Sin fecha'}\n\n`;
+      });
+
+      mensaje += `📊 Total: ${usuarios.length} usuarios\n`;
+      mensaje += '💡 *Base de datos: 172.30.247.185*';
+
+      await flowDynamic(mensaje);
+    } else {
+      await flowDynamic('❌ No se encontraron usuarios en la tabla usuariosprueba.');
+    }
+
+    await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
+    return gotoFlow(flowEsperaMenu);
+  });
+
+// ==== FLUJO PARA CONSULTA DE USUARIO ====
+const flowConsultaUsuario = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    '🔍 *CONSULTA DE USUARIOS - usuariosprueba* 🔍\n\nSelecciona una opción:\n\n1️⃣ 🔎 Buscar usuario específico\n2️⃣ 📋 Listar todos los usuarios\n\n🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (opcion === '1') {
+        await flowDynamic('🔎 Iniciando búsqueda de usuario específico...');
+        return gotoFlow(flowBuscarUsuarioEspecifico);
+      }
+
+      if (opcion === '2') {
+        await flowDynamic('📋 Obteniendo lista de todos los usuarios...');
+        return gotoFlow(flowListarTodosUsuarios);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+      return gotoFlow(flowConsultaUsuario);
+    }
+  );
+
+// ==== Función MODIFICADA para NO enviar identificación al admin ====
+async function enviarIdentificacionAlAdmin(provider, ctx, userData) {
+  if (!provider || !ctx) {
+    console.error('❌ Provider o contexto no disponible')
+    return false
+  }
+
+  try {
+    const sock = provider.vendor
+
+    if (!sock) {
+      console.error('❌ Socket de Baileys no disponible')
+      return false
+    }
+
+    // 🔧 MODIFICACIÓN: SOLO registrar en logs, NO enviar al admin
+    if (esImagenValida(ctx)) {
+      console.log('📸 Identificación recibida correctamente - NO enviada al administrador');
+      console.log(`👤 Usuario: ${userData.nombre} (${userData.identificacion})`);
+      return true;
+    } else {
+      console.log('⚠️ No se pudo validar identificación: mensaje no contiene imagen válida');
+      return false;
+    }
+  } catch (error) {
+    console.error('❌ Error procesando identificación:', error.message);
+    return false;
+  }
 }
 
-// ==== FUNCIONES DE UTILIDAD ====================
-function normalizarIdWhatsAppBusiness(id) {
-  if (!id) return id;
-
-  if (id.includes('@s.whatsapp.net') || id.includes('@g.us')) {
-    return id;
+// ==== Función CORREGIDA para enviar mensajes y medios al contacto ====
+async function enviarAlAdmin(provider, mensaje, ctx = null) {
+  if (!provider) {
+    console.error('❌ Provider no disponible para enviar al admin');
+    return false;
   }
 
-  const numeroLimpio = id.replace(/[^\d]/g, '');
+  try {
+    console.log('📤 Intentando enviar mensaje al administrador Business...');
 
-  if (!numeroLimpio || numeroLimpio.length < 10) {
-    return id;
+    const sock = provider.vendor;
+
+    if (!sock) {
+      console.error('❌ Socket de Baileys no disponible');
+      return false;
+    }
+
+    // 🔧 NORMALIZAR EL ID DEL ADMINISTRADOR
+    const adminIdNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
+
+    console.log(`📤 Enviando a ID Business: ${adminIdNormalizado}`);
+
+    // 🔧 PAUSA DE SEGURIDAD
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Enviar mensaje de texto
+    await sock.sendMessage(adminIdNormalizado, {
+      text: mensaje,
+      // 🔧 CONFIGURACIÓN PARA BUSINESS
+      contextInfo: {
+        isForwarded: false,
+        forwardingScore: 0
+      }
+    });
+
+    console.log('✅ Información enviada al administrador Business correctamente');
+    return true;
+  } catch (error) {
+    console.error('❌ Error enviando información al administrador Business:', error.message);
+
+    // 🔧 DIAGNÓSTICO ESPECÍFICO
+    if (error.message.includes('not-authorized')) {
+      console.log('⚠️ El administrador no tiene agregado al bot como contacto');
+    } else if (error.message.includes('blocked')) {
+      console.log('⚠️ El administrador tiene bloqueado al bot');
+    } else if (error.message.includes('chat')) {
+      console.log('⚠️ Error de chat - posible problema con el ID Business');
+    } else if (error.message.includes('timed out')) {
+      console.log('⚠️ Timeout en envío - reconectando...');
+    }
+
+    return false;
   }
-
-  let numeroNormalizado = numeroLimpio;
-  if (numeroNormalizado.startsWith('52') && numeroNormalizado.length === 12) {
-    numeroNormalizado = numeroNormalizado;
-  } else if (numeroNormalizado.length === 10) {
-    numeroNormalizado = '52' + numeroNormalizado;
-  }
-
-  return `${numeroNormalizado}@s.whatsapp.net`;
 }
 
+// ==== FUNCIÓN PARA GENERAR CONTRASEÑA SEGURA ====
+function generarContrasenaSegura() {
+  const mayusculas = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  const minusculas = 'abcdefghijklmnopqrstuvwxyz';
+  const numeros = '0123456789';
+  const simbolos = '!#$%&/()=?¡¿+*}{][-_';
+
+  const todosCaracteres = mayusculas + minusculas + numeros + simbolos;
+
+  let contrasena = '';
+
+  // Asegurar al menos un carácter de cada tipo
+  contrasena += mayusculas[Math.floor(Math.random() * mayusculas.length)];
+  contrasena += minusculas[Math.floor(Math.random() * minusculas.length)];
+  contrasena += numeros[Math.floor(Math.random() * numeros.length)];
+  contrasena += simbolos[Math.floor(Math.random() * simbolos.length)];
+
+  // Completar los 12 caracteres
+  for (let i = 4; i < 12; i++) {
+    contrasena += todosCaracteres[Math.floor(Math.random() * todosCaracteres.length)];
+  }
+
+  // Mezclar los caracteres para que no estén en orden predecible
+  contrasena = contrasena.split('').sort(() => Math.random() - 0.5).join('');
+
+  return contrasena;
+}
+
+// ==== FUNCIÓN PARA FORMATEAR NOMBRE DE USUARIO ====
+function formatearNombreUsuario(departamento) {
+  // Limpiar el departamento: quitar espacios, acentos y caracteres especiales
+  const departamentoLimpio = departamento
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // quitar acentos
+    .replace(/[^a-zA-Z0-9]/g, "_") // reemplazar caracteres especiales con _
+    .toLowerCase();
+
+  return `Dep_${departamentoLimpio}`;
+}
+
+// ==== Funciones de validación ====
 function isValidText(input) {
   if (!input || typeof input !== 'string') return false
   if (input.trim().length === 0) return false
@@ -1036,6 +1643,7 @@ function isValidText(input) {
   return true
 }
 
+// ==== Validar número de control (8 o 9 dígitos, con reglas específicas) ====
 function validarNumeroControl(numeroControl) {
   const letrasPermitidas = ['D', 'C', 'B', 'R', 'G', 'd', 'c', 'b', 'r', 'g']
   const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6']
@@ -1059,11 +1667,2123 @@ function validarNumeroControl(numeroControl) {
   return false
 }
 
+// ==== Función MEJORADA para normalizar IDs de WhatsApp Business ====
+function normalizarIdWhatsAppBusiness(id) {
+  if (!id) return id;
+
+  console.log(`🔍 Normalizando ID: ${id}`);
+
+  // Si ya tiene formato correcto, dejarlo como está
+  if (id.includes('@s.whatsapp.net') || id.includes('@g.us')) {
+    return id;
+  }
+
+  // Limpiar el número - quitar caracteres no numéricos
+  const numeroLimpio = id.replace(/[^\d]/g, '');
+
+  // Validar que sea un número válido
+  if (!numeroLimpio || numeroLimpio.length < 10) {
+    console.error('❌ Número inválido para normalizar:', id);
+    return id; // Devolver original si no se puede normalizar
+  }
+
+  // Para México, asegurar código de país
+  let numeroNormalizado = numeroLimpio;
+  if (numeroNormalizado.startsWith('1') && numeroNormalizado.length === 11) {
+    // Número con código de país US
+    numeroNormalizado = numeroNormalizado;
+  } else if (numeroNormalizado.startsWith('52') && numeroNormalizado.length === 12) {
+    // Número México con código de país
+    numeroNormalizado = numeroNormalizado;
+  } else if (numeroNormalizado.length === 10) {
+    // Número local México, agregar código de país
+    numeroNormalizado = '52' + numeroNormalizado;
+  }
+
+  return `${numeroNormalizado}@s.whatsapp.net`;
+}
+
+// ==== FLUJO INTERCEPTOR GLOBAL - CORREGIDO PARA PROBLEMA DE CHATS ====
+const flowInterceptorGlobal = addKeyword(EVENTS.WELCOME)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
+    try {
+      // 🔧 NORMALIZAR ID PRIMERO
+      const remitenteOriginal = ctx.from;
+      const remitenteNormalizado = normalizarIdWhatsAppBusiness(ctx.from);
+
+      console.log(`🔍 INTERCEPTOR - Original: ${remitenteOriginal} | Normalizado: ${remitenteNormalizado}`);
+
+      // Actualizar el contexto con el ID normalizado
+      ctx.from = remitenteNormalizado;
+
+      const adminNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
+
+      // 🔧 EXCLUIR ADMIN
+      if (ctx.from === adminNormalizado) {
+        console.log('🚫 Mensaje del administrador, omitiendo interceptor');
+        return;
+      }
+
+      await debugFlujo(ctx, 'flowInterceptorGlobal');
+
+      // 🔧 VERIFICAR SI ESTÁ EN PROCESO LARGO
+      const myState = await state.getMyState();
+
+      if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+        console.log(`🔒 Usuario ${ctx.from} está en proceso largo`);
+        await mostrarEstadoBloqueado(flowDynamic, myState);
+        return gotoFlow(flowBloqueoActivo);
+      }
+
+      const input = ctx.body?.toLowerCase().trim();
+
+      // 🔧 PERMITIR COMANDOS ESPECÍFICOS Y SALUDOS
+      const comandosPermitidos = [
+        'hola', 'inicio', 'menu', 'menú', 'estado', 'ayuda',
+        '1', '2', '3', '4', '5', '6', '7', '8'
+      ];
+
+      // Si es un saludo o comando permitido, dejar pasar
+      if (comandosPermitidos.includes(input) || esSaludoValido(input)) {
+        console.log(`✅ Comando/saludo permitido: "${input}", permitiendo pasar...`);
+        return;
+      }
+
+      // 🔧 SI ESTÁ EN MENÚ O LIBRE, PERMITIR CUALQUIER MENSAJE
+      if (!myState?.estadoUsuario ||
+        myState.estadoUsuario === ESTADOS_USUARIO.LIBRE ||
+        myState.estadoUsuario === ESTADOS_USUARIO.EN_MENU) {
+        console.log(`✅ Usuario en estado libre/menú, permitiendo mensaje`);
+        return;
+      }
+
+      // 🔧 SOLO BLOQUEAR SI NO ES UN COMANDO VÁLIDO Y ESTÁ EN PROCESO
+      console.log(`🚫 Mensaje bloqueado: "${input}" - Estado: ${myState?.estadoUsuario}`);
+
+      await flowDynamic([
+        '🔒 *Bot Inactivo*',
+        '',
+        'Para comenzar a usar el bot, escribe:',
+        '',
+        '🌟 *hola* - Para comenzar',
+        '🌟 *inicio* - Para volver al menú',
+        '',
+        '¡Estaré encantado de ayudarte! 🐦'
+      ].join('\n'));
+
+      return;
+
+    } catch (error) {
+      console.error('❌ Error en interceptor global:', error);
+      // En caso de error, permitir que el mensaje continúe
+      return;
+    }
+  });
+
+// ==== Función para diagnosticar problemas de IDs ====
+async function diagnosticarProblemaIDs(ctx, provider) {
+  console.log('\n🔍 DIAGNÓSTICO DETALLADO DE IDs:');
+  console.log('📱 Remitente Original:', ctx.from);
+  console.log('🔄 Remitente Normalizado:', normalizarIdWhatsAppBusiness(ctx.from));
+  console.log('👤 Admin Original:', CONTACTO_ADMIN);
+  console.log('🔄 Admin Normalizado:', normalizarIdWhatsAppBusiness(CONTACTO_ADMIN));
+
+  // Verificar estructura del ID
+  const id = ctx.from;
+  console.log('📋 Estructura del ID:');
+  console.log('   - Tiene @s.whatsapp.net:', id.includes('@s.whatsapp.net'));
+  console.log('   - Tiene @g.us:', id.includes('@g.us'));
+  console.log('   - Tiene @c.us:', id.includes('@c.us'));
+  console.log('   - Es número limpio:', /^\d+$/.test(id));
+
+  // Verificar provider
+  if (provider && provider.vendor) {
+    try {
+      const sock = provider.vendor;
+      console.log('🔌 Estado del Provider: Conectado');
+
+      // Intentar obtener información del chat
+      try {
+        const jidNormalizado = normalizarIdWhatsAppBusiness(ctx.from);
+        console.log('💬 Intentando obtener chat para:', jidNormalizado);
+
+        // Esta línea puede variar según la versión de Baileys
+        const chat = await sock.onWhatsApp(jidNormalizado);
+        console.log('💬 Chat encontrado en WhatsApp:', chat ? 'Sí' : 'No');
+      } catch (chatError) {
+        console.log('💬 Error obteniendo chat:', chatError.message);
+      }
+    } catch (error) {
+      console.log('🔌 Error verificando provider:', error.message);
+    }
+  } else {
+    console.log('🔌 Provider no disponible para diagnóstico');
+  }
+  console.log('----------------------------------------\n');
+}
+
+// ==== Función UNIVERSAL para enviar respuestas de forma segura ====
+async function enviarRespuestaSegura(provider, destinatario, mensaje) {
+  try {
+    if (!provider || !provider.vendor) {
+      console.error('❌ Provider no disponible para enviar respuesta');
+      return false;
+    }
+
+    const sock = provider.vendor;
+
+    // 🔧 NORMALIZAR DESTINATARIO
+    const destinatarioNormalizado = normalizarIdWhatsAppBusiness(destinatario);
+
+    console.log(`📤 ENVIANDO RESPUESTA - Destino: ${destinatarioNormalizado}`);
+
+    // 🔧 VERIFICACIÓN EXTRA DE SEGURIDAD
+    if (!destinatarioNormalizado || !destinatarioNormalizado.includes('@')) {
+      console.error('❌ Destinatario inválido para respuesta:', destinatarioNormalizado);
+      return false;
+    }
+
+    // 🔧 VERIFICAR QUE NO ESTÉS ENVIANDO A TI MISMO O AL ADMIN POR ERROR
+    if (destinatarioNormalizado === normalizarIdWhatsAppBusiness(CONTACTO_ADMIN)) {
+      console.log('⚠️ Intento de enviar mensaje al admin desde interceptor, omitiendo');
+      return false;
+    }
+
+    await sock.sendMessage(destinatarioNormalizado, { text: mensaje });
+    console.log('✅ Respuesta enviada correctamente al usuario');
+    return true;
+
+  } catch (error) {
+    console.error('❌ Error enviando respuesta segura:', error.message);
+
+    // 🔧 DIAGNÓSTICO DETALLADO DEL ERROR
+    if (error.message.includes('not-authorized')) {
+      console.log('🔍 Diagnóstico: El bot no está autorizado para enviar a este chat');
+    } else if (error.message.includes('blocked')) {
+      console.log('🔍 Diagnóstico: El usuario tiene bloqueado al bot');
+    } else if (error.message.includes('chat')) {
+      console.log('🔍 Diagnóstico: Error de chat - ID posiblemente incorrecto');
+    } else if (error.message.includes('group')) {
+      console.log('🔍 Diagnóstico: Posible problema con chat grupal');
+    }
+
+    return false;
+  }
+}
+
+// ==== Función de diagnóstico mejorada ====
+async function diagnosticarProblemaEnvio(ctx, provider) {
+  console.log('🔍 DIAGNÓSTICO DETALLADO:');
+  console.log('📱 Remitente Original:', ctx.from);
+  console.log('🔄 Remitente Normalizado:', normalizarIdWhatsAppBusiness(ctx.from));
+  console.log('👤 Admin Original:', CONTACTO_ADMIN);
+  console.log('🔄 Admin Normalizado:', normalizarIdWhatsAppBusiness(CONTACTO_ADMIN));
+  console.log('💬 Mensaje:', ctx.body);
+
+  // Verificar estado del provider
+  if (provider && provider.vendor) {
+    try {
+      const sock = provider.vendor;
+      console.log('🔌 Estado Socket:', sock ? 'Conectado' : 'Desconectado');
+
+      // Intentar obtener información del chat
+      try {
+        const chat = await sock.chatModify({}, normalizarIdWhatsAppBusiness(ctx.from));
+        console.log('💬 Chat encontrado:', chat ? 'Sí' : 'No');
+      } catch (chatError) {
+        console.log('💬 Error obteniendo chat:', chatError.message);
+      }
+    } catch (error) {
+      console.log('🔌 Error verificando provider:', error.message);
+    }
+  } else {
+    console.log('🔌 Provider no disponible para diagnóstico');
+  }
+}
+
+// ==== Flujo de Bloqueo Activo - ACTUALIZADO CON TIEMPOS ====
+const flowBloqueoActivo = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    await debugFlujo(ctx, 'flowBloqueoActivo');
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    const myState = await state.getMyState();
+
+    // 🔧 VERIFICAR SI SIGUE EN ESTADO DE BLOQUEO
+    if (!myState?.estadoUsuario || myState.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+      console.log(`🔓 Usuario ${ctx.from} ya no está bloqueado, liberando...`);
+      await limpiarEstado(state);
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+    }
+
+    const input = ctx.body?.toLowerCase().trim();
+
+    // 🔧 ACTUALIZAR LA ÚLTIMA INTERACCIÓN USANDO TU FUNCIÓN actualizarEstado
+    if (input) {
+      await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+        ...myState.estadoMetadata,
+        // Mantenemos todos los metadatos existentes pero actualizamos el timestamp
+      });
+    }
+
+    // 🔧 MANEJAR DIFERENTES TIPOS DE MENSAJES
+    if (input === 'estado') {
+      await mostrarEstadoBloqueado(flowDynamic, myState);
+      return;
+    } else if (input) {
+      // 🔧 CALCULAR TIEMPOS PARA EL MENSAJE GENÉRICO
+      const metadata = myState.estadoMetadata || {};
+      const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
+      const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
+      const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
+
+      const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
+      const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
+
+      await flowDynamic([
+        '⏳ *Proceso en curso* ⏳',
+        '',
+        '📋 Tu solicitud está siendo procesada activamente...',
+        '',
+        `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
+        `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
+        '',
+        '🔄 **No es necesario que escribas nada**',
+        '⏰ El proceso continuará automáticamente',
+        '',
+        '💡 **Solo escribe:**',
+        '*estado* - Para ver el progreso actual',
+        '',
+        '¡Gracias por tu paciencia! 🙏'
+      ].join('\n'));
+      return;
+    }
+
+    return;
+  });
+
+// ==== FLUJO PARA BLOQUEAR AL ADMINISTRADOR ====
+const flowBlockAdmin = addKeyword(EVENTS.WELCOME)
+  .addAction(async (ctx, { state }) => {
+    await debugFlujo(ctx, 'flowBlockAdmin');
+    if (ctx.from === CONTACTO_ADMIN) {
+      console.log('🚫 Mensaje del administrador bloqueado - No se procesará')
+      return
+    }
+  })
+
+// ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA (CORREGIDO) ====
+const flowSubMenuContrasena = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    ' Una ves comenzado esté proceso no podrá ser detenido hasta completarse.\n\n' +
+    '👥 *Selecciona tu tipo de usuario (Solamente ingresa el número):*\n\n' +
+    '1️⃣ ¿Eres un estudiante?\n' +
+    '2️⃣ ¿Eres un trabajador o docente?\n\n' +
+    '🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      await debugFlujo(ctx, 'flowSubMenuContrasena');
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (opcion === '1') {
+        // Alumno - flujo normal con número de control
+        await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaNumeroControl);
+      }
+
+      if (opcion === '2') {
+        // Trabajador - flujo con correo institucional
+        await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaCorreoTrabajador);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+      return gotoFlow(flowSubMenuContrasena);
+    }
+  );
+
+// ==== Función para validar correo institucional de trabajadores ====
 function validarCorreoTrabajador(correo) {
   const regex = /^[a-zA-Z0-9._%+-]+@aguascalientes\.tecnm\.mx$/;
   return regex.test(correo) && correo.length > 0;
 }
 
+// ==== Flujo de captura de correo para trabajador (CONTRASEÑA) ====
+const flowCapturaCorreoTrabajador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en correo trabajador');
+        await flowDynamic('⏱️ No recibimos tu correo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now(),
+      esTrabajador: true // 🔧 MARCADOR PARA TRABAJADOR
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *correo institucional* (ejemplo: nombre.apellido@aguascalientes.tecnm.mx):',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu correo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaCorreoTrabajador);
+      }
+
+      if (!isValidText(input) || !validarCorreoTrabajador(input)) {
+        await flowDynamic('❌ Correo institucional inválido. Debe ser: nombre.apellido@aguascalientes.tecnm.mx\nIntenta de nuevo o escribe *menú* para volver.');
+        return gotoFlow(flowCapturaCorreoTrabajador);
+      }
+
+      await state.update({
+        correoInstitucional: input,
+        esTrabajador: true
+      });
+      await flowDynamic(`✅ Recibimos tu correo institucional: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaNombreTrabajador);
+    }
+  );
+
+// ==== Flujo de captura de correo para trabajador (AUTENTICADOR) ====
+const flowCapturaCorreoTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en correo trabajador - autenticador');
+        await flowDynamic('⏱️ No recibimos tu correo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now(),
+      esTrabajador: true
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *correo institucional* (ejemplo: nombre.apellido@aguascalientes.tecnm.mx):',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu correo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaCorreoTrabajadorAutenticador);
+      }
+
+      if (!isValidText(input) || !validarCorreoTrabajador(input)) {
+        await flowDynamic('❌ Correo institucional inválido. Debe ser: nombre.apellido@aguascalientes.tecnm.mx\nIntenta de nuevo o escribe *menú* para volver.');
+        return gotoFlow(flowCapturaCorreoTrabajadorAutenticador);
+      }
+
+      await state.update({
+        correoInstitucional: input,
+        esTrabajador: true
+      });
+      await flowDynamic(`✅ Recibimos tu correo institucional: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+    }
+  );
+
+// ==== SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR (CORREGIDO) ====
+const flowSubMenuAutenticador = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    ' Una ves comenzado esté proceso no podrá ser detenido hasta completarse.\n\n' +
+    '👥 *Selecciona tu tipo de usuario (Solamente ingresa el número):*\n\n' +
+    '1️⃣ ¿Eres un estudiante?\n' +
+    '2️⃣ ¿Eres un trabajador o docente?\n\n' +
+    '🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      await debugFlujo(ctx, 'flowSubMenuAutenticador');
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (opcion === '1') {
+        // Alumno - flujo normal con número de control
+        await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaNumeroControlAutenticador);
+      }
+
+      if (opcion === '2') {
+        // Trabajador - flujo con correo institucional
+        await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...');
+        return gotoFlow(flowCapturaCorreoTrabajadorAutenticador);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+      return gotoFlow(flowSubMenuAutenticador);
+    }
+  );
+
+// ==== Función para obtener información de medios ====
+async function obtenerUrlImagen(message) {
+  try {
+    // Esto es un ejemplo - necesitas adaptarlo según cómo Baileys maneja los medios
+    if (message.imageMessage) {
+      // Para imágenes normales
+      return message.imageMessage.url ||
+        (message.imageMessage.mimetype ?
+          `data:${message.imageMessage.mimetype};base64,${message.imageMessage.fileSha256}` :
+          null);
+    } else if (message.documentMessage && message.documentMessage.mimetype.startsWith('image/')) {
+      // Para documentos que son imágenes
+      return message.documentMessage.url ||
+        (message.documentMessage.mimetype ?
+          `data:${message.documentMessage.mimetype};base64,${message.documentMessage.fileSha256}` :
+          null);
+    }
+    return null;
+  } catch (error) {
+    console.error('❌ Error obteniendo URL de imagen:', error);
+    return null;
+  }
+}
+
+// ==== Función CORREGIDA para verificar imágenes de WhatsApp - VERSIÓN ÚNICA ====
+function esImagenValida(ctx) {
+  if (!ctx || typeof ctx !== 'object') {
+    console.log('❌ Contexto inválido para validar imagen');
+    return false;
+  }
+
+  console.log('🔍 Analizando mensaje para validación de imagen:', JSON.stringify(ctx, null, 2));
+
+  // 🔧 PRIMERO: Verificar si es un mensaje multimedia de WhatsApp
+  if (ctx.message) {
+    const messageKeys = Object.keys(ctx.message);
+
+    // Verificar si tiene cualquier tipo de mensaje multimedia
+    const hasMediaMessage = messageKeys.some(key => {
+      return key.includes('Message') &&
+        !key.includes('conversation') &&
+        !key.includes('extendedTextMessage') &&
+        !key.includes('protocolMessage') &&
+        !key.includes('senderKeyDistributionMessage');
+    });
+
+    if (hasMediaMessage) {
+      console.log('✅ Estructura de mensaje multimedia detectada en ctx.message');
+
+      // Verificar tipos específicos de imagen
+      if (ctx.message.imageMessage) {
+        console.log('✅ Imagen detectada en message.imageMessage');
+        return true;
+      }
+
+      // Verificar documento que sea imagen
+      if (ctx.message.documentMessage) {
+        const mimeType = ctx.message.documentMessage.mimetype;
+        if (mimeType && mimeType.startsWith('image/')) {
+          console.log('✅ Imagen detectada como documento con mimetype:', mimeType);
+          return true;
+        }
+      }
+
+      // Verificar mensaje de vista previa de enlace con imagen
+      if (ctx.message.viewOnceMessageV2 || ctx.message.viewOnceMessage) {
+        console.log('✅ Mensaje de vista única (posible imagen)');
+        return true;
+      }
+
+      // Si tiene estructura multimedia pero no podemos identificar el tipo exacto, asumir que es válido
+      console.log('✅ Estructura multimedia genérica detectada');
+      return true;
+    }
+  }
+
+  // 🔧 SEGUNDO: Verificar propiedades directas
+  if (ctx.type === 'image' || ctx.type === 'sticker' || ctx.type === 'document') {
+    console.log('✅ Imagen detectada por tipo directo:', ctx.type);
+    return true;
+  }
+
+  // 🔧 TERCERO: Verificar propiedades de medios
+  if (ctx.media || ctx.hasMedia || ctx.mimetype) {
+    console.log('✅ Imagen detectada por propiedades media/mimetype');
+    return true;
+  }
+
+  // 🔧 CUARTO: Verificar estructura de clave WhatsApp
+  if (ctx.key && ctx.key.remoteJid && ctx.key.id) {
+    console.log('✅ Mensaje tiene estructura WhatsApp válida con key');
+    // En WhatsApp, si tiene estructura válida y llegó aquí, podría ser media
+    return true;
+  }
+
+  // 🔧 QUINTO: Verificar por palabras clave en el cuerpo (fallback)
+  if (ctx.body) {
+    const bodyLower = ctx.body.toLowerCase();
+    const imageKeywords = ['foto', 'photo', 'imagen', 'image', 'cámara', 'camera', '📷', '📸'];
+    if (imageKeywords.some(keyword => bodyLower.includes(keyword))) {
+      console.log('✅ Palabra clave de imagen detectada en el mensaje');
+      return true;
+    }
+  }
+
+  console.log('❌ No se pudo identificar como imagen válida después de todas las validaciones');
+  console.log('Tipo recibido:', ctx.type);
+  console.log('Estructura message:', ctx.message ? Object.keys(ctx.message) : 'No');
+  console.log('Tiene media:', ctx.media || ctx.hasMedia ? 'Sí' : 'No');
+  console.log('Tiene key:', ctx.key ? 'Sí' : 'No');
+  return false;
+}
+
+// ==== Flujo final de contraseña - ACTUALIZADO ====
+const flowContrasena = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+    // ⚡ Excluir administrador
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
+    const myState = (await state.getMyState()) || {};
+    const nombreCompleto = myState.nombreCompleto;
+    const numeroControl = myState.numeroControl;
+    const correoInstitucional = myState.correoInstitucional;
+    const esTrabajador = myState.esTrabajador;
+
+    // 🔧 VALIDACIÓN CORREGIDA - aceptar número de control O correo
+    if (!nombreCompleto || (!numeroControl && !correoInstitucional)) {
+      console.log('❌ Datos incompletos, redirigiendo a captura...');
+      await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
+      return gotoFlow(flowSubMenuContrasena);
+    }
+
+    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
+    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+      tipo: "🔐 Restablecimiento de Contraseña",
+      inicio: Date.now(),
+      esTrabajador: esTrabajador || false
+    });
+
+    const phone = ctx.from;
+    const identificacion = esTrabajador ? correoInstitucional : numeroControl;
+    const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
+
+    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORRO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n⚠️ Reacciona para validar que está listo`;
+
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+
+    // 🔧 ENVIAR IDENTIFICACIÓN SI ESTÁ DISPONIBLE
+    if (myState.identificacionSubida && myState.imagenIdentificacion) {
+      const userData = {
+        nombre: nombreCompleto,
+        identificacion: identificacion,
+        tipo: tipoUsuario
+      };
+      // Reenviar la identificación al admin
+      await enviarIdentificacionAlAdmin(provider, {
+        message: myState.imagenIdentificacion,
+        key: ctx.key
+      }, userData);
+    }
+
+    if (envioExitoso) {
+      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
+    } else {
+      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
+    }
+
+    let minutosRestantes = 30;
+
+    // Aviso cada 10 minutos
+    const intervalId = setInterval(async () => {
+      minutosRestantes -= 10;
+      if (minutosRestantes > 0) {
+        await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
+      }
+    }, 10 * 60000);
+
+    // Guardar ID del intervalo en el estado
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        intervalId: intervalId
+      }
+    });
+
+    // Mensaje final después de 30 minutos
+    const timeoutId = setTimeout(async () => {
+      clearInterval(intervalId);
+
+      try {
+        await flowDynamic(`✅ Se restableció correctamente tu contraseña.\nTu nueva contraseña temporal es: *SoporteCC1234$*`);
+
+        // 🔧 CORREGIR: Obtener el correo correcto según el tipo de usuario
+        const correoUsuario = esTrabajador ? correoInstitucional : `${numeroControl}@aguascalientes.tecnm.mx`;
+
+        console.log(`✅ Contraseña enviada correctamente a *${nombreCompleto}* - ${esTrabajador ? 'Correo' : 'Matrícula'}: *${identificacion}*`);
+
+        await flowDynamic(
+          `*Instrucciones para acceder* \n\n *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* para poder configurar todo correctamente, después del primer inicio de sesión ya puedes configurar tus aplicaciones \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${correoUsuario} \n Paso 4.- Ingresa la contraseña temporal: *SoporteCC1234$*  \n Paso 5.- Una vez que ingreses te va a solicitar que realices el cambio de tu contraseña. En contraseña actual es la contraseña temporal: *SoporteCC1234$* en los siguientes campos vas a generar tu nueva contraseña personalizada \n (Por recomendación de seguridad procura que tenga mínimo 11 caracteres, al menos debería de contener: Una mayúscula, una minúscula, un número y un carácter especial: %$#!&/-_.*+). \n Con esto terminaríamos el proceso total del cambio de contraseña.`
+        );
+
+        await flowDynamic(
+          '🔐 Por seguridad, *Te recomendamos que esté primer inicio de sesión lo realices desde tu computadora* y de esta manera poder cambiar tu contraseña de una manera más cómoda.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
+        );
+
+      } catch (error) {
+        console.error('❌ Error enviando mensaje final:', error.message);
+      }
+
+      // 🔓 LIBERAR ESTADO al finalizar
+      await limpiarEstado(state);
+    }, 30 * 60000);
+
+    // Guardar ID del timeout en el estado
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        timeoutId: timeoutId
+      }
+    });
+  })
+  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
+  .addAnswer(
+    { capture: true },
+    async (ctx, { gotoFlow }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+      return gotoFlow(flowBloqueoActivo);
+    }
+  );
+
+// ==== Función MEJORADA para obtener información de la imagen ====
+function obtenerInfoImagen(ctx) {
+  if (!ctx) return null;
+
+  try {
+    const info = {
+      tipo: ctx.type || 'desconocido',
+      timestamp: Date.now(),
+      from: ctx.from,
+      id: ctx.id,
+      esValida: esImagenValida(ctx)
+    };
+
+    // Información específica según el tipo
+    if (ctx.message) {
+      if (ctx.message.imageMessage) {
+        info.mimetype = ctx.message.imageMessage.mimetype || 'image/jpeg';
+        info.tamaño = ctx.message.imageMessage.fileLength;
+        info.esImageMessage = true;
+        info.caption = ctx.message.imageMessage.caption || 'Sin descripción';
+        info.url = ctx.message.imageMessage.url;
+      }
+      if (ctx.message.documentMessage) {
+        info.mimetype = ctx.message.documentMessage.mimetype;
+        info.nombreArchivo = ctx.message.documentMessage.title;
+        info.tamaño = ctx.message.documentMessage.fileLength;
+        info.esDocumentMessage = true;
+        info.url = ctx.message.documentMessage.url;
+      }
+    }
+
+    // Información adicional de depuración
+    info.estructuraCompleta = {
+      tieneMessage: !!ctx.message,
+      keysMessage: ctx.message ? Object.keys(ctx.message) : [],
+      tipoMensaje: ctx.type,
+      tieneMedia: !!(ctx.media || ctx.hasMedia),
+      timestampRecepcion: new Date().toISOString()
+    };
+
+    console.log('📄 Información completa de imagen:', info);
+    return info;
+  } catch (error) {
+    console.error('❌ Error obteniendo info de imagen:', error);
+    return {
+      tipo: 'error',
+      timestamp: Date.now(),
+      error: error.message
+    };
+  }
+}
+
+// ==== Función AUXILIAR para manejar específicamente fotos de cámara de WhatsApp ====
+function esFotoDeCamaraWhatsApp(ctx) {
+  if (!ctx.message) return false;
+
+  // Las fotos tomadas directamente con la cámara de WhatsApp generalmente
+  // vienen como imageMessage sin caption o con caption vacío
+  if (ctx.message.imageMessage) {
+    const hasCaption = ctx.message.imageMessage.caption &&
+      ctx.message.imageMessage.caption.trim().length > 0;
+    return !hasCaption; // Si no tiene caption, probablemente es foto directa de cámara
+  }
+
+  return false;
+}
+
+// ==== Flujo de captura para identificación oficial - MEJORADO ====
+const flowCapturaIdentificacion = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 4 minutos en identificación');
+        await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 4 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaIdentificacion: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    [
+      '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
+      '',
+      'Es importante que solamente respondas con la fotografía de tu credencial escolar del ITA. No envíes mensajes de texto ni otros tipos de archivos. \n en caso de no contar con tu credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
+      '',
+      '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP:**',
+      '• Usa la cámara de tu celular, NO la computadora',
+      '• Toca el ícono de 📎 (clip)',
+      '• Selecciona "Cámara" o "Camera"',
+      '• Toma una foto NUEVA de tu credencial',
+      '• Asegúrate de que sea CLARA y legible',
+      '',
+      '📋 **Credencial requerida:**',
+      '• Credencial escolar CON FOTO del ITA',
+      '• Debe ser actual y vigente',
+      '• Todos los datos deben ser visibles',
+      '',
+      '⏰ **Tienes 4 minutos** para enviar la fotografía',
+      '',
+      '❌ **NO se aceptan:**',
+      '• Fotos de galería o archivos antiguos',
+      '• Capturas de pantalla',
+      '• Documentos escaneados o PDF',
+      '• Fotos borrosas o oscuras'
+    ].join('\n'),
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      // 🔧 VALIDACIÓN MEJORADA CON MÁS TOLERANCIA
+      const esValida = esImagenValida(ctx);
+      const infoImagen = obtenerInfoImagen(ctx);
+      const esDeCamara = esFotoDeCamaraWhatsApp(ctx);
+
+      if (!esValida) {
+        console.log('❌ Imagen no válida - Información detallada:', infoImagen);
+
+        await flowDynamic([
+          '❌ *No recibimos una fotografía válida*',
+          '',
+          '⚠️ **Para WhatsApp Web/Desktop:**',
+          '1. Usa tu CELULAR para tomar la foto',
+          '2. Toca el clip 📎 en WhatsApp',
+          '3. Selecciona "Cámara" (NO "Galería")',
+          '4. Toma foto NUEVA de tu credencial',
+          '5. Envíala directamente',
+          '',
+          '📱 **Si usas WhatsApp en computadora:**',
+          '• La foto debe tomarse con tu celular',
+          '• NO uses la cámara de la computadora',
+          '• NO envíes archivos de galería',
+          '',
+          '🔄 **Intenta de nuevo por favor.**'
+        ].join('\n'));
+
+        return gotoFlow(flowCapturaIdentificacion);
+      }
+
+      // 🔧 GUARDAR INFORMACIÓN MEJORADA CON DETECCIÓN DE CÁMARA
+      await state.update({
+        identificacionSubida: true,
+        infoIdentificacion: infoImagen,
+        timestampIdentificacion: Date.now(),
+        imagenIdentificacion: ctx,
+        fotoEnVivo: esDeCamara, // 🔧 MEJORADO: Detectar si es de cámara
+        tipoValidacion: esDeCamara ? 'fotografia_en_tiempo_real' : 'fotografia_de_galeria',
+        esWhatsAppWeb: !esDeCamara // 🔧 NUEVO: Marcar si posiblemente es de WhatsApp Web
+      });
+
+      // Mensaje según el tipo de imagen
+      if (esDeCamara) {
+        await flowDynamic([
+          '✅ *¡Perfecto! Foto tomada correctamente con la cámara*',
+          '',
+          '📋 **Hemos validado:**',
+          '• Fotografía en tiempo real ✓',
+          '• Credencial con foto visible ✓',
+          '• Datos legibles ✓',
+          '',
+          '🔄 Continuando con el proceso...'
+        ].join('\n'));
+      } else {
+        await flowDynamic([
+          '✅ *¡Identificación recibida!*',
+          '',
+          '📋 Continuamos con el proceso...',
+          '',
+          '⚠️ **Nota:** Para mayor seguridad, recomendamos',
+          'tomar fotos directamente con la cámara la próxima vez.'
+        ].join('\n'));
+      }
+
+      // 🔧 REGISTRO MEJORADO EN LOGS
+      const myState = await state.getMyState();
+      console.log('📸 Identificación recibida y validada');
+      console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
+      console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
+      console.log(`📱 Tipo: ${esDeCamara ? 'Foto de cámara' : 'Posible archivo/galería'}`);
+      console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowContrasena);
+    }
+  );
+
+// ==== Flujo de captura para identificación oficial (AUTENTICADOR) - ACTUALIZADO ====
+const flowCapturaIdentificacionAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 4 minutos en identificación - autenticador');
+        await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 4 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaIdentificacion: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    [
+      '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
+      '',
+      'Es importante que solamente respondas con la fotografía de tu credencial escolar del ITA. No envíes mensajes de texto ni otros tipos de archivos. \n en caso de no contar con tu credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
+      '',
+      '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP:**',
+      '• Usa la cámara de tu celular, NO la computadora',
+      '• Toca el ícono de 📎 (clip)',
+      '• Selecciona "Cámara" o "Camera"',
+      '• Toma una foto NUEVA de tu credencial',
+      'En caso de no contar con la credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
+      '• Asegúrate de que sea CLARA y legible',
+      '',
+      '📋 **Para configurar tu autenticador, necesitamos verificar tu identidad:**',
+      '• Credencial escolar CON FOTO del ITA',
+      'En caso de no contar con la credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
+      '• Debe ser actual y vigente',
+      '• Todos los datos deben ser visibles',
+      '',
+      '⏰ **Tienes 4 minutos** para enviar la fotografía',
+      '',
+      '❌ **NO se aceptan:**',
+      '• Fotos de galería o archivos antiguos',
+      '• Capturas de pantalla',
+      '• Documentos escaneados o PDF',
+      '• Fotos borrosas o oscuras'
+    ].join('\n'),
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      // 🔧 VALIDACIÓN MEJORADA CON MÁS TOLERANCIA
+      const esValida = esImagenValida(ctx);
+      const infoImagen = obtenerInfoImagen(ctx);
+      const esDeCamara = esFotoDeCamaraWhatsApp(ctx);
+
+      if (!esValida) {
+        console.log('❌ Imagen no válida - Información detallada:', infoImagen);
+
+        await flowDynamic([
+          '❌ *No recibimos una fotografía válida*',
+          '',
+          '⚠️ **Para WhatsApp Web/Desktop:**',
+          '1. Usa tu CELULAR para tomar la foto',
+          '2. Toca el clip 📎 en WhatsApp',
+          '3. Selecciona "Cámara" (NO "Galería")',
+          '4. Toma foto NUEVA de tu credencial',
+          '5. Envíala directamente',
+          '',
+          '📱 **Si usas WhatsApp en computadora:**',
+          '• La foto debe tomarse con tu celular',
+          '• NO uses la cámara de la computadora',
+          '• NO envíes archivos de galería',
+          '',
+          '🔄 **Intenta de nuevo por favor.**'
+        ].join('\n'));
+
+        return gotoFlow(flowCapturaIdentificacionAutenticador);
+      }
+
+      // 🔧 GUARDAR INFORMACIÓN MEJORADA CON DETECCIÓN DE CÁMARA
+      await state.update({
+        identificacionSubida: true,
+        infoIdentificacion: infoImagen,
+        timestampIdentificacion: Date.now(),
+        imagenIdentificacion: ctx,
+        fotoEnVivo: esDeCamara,
+        tipoValidacion: esDeCamara ? 'fotografia_en_tiempo_real' : 'fotografia_de_galeria',
+        esWhatsAppWeb: !esDeCamara
+      });
+
+      // Mensaje según el tipo de imagen
+      if (esDeCamara) {
+        await flowDynamic([
+          '✅ *¡Perfecto! Foto tomada correctamente con la cámara*',
+          '',
+          '📋 **Hemos validado:**',
+          '• Fotografía en tiempo real ✓',
+          '• Credencial con foto visible ✓',
+          '• Datos legibles ✓',
+          '',
+          '🔄 Continuando con la configuración de tu autenticador...'
+        ].join('\n'));
+      } else {
+        await flowDynamic([
+          '✅ *¡Identificación recibida!*',
+          '',
+          '📋 Continuamos con la configuración del autenticador...',
+          '',
+          '⚠️ **Nota:** Para mayor seguridad, recomendamos',
+          'tomar fotos directamente con la cámara la próxima vez.'
+        ].join('\n'));
+      }
+
+      // 🔧 REGISTRO MEJORADO EN LOGS
+      const myState = await state.getMyState();
+      console.log('📸 Identificación recibida y validada (Autenticador)');
+      console.log(`👤 Usuario: ${myState.nombreCompleto || 'Por confirmar'}`);
+      console.log(`📧 Identificación: ${myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl}`);
+      console.log(`📱 Tipo: ${esDeCamara ? 'Foto de cámara' : 'Posible archivo/galería'}`);
+      console.log(`🕒 Timestamp: ${new Date().toISOString()}`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowAutenticador);
+    }
+  );
+
+// ==== Flujo final de autenticador - ACTUALIZADO PARA AMBOS TIPOS ====
+const flowAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => { // 🔧 AGREGAR gotoFlow
+    // ⚡ Excluir administrador
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
+    const myState = (await state.getMyState()) || {};
+    const nombreCompleto = myState.nombreCompleto;
+    const numeroControl = myState.numeroControl;
+    const correoInstitucional = myState.correoInstitucional;
+    const esTrabajador = myState.esTrabajador;
+
+    // 🔧 VALIDACIÓN CORREGIDA
+    if (!nombreCompleto || (!numeroControl && !correoInstitucional)) {
+      console.log('❌ Datos incompletos, redirigiendo a captura...');
+      await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
+      return gotoFlow(flowSubMenuAutenticador); // 🔧 Redirigir al submenú
+    }
+
+    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
+    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+      tipo: "🔑 Configuración de Autenticador",
+      inicio: Date.now(),
+      esTrabajador: esTrabajador || false
+    });
+
+    const phone = ctx.from;
+    const identificacion = esTrabajador ? correoInstitucional : numeroControl;
+    const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
+
+    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${phone}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+
+    if (envioExitoso) {
+      await flowDynamic('⏳ Permítenos un momento, vamos a desconfigurar tu autenticador... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
+    } else {
+      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
+    }
+
+    let minutosRestantes = 30;
+
+    // Aviso cada 10 minutos
+    const intervalId = setInterval(async () => {
+      minutosRestantes -= 10;
+      if (minutosRestantes > 0) {
+        await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar la configuración del autenticador...`);
+      }
+    }, 10 * 60000);
+
+    // Guardar ID del intervalo
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        intervalId: intervalId
+      }
+    });
+
+    // Mensaje final después de 30 minutos
+    const timeoutId = setTimeout(async () => {
+      clearInterval(intervalId);
+
+      try {
+        await flowDynamic(
+          '✅ Se desconfiguró correctamente el autenticador de dos factores'
+        );
+
+        // 🔧 CORREGIR: Obtener el correo correcto según el tipo de usuario
+        const correoUsuario = esTrabajador ? correoInstitucional : `${numeroControl}@aguascalientes.tecnm.mx`;
+
+        console.log(`✅ Autenticador desconfigurado correctamente para *${nombreCompleto}* - ${esTrabajador ? 'Correo' : 'Matrícula'}: *${identificacion}*`);
+
+        await flowDynamic(
+          `*Es importante que estos pasos los realices en una computadora*,\nya que necesitarás tu celular y tu computadora para poder configurar el autenticador. \n\n Paso 1.- Cierra la pestaña actual en donde estabas intentando acceder al correo. \n Paso 2.- Ingresa a la página de: https://office.com o en la página: https://login.microsoftonline.com/?whr=tecnm.mx para acceder a tu cuenta institucional. \n Paso 3.- Ingresa tu correo institucional recuerda que es: ${correoUsuario} \n Paso 4.- Tu contraseña con la que ingresas normalmente \n Paso 5.- Te va a aparecer una página en donde vas a reconfigurar tu autenticador, sigue los pasos que se te mostrarán en la pantalla. Necesitarás configurar la aplicación de autenticador y también debes de ingresar un número de teléfono.`
+        );
+
+        await flowDynamic(
+          '🔐 Por seguridad, será necesario configurar un nuevo método de autenticación al iniciar sesión.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
+        );
+
+      } catch (error) {
+        console.error('❌ Error enviando mensaje final:', error.message);
+      }
+
+      // 🔓 LIBERAR ESTADO al finalizar
+      await limpiarEstado(state);
+    }, 30 * 60000);
+
+    // Guardar ID del timeout
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        timeoutId: timeoutId
+      }
+    });
+  })
+  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
+  .addAnswer(
+    { capture: true },
+    async (ctx, { gotoFlow }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+      return gotoFlow(flowBloqueoActivo);
+    }
+  );
+
+// ==== Flujo final de SIE - CORREGIDO (SOLO cuando ya tiene datos) ====
+const flowFinSIE = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+    // ⚡ Excluir administrador
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    // 🔍 VERIFICAR QUE TENEMOS LOS DATOS COMPLETOS
+    const myState = (await state.getMyState()) || {};
+    const nombreCompleto = myState.nombreCompleto;
+    const numeroControl = myState.numeroControl;
+
+    if (!nombreCompleto || !numeroControl) {
+      console.log('❌ Datos incompletos, redirigiendo a captura...');
+      await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
+      return gotoFlow(flowCapturaNumeroControlSIE);
+    }
+
+    // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
+    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+      tipo: "📊 Sincronización de Datos SIE",
+      inicio: Date.now()
+
+    });
+
+    const phone = ctx.from;
+
+    // ✅ ENVIAR INFORMACIÓN COMPLETA AL ADMINISTRADOR
+    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE SINCRONIZACIÓN DE DATOS*\nNo le aparece el horario ni las materias en el SIE 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${phone}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ Reacciona para validar que está listo`;
+
+    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+
+    if (envioExitoso) {
+      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
+    } else {
+      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
+    }
+
+    let minutosRestantes = 30;
+
+    // Aviso cada 10 minutos
+    const intervalId = setInterval(async () => {
+      minutosRestantes -= 10;
+      if (minutosRestantes > 0) {
+        await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
+      }
+    }, 10 * 60000);
+
+    // Guardar ID del intervalo
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        intervalId: intervalId
+      }
+    });
+
+    // Mensaje final después de 30 minutos
+    const timeoutId = setTimeout(async () => {
+      clearInterval(intervalId);
+
+      try {
+        await flowDynamic(`✅ Se sincronizaron los datos correctamente en tu portal del SIE*`);
+        console.log(`✅ Sincronización enviada correctamente a *${nombreCompleto}* con matrícula *${numeroControl}*`);
+
+        await flowDynamic(
+          '✅ Ingresa nuevamente al portal del SIE y valida tus datos.\n\n 🔙 Escribe *menú* para volver a ver el menú principal.'
+        );
+
+      } catch (error) {
+        console.error('❌ Error enviando mensaje final:', error.message);
+      }
+
+      // 🔓 LIBERAR ESTADO al finalizar
+      await limpiarEstado(state);
+    }, 30 * 60000);
+
+    // Guardar ID del timeout
+    await state.update({
+      estadoMetadata: {
+        ...(await state.getMyState())?.estadoMetadata,
+        timeoutId: timeoutId
+      }
+    });
+  })
+  // 🔒 BLOQUEAR COMPLETAMENTE - REDIRIGIR A FLUJO DE BLOQUEO
+  .addAnswer(
+    { capture: true },
+    async (ctx, { gotoFlow }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+      return gotoFlow(flowBloqueoActivo);
+    }
+  );
+
+// ==== FLUJO PARA INFORMACIÓN DE CREDENCIALES (OPCIÓN 6) ====
+const flowInfoCredenciales = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    await debugFlujo(ctx, 'flowInfoCredenciales');
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+      return;
+    }
+
+    await flowDynamic([
+      '❓ *¿No conoces tu correo institucional ni tu contraseña?* ❓',
+      '',
+      '📋 **Para estudiantes:**',
+      '• Tu correo institucional se forma con tu número de control:',
+      '  *numero_de_control@aguascalientes.tecnm.mx*',
+      '',
+      '📋 **Para trabajadores/docentes:**',
+      '• Tu correo institucional generalmente es:',
+      '  *nombre.apellido@aguascalientes.tecnm.mx*',
+      '',
+      '🔍 **Si no recuerdas tu número de control:**',
+      '• Revisa tu credencial escolar del ITA',
+      '• Consulta con tu coordinador de carrera',
+      '• Revisa documentos oficiales de inscripción',
+      '',
+      '🔐 **Para restablecer tu contraseña:**',
+      '• Si conoces tu correo pero no tu contraseña,',
+      '  puedes restablecerla usando este bot, regresa al menú principal',
+      '  selecciona la opción *1* y sigue las instrucciones.',
+      '',
+      '📞 **Si necesitas ayuda adicional:**',
+      '• Centro de cómputo: 449 910 50 02 EXT. 145',
+      '• Coordinación de educación a distancia: 449 910 50 02 EXT. 125',
+      '',
+      '🔙 Escribe *menú* para volver al menú principal.'
+    ].join('\n'));
+
+    return gotoFlow(flowEsperaMenu);
+  });
+
+// ==== Flujo de espera para menú principal ====
+const flowEsperaMenu = addKeyword(EVENTS.ACTION)
+  .addAction(async (_, { state, flowDynamic }) => {
+    const timeout = setTimeout(async () => {
+      console.log('⌛ Tiempo agotado en menú principal.');
+      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+      await state.clear();
+    }, 5 * 60 * 1000);
+
+    await state.update({ timeoutMenu: timeout });
+  })
+  .addAnswer(
+    '🔙 Escribe *menú* para volver a ver el menú principal.',
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (/^men[uú]$/i.test(input)) {
+        clearTimeout(await state.get('timeoutMenu'));
+        await state.clear();
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (input === 'hola') {
+        clearTimeout(await state.get('timeoutMenu'));
+        await state.clear();
+        return gotoFlow(flowPrincipal);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *menú* para volver al menú principal.');
+      return gotoFlow(flowEsperaMenu);
+    }
+  );
+
+// ==== Flujo de espera para principal ====
+const flowEsperaPrincipal = addKeyword(EVENTS.ACTION)
+  .addAction(async (_, { state, flowDynamic }) => {
+    const timeout = setTimeout(async () => {
+      console.log('⌛ Tiempo agotado en flujo principal.');
+      await flowDynamic([
+        '⏱️ *Tiempo agotado*',
+        '',
+        'Para continuar usando el bot, escribe:',
+        '',
+        '🌟 *hola* - Para reiniciar',
+        '🌟 *inicio* - Para volver al menú',
+        '',
+        '¡Te espero! 🐦'
+      ].join('\n'));
+      await state.clear();
+    }, 5 * 60 * 1000);
+
+    await state.update({ timeoutPrincipal: timeout });
+  })
+  .addAnswer(
+    '🔙 Escribe *menú* para ver el menú principal.',
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (/^men[uú]$/i.test(input)) {
+        clearTimeout(await state.get('timeoutPrincipal'));
+        await state.clear();
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (input === 'hola' || input === 'inicio') {
+        clearTimeout(await state.get('timeoutPrincipal'));
+        await state.clear();
+        return gotoFlow(flowPrincipal);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *menú* para ver el menú principal.');
+      return gotoFlow(flowEsperaPrincipal);
+    }
+  );
+
+// ==== Flujo de espera para SIE ====
+const flowEsperaSIE = addKeyword(EVENTS.ACTION)
+  .addAction(async (_, { state, flowDynamic }) => {
+    const timeout = setTimeout(async () => {
+      console.log('⌛ Tiempo agotado en proceso SIE.');
+      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+      await state.clear();
+    }, 5 * 60 * 1000);
+
+    await state.update({ timeoutSIE: timeout });
+  })
+  .addAnswer(
+    '🔙 Escribe *menú* para regresar al menú principal.',
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (/^men[uú]$/i.test(input)) {
+        clearTimeout(await state.get('timeoutSIE'));
+        await state.clear();
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (input === 'hola') {
+        clearTimeout(await state.get('timeoutSIE'));
+        await state.clear();
+        return gotoFlow(flowPrincipal);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
+      return gotoFlow(flowEsperaSIE);
+    }
+  );
+
+// ==== Flujo de espera para restablecimiento de contraseña ====
+const flowEsperaContrasena = addKeyword(EVENTS.ACTION)
+  .addAction(async (_, { state, flowDynamic }) => {
+    const timeout = setTimeout(async () => {
+      console.log('⌛ Tiempo agotado en restablecimiento de contraseña.');
+      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+      await state.clear();
+    }, 5 * 60 * 1000);
+
+    await state.update({ timeoutContrasena: timeout });
+  })
+  .addAnswer(
+    '🔙 Escribe *menú* para regresar al menú principal.',
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (/^men[uú]$/i.test(input)) {
+        clearTimeout(await state.get('timeoutContrasena'));
+        await state.clear();
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (input === 'hola') {
+        clearTimeout(await state.get('timeoutContrasena'));
+        await state.clear();
+        return gotoFlow(flowPrincipal);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
+      return gotoFlow(flowEsperaContrasena);
+    }
+  );
+
+// ==== Flujo de espera para restablecimiento de autenticador ====
+const flowEsperaAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (_, { state, flowDynamic }) => {
+    const timeout = setTimeout(async () => {
+      console.log('⌛ Tiempo agotado en restablecimiento de autenticador.');
+      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+      await state.clear();
+    }, 5 * 60 * 1000);
+
+    await state.update({ timeoutAutenticador: timeout });
+  })
+  .addAnswer(
+    '🔙 Escribe *menú* para regresar al menú principal.',
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (/^men[uú]$/i.test(input)) {
+        clearTimeout(await state.get('timeoutAutenticador'));
+        await state.clear();
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (input === 'hola') {
+        clearTimeout(await state.get('timeoutAutenticador'));
+        await state.clear();
+        return gotoFlow(flowPrincipal);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
+      return gotoFlow(flowEsperaAutenticador);
+    }
+  );
+
+// ==== Flujo de espera para menú Educación a Distancia ====
+const flowEsperaMenuDistancia = addKeyword(EVENTS.ACTION)
+  .addAction(async (_, { state, flowDynamic }) => {
+    const timeout = setTimeout(async () => {
+      console.log('⌛ Tiempo agotado en espera de menú Educación a Distancia.');
+      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+      await state.clear();
+    }, 5 * 60 * 1000);
+
+    await state.update({ timeoutMenuDistancia: timeout });
+  })
+  .addAnswer(
+    '🔙 Escribe *menú* para regresar al menú principal.',
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (/^men[uú]$/i.test(input)) {
+        clearTimeout(await state.get('timeoutMenuDistancia'));
+        await state.clear();
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (input === 'hola') {
+        clearTimeout(await state.get('timeoutMenuDistancia'));
+        await state.clear();
+        return gotoFlow(flowPrincipal);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
+      return gotoFlow(flowEsperaMenuDistancia);
+    }
+  );
+
+// ==== Flujo de espera para menú SIE ====
+const flowEsperaMenuSIE = addKeyword(EVENTS.ACTION)
+  .addAction(async (_, { state, flowDynamic }) => {
+    const timeout = setTimeout(async () => {
+      console.log('⌛ Tiempo agotado en espera de menú SIE.');
+      await flowDynamic('⏱️ Tiempo agotado. Por favor inicia el bot nuevamente escribiendo *Hola*.');
+      await state.clear();
+    }, 5 * 60 * 1000);
+
+    await state.update({ timeoutMenuSIE: timeout });
+  })
+  .addAnswer(
+    '🔙 Escribe *menú* para regresar al menú principal.',
+    { capture: true },
+    async (ctx, { gotoFlow, flowDynamic, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (/^men[uú]$/i.test(input)) {
+        clearTimeout(await state.get('timeoutMenuSIE'));
+        await state.clear();
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (input === 'hola') {
+        clearTimeout(await state.get('timeoutMenuSIE'));
+        await state.clear();
+        return gotoFlow(flowPrincipal);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *menú* para regresar al menú principal.');
+      return gotoFlow(flowEsperaMenuSIE);
+    }
+  );
+
+// ==== Flujo de acceso al SIE - CORREGIDO ====
+const flowSIE = addKeyword(['sie']).addAnswer(
+  '📚 Acceso al SIE\n' +
+  'Por favor selecciona una opción:\n\n' +
+  '1️⃣ Restablecer contraseña de acceso\n' +
+  '2️⃣ No puedo ver mi horario o calificaciones\n\n' +
+  '🔙 Escribe *menú* para volver al menú principal.',
+  { capture: true },
+  async (ctx, { flowDynamic, gotoFlow, state }) => { // 🔧 AGREGAR state aquí
+    await debugFlujo(ctx, 'flowSIE');
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    const opcion = ctx.body.trim().toLowerCase();
+
+    if (opcion === 'menu' || opcion === 'menú') {
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+    }
+
+    if (opcion === '1') {
+      await flowDynamic(
+        '🔐 Para restablecer tu contraseña de acceso al SIE, por favor comunícate con tu *Coordinador de Carrera*. Ellos podrán asistirte directamente con el restablecimiento.'
+      );
+      return gotoFlow(flowEsperaMenuSIE);
+    }
+
+    if (opcion === '2') {
+      return gotoFlow(flowrestablecerSIE);
+    }
+
+    await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
+    return gotoFlow(flowSIE);
+  }
+);
+
+// ==== Flujo de captura con timeout - CORREGIDO ====
+const flowCapturaNumeroControl = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    await debugFlujo(ctx, 'flowCapturaNumeroControl');
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en número de control');
+        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
+
+        // 🔧 LIMPIAR ESTADO COMPLETAMENTE
+        await limpiarEstado(state);
+
+        // 🔧 REDIRIGIR AL MENÚ PRINCIPAL
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *número de control*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      // 🔧 LIMPIAR TIMEOUT INMEDIATAMENTE
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu número de control. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNumeroControl);
+      }
+
+      if (!isValidText(input) || !validarNumeroControl(input)) {
+        await flowDynamic('❌ Número de control inválido. Intenta de nuevo o escribe *menú* para volver.');
+        return gotoFlow(flowCapturaNumeroControl);
+      }
+
+      await state.update({ numeroControl: input });
+      await flowDynamic(`✅ Recibimos tu número de control: *${input}*`);
+
+      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaNombre);
+    }
+  );
+
+// ==== Flujo de captura para autenticador ====
+const flowCapturaNumeroControlAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => { // 🔧 AGREGAR ctx
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en número de control - autenticador');
+        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *número de control*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim().toLowerCase();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu número de control. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNumeroControlAutenticador);
+      }
+
+      if (!isValidText(input) || !validarNumeroControl(input)) {
+        await flowDynamic('❌ Número de control inválido. Intenta de nuevo o escribe *menú* para volver.');
+        return gotoFlow(flowCapturaNumeroControlAutenticador);
+      }
+
+      await state.update({ numeroControl: input });
+      await flowDynamic(`✅ Recibimos tu número de control: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaNombreAutenticador);
+    }
+  );
+
+// ==== Flujo de captura para SIE ====
+const flowCapturaNumeroControlSIE = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => { // 🔧 AGREGAR ctx
+    const timeout = setTimeout(async () => {
+      console.log('⏱️ Timeout de 2 minutos en número de control - SIE');
+      await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+    }, 2 * 60 * 1000);
+
+    await state.update({ timeoutCaptura: timeout });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *número de control*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      clearTimeout(await state.get('timeoutCaptura'));
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu número de control. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNumeroControlSIE);
+      }
+
+      const inputLower = input.toLowerCase();
+      if (inputLower === 'menu' || inputLower === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!isValidText(input) || !validarNumeroControl(input)) {
+        await flowDynamic('❌ Número de control inválido. Intenta de nuevo o escribe *menú* para volver.');
+        return gotoFlow(flowCapturaNumeroControlSIE);
+      }
+
+      await state.update({ numeroControl: input });
+      await flowDynamic(`✅ Recibimos tu número de control: *${input}*`);
+      return gotoFlow(flowCapturaNombreSIE);
+    }
+  );
+
+// ==== Flujo de captura para nombre (TRABAJADOR - CONTRASEÑA) ====
+const flowCapturaNombreTrabajador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre trabajador');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNombreTrabajador);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowCapturaNombreTrabajador);
+      }
+
+      if (input.length < 3) {
+        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
+        return gotoFlow(flowCapturaNombreTrabajador);
+      }
+
+      const myState = (await state.getMyState()) || {};
+      const correoInstitucional = myState.correoInstitucional;
+
+      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu correo institucional: *${correoInstitucional}*`);
+      await state.update({ nombreCompleto: input });
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaIdentificacion);
+    }
+  );
+
+// ==== Flujo de captura para nombre (TRABAJADOR - AUTENTICADOR) - ACTUALIZADO ====
+const flowCapturaNombreTrabajadorAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre trabajador - autenticador');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+      }
+
+      if (input.length < 3) {
+        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
+        return gotoFlow(flowCapturaNombreTrabajadorAutenticador);
+      }
+
+      const myState = (await state.getMyState()) || {};
+      const correoInstitucional = myState.correoInstitucional;
+
+      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu correo institucional: *${correoInstitucional}*`);
+      await state.update({ nombreCompleto: input });
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaIdentificacionAutenticador); // 🔧 Ahora redirige al flujo CORREGIDO
+    }
+  );
+
+// ==== Flujo de captura para nombre (contraseña) ====
+const flowCapturaNombre = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre completo - contraseña');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+
+        // 🔧 LIMPIAR ESTADO COMPLETAMENTE
+        await limpiarEstado(state);
+
+        // 🔧 REDIRIGIR AL MENÚ PRINCIPAL
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    // Guardar el timeout ID en el estado
+    await state.update({
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      // 🔧 LIMPIAR TIMEOUT INMEDIATAMENTE
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNombre);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowCapturaNombre);
+      }
+
+      if (input.length < 3) {
+        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
+        return gotoFlow(flowCapturaNombre);
+      }
+
+      const myState = (await state.getMyState()) || {};
+      const numeroControl = myState.numeroControl;
+
+      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu número de control: *${numeroControl}*`);
+      await state.update({ nombreCompleto: input });
+
+      // 🔧 LIMPIAR TIMEOUT ANTES DE CONTINUAR
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaIdentificacion);
+    }
+  );
+
+// ==== Flujo de captura para nombre (AUTENTICADOR) - ACTUALIZADO ====
+const flowCapturaNombreAutenticador = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nombre completo - autenticador');
+        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCapturaNombre: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNombreAutenticador);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowCapturaNombreAutenticador);
+      }
+
+      if (input.length < 3) {
+        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
+        return gotoFlow(flowCapturaNombreAutenticador);
+      }
+
+      const myState = (await state.getMyState()) || {};
+      const numeroControl = myState.numeroControl;
+
+      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu número de control: *${numeroControl}*`);
+      await state.update({ nombreCompleto: input });
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaIdentificacionAutenticador); // 🔧 Ahora redirige al flujo CORREGIDO
+    }
+  );
+
+// ==== Flujo de captura para nombre (SIE) ====
+const flowCapturaNombreSIE = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => { // 🔧 AGREGAR ctx
+    const timeout = setTimeout(async () => {
+      console.log('⏱️ Timeout de 2 minutos en nombre completo - SIE');
+      await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
+      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+    }, 2 * 60 * 1000);
+
+    await state.update({ timeoutCaptura: timeout });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      clearTimeout(await state.get('timeoutCaptura'));
+
+      const input = ctx.body.trim();
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowCapturaNombreSIE);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowCapturaNombreSIE);
+      }
+
+      if (input.length < 3) {
+        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
+        return gotoFlow(flowCapturaNombreSIE);
+      }
+
+      const myState = (await state.getMyState()) || {};
+      const numeroControl = myState.numeroControl || 'Sin matrícula';
+
+      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu número de control: *${numeroControl}*`);
+      await state.update({ nombreCompleto: input });
+      return gotoFlow(flowFinSIE);
+    }
+  );
+
+// ==== Flujo de restablecimiento de contraseña (MODIFICADO) ====
+const flowrestablecercontrase = addKeyword(['restablecer_contraseña_opcion1']) // 🔧 CAMBIADO: Palabra clave única
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    await flowDynamic([
+      '🔐 *Restablecimiento de Contraseña* 🔐',
+      '',
+      'Vamos a ayudarte a restablecer la contraseña de tu correo institucional.',
+      '',
+      'Primero necesitamos saber tu tipo de usuario:'
+    ].join('\n'));
+
+    return gotoFlow(flowSubMenuContrasena);
+  });
+
+// ==== Flujo de restablecimiento de autenticador (MODIFICADO) ====
+const flowrestablecerautenti = addKeyword(['restablecer_autenticador_opcion2']) // 🔧 CAMBIADO: Palabra clave única
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    await flowDynamic([
+      '🔑 *Configuración de Autenticador* 🔑',
+      '',
+      'Vamos a ayudarte a configurar tu autenticador.',
+      '',
+      'Primero necesitamos saber tu tipo de usuario:'
+    ].join('\n'));
+
+    return gotoFlow(flowSubMenuAutenticador);
+  });
+
+// ==== Flujo de restablecimiento de SIE ====
+const flowrestablecerSIE = addKeyword(EVENTS.ACTION).addAnswer(
+  [
+    '📄 Vamos a comenzar el proceso de sincronización de tus datos en el *SIE*.',
+    '\n🚨 Ahora necesitamos tu número de control para continuar.',
+    '\n🔙 Escribe *menú* para volver al menú principal.'
+  ],
+  null,
+  async (ctx, { gotoFlow }) => {
+    if (ctx.from === CONTACTO_ADMIN) return;
+    return gotoFlow(flowCapturaNumeroControlSIE);
+  }
+);
+
+// ==== Flujo de agradecimiento ====
+const flowGracias = addKeyword(EVENTS.ACTION).addAction(
+  async (ctx, { flowDynamic }) => {
+    await debugFlujo(ctx, 'flowGracias');
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    await flowDynamic(
+      '🙏 ¡Gracias por comunicarte con el Centro de Cómputo del ITA! 💙\n' +
+      'Estamos para ayudarte siempre que lo necesites.\n\n' +
+      'En dado caso de que tengas más dudas o requieras asistencia adicional, no dudes en contactarnos nuevamente \n\n Tambien puedes comunicarte a los siguientes telefonos: \n Centro de cómputo: 449 910 50 02 EXT. 145 \n Coordinación de educación a distancia 449 910 50 02 EXT. 125' +
+      '🔙 Escribe *menú* si deseas regresar al inicio.'
+    )
+    console.log('✅ Mensaje de agradecimiento enviada correctamente \n')
+  }
+)
+
+// ==== Flujo de Educación a Distancia ====
+const flowDistancia = addKeyword(['Moodle'])
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    await debugFlujo(ctx, 'flowDistancia');
+    if (ctx.from === CONTACTO_ADMIN) return;
+
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+      return;
+    }
+
+    try {
+      await flowDynamic([{
+        body: '😞 Por el momento no podemos apoyarte con el restablecimiento de contraseña de tu *Moodle*. \n👉 Te invitamos a asistir a *Coordinación de Educación a Distancia*. \n📍 Sus oficinas están en el edificio de *Idiomas* (planta baja), frente a la sala Isóptica, a un costado del elevador.',
+        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-10_a_las_13.53.25_7b1508b3-removebg-preview.png'
+      }])
+      console.log('✅ Imagen de Educación a distancia enviada correctamente \n')
+    } catch (error) {
+      console.error('❌ Error enviando imagen:', error.message)
+      await flowDynamic('😞 Por el momento no podemos apoyarte con el restablecimiento de contraseña de tu *Moodle*. \n👉 Te invitamos a asistir a *Coordinación de Educación a Distancia*. \n📍 Sus oficinas están en el edificio de *Idiomas* (planta baja), frente a la sala Isóptica, a un costado del elevador.')
+    }
+
+    return gotoFlow(flowEsperaMenuDistancia);
+  });
+
+// ==== Función auxiliar para detectar saludos - CORREGIDA ====
 function esSaludoValido(texto) {
   if (!texto || typeof texto !== 'string') return false;
 
@@ -1079,19 +3799,70 @@ function esSaludoValido(texto) {
     'buenas noches, tengo un problema', 'buenos días tengo un problema',
     'buenas tardes tengo un problema', 'buenas noches tengo un problema',
     'tengo un problema', 'necesito ayuda', 'ayuda', 'tengo un problema con mi cuenta',
-    'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso'
+    'no puedo acceder a mi cuenta', 'problema con mi cuenta', 'problema con mi acceso',
+    'Hola buenas tardes necesito restablecer contraseña del correo institucional',
+    'Hola buenas noches necesito restablecer contraseña del correo institucional',
+    'Hola buenos días necesito restablecer contraseña del correo institucional',
+    'Hola buenas tardes necesito restablecer autenticador',
+    'Hola buenas noches necesito restablecer autenticador',
+    'Hola buenos días necesito restablecer autenticador',
+    'Hola buenas tardes mi cuenta me está solicitando un código de seguridad',
+    'Hola buenas noches mi cuenta me está solicitando un código de seguridad',
+    'Hola buenos días mi cuenta me está solicitando un código de seguridad',
+    'Hola buenas tardes no puedo acceder a mi cuenta',
+    'Hola buenas noches no puedo acceder a mi cuenta',
+    'Hola buenos dias, cambie de celular y no puedo acceder a mi cuenta',
+    'Hola buenas tardes, cambie de celular y no puedo acceder a mi cuenta',
+    'Hola buenas noches, cambie de celular y no puedo acceder a mi cuenta',
+    'Hola buenas tardes, tengo un problema con mi cuenta',
+    'Hola buenas noches, tengo un problema con mi cuenta',
+    'Hola buenos días, tengo un problema con mi cuenta',
+    'hola buenas tardes, disculpa, no me deja ingresar a mi correo institucional',
+    'hola buenas noches, disculpa, no me deja ingresar a mi correo institucional',
+    'hola buenos días, disculpa, no me deja ingresar a mi correo institucional',
+    'Hola buenas tardes, tengo un problema con el acceso a mi cuenta',
+    'Hola buenas noches, tengo un problema con el acceso a mi cuenta',
+    'Hola buenos días, tengo un problema con el acceso a mi cuenta',
+    'Hola buenas tardes, necesito ayuda con mi cuenta',
+    'Hola buenas noches, necesito ayuda con mi cuenta',
+    'Hola buenos días, necesito ayuda con mi cuenta',
+    'hola buenas tardes, disculpa, no me deja ingresar a mi correo institucional por mi contraseña como lo puedo restablecer?',
+    'hola buenas noches, disculpa, no me deja ingresar a mi correo institucional por mi contraseña como lo puedo restablecer?',
+    'hola buenos días, disculpa, no me deja ingresar a mi correo institucional por mi contraseña como lo puedo restablecer?',
+    'Hola buenas tardes, necesito ayuda con el acceso a mi cuenta',
+    'Hola buenas noches, necesito ayuda con el acceso a mi cuenta',
+    'Hola buenos días, necesito ayuda con el acceso a mi cuenta',
+    'Problemas con el autenticador', 'Problema con el autenticador',
+    'problemas con la contraseña', 'problema con la contraseña',
+    'problemas con el acceso', 'problema con el acceso',
+    'no conozco mi correo', 'no sé mi correo', 'no recuerdo mi correo',
+    'no conozco mi contraseña', 'no sé mi contraseña', 'no recuerdo mi contraseña',
+    'no conozco mis credenciales', 'no sé mis credenciales', 'no recuerdo mis credenciales',
+    'cuál es mi correo', 'cual es mi correo', 'dime mi correo',
+    'cuál es mi contraseña', 'cual es mi contraseña', 'dime mi contraseña',
+    'cuáles son mis credenciales', 'cuales son mis credenciales', 'dime mis credenciales'
   ];
 
+  // 🔧 CORRECCIÓN: BÚSQUEDA SIMPLIFICADA Y EFICIENTE
+  // Coincidencia exacta
   for (const saludo of saludos) {
     const saludoLimpio = saludo.toLowerCase().trim();
-    if (textoLimpio === saludoLimpio) return true;
+    if (textoLimpio === saludoLimpio) {
+      console.log(`✅ Coincidencia exacta: "${textoLimpio}"`);
+      return true;
+    }
   }
 
+  // Coincidencia parcial (más flexible)
   for (const saludo of saludos) {
     const saludoLimpio = saludo.toLowerCase().trim();
-    if (textoLimpio.includes(saludoLimpio)) return true;
+    if (textoLimpio.includes(saludoLimpio)) {
+      console.log(`✅ Coincidencia parcial: "${textoLimpio}" contiene "${saludoLimpio}"`);
+      return true;
+    }
   }
 
+  // Verificar si contiene palabras clave importantes
   const palabrasClave = [
     'hola', 'problema', 'ayuda', 'cuenta', 'acceso',
     'contraseña', 'autenticador', 'disculpa', 'restablecer',
@@ -1102,205 +3873,105 @@ function esSaludoValido(texto) {
     textoLimpio.includes(palabra)
   );
 
-  return contienePalabraClave;
-}
-
-function formatearNombreUsuario(departamento) {
-  const departamentoLimpio = departamento
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]/g, "_")
-    .toLowerCase();
-  return `Dep_${departamentoLimpio}`;
-}
-
-function generarContrasenaSegura() {
-  const mayusculas = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  const minusculas = 'abcdefghijklmnopqrstuvwxyz';
-  const numeros = '0123456789';
-  const simbolos = '!#$%&/()=?¡¿+*}{][-_';
-  const todosCaracteres = mayusculas + minusculas + numeros + simbolos;
-
-  let contrasena = '';
-  contrasena += mayusculas[Math.floor(Math.random() * mayusculas.length)];
-  contrasena += minusculas[Math.floor(Math.random() * minusculas.length)];
-  contrasena += numeros[Math.floor(Math.random() * numeros.length)];
-  contrasena += simbolos[Math.floor(Math.random() * simbolos.length)];
-
-  for (let i = 4; i < 12; i++) {
-    contrasena += todosCaracteres[Math.floor(Math.random() * todosCaracteres.length)];
+  if (contienePalabraClave) {
+    console.log(`✅ Contiene palabra clave: "${textoLimpio}"`);
+    return true;
   }
 
-  return contrasena.split('').sort(() => Math.random() - 0.5).join('');
+  console.log(`❌ No es saludo válido: "${textoLimpio}"`);
+  return false;
 }
 
-// ==== FUNCIONES DE ESTADO ====================
-async function actualizarEstado(ctx, state, nuevoEstado, metadata = {}) {
-  try {
-    if (!ctx || !ctx.from) return;
+// ==== FLUJO PRINCIPAL - VERSIÓN HÍBRIDA (MÁS ROBUSTA) ====
+// ==== FLUJO PRINCIPAL - VERSIÓN HÍBRIDA (MÁS ROBUSTA) ====
+const flowPrincipal = addKeyword([
+  'hola', 'Hola', 'Hola!', 'HOLA', 'Holi', 'holi', 'holis', 'Holis',
+  'holaa', 'Holaa', 'holaaa', 'Holaaa', 'holaaaa', 'Holaaaa',
+  'buenos días', 'buenas tardes', 'buenas noches',
+  'buenos dias', 'Buenos días', 'Buenas tardes', 'Buenas noches',
+  'inicio', 'Inicio', 'comenzar', 'Comenzar', 'empezar', 'Empezar',
+  'ayuda', 'Ayuda', 'start', 'Start', 'hello', 'Hello', 'hi', 'Hi'
+])
+  .addAction(async (ctx, { flowDynamic, state, gotoFlow, provider }) => {
+    // 🔧 NORMALIZAR ID PRIMERO (AGREGAR ESTA LÍNEA)
+    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
 
-    const userPhone = ctx.from;
+    console.log(`🎯 FLOW PRINCIPAL - ID Normalizado: ${ctx.from}`);
 
-    const metadataLimpio = {};
-    Object.keys(metadata).forEach(key => {
-      const valor = metadata[key];
-      if (valor === null ||
-        typeof valor === 'string' ||
-        typeof valor === 'number' ||
-        typeof valor === 'boolean' ||
-        Array.isArray(valor)) {
-        try {
-          JSON.stringify(valor);
-          metadataLimpio[key] = valor;
-        } catch (e) {
-          metadataLimpio[key] = `[${typeof valor}]`;
-        }
-      } else if (typeof valor === 'object') {
-        const objLimpio = {};
-        Object.keys(valor).forEach(subKey => {
-          const subValor = valor[subKey];
-          if (subValor === null ||
-            typeof subValor === 'string' ||
-            typeof subValor === 'number' ||
-            typeof subValor === 'boolean') {
-            objLimpio[subKey] = subValor;
-          }
-        });
-        metadataLimpio[key] = objLimpio;
-      }
-    });
+    await debugFlujo(ctx, 'flowPrincipal');
 
-    metadataLimpio.ultimaActualizacion = Date.now();
+    if (ctx.from === normalizarIdWhatsAppBusiness(CONTACTO_ADMIN)) return;
 
-    await state.update({
-      estadoUsuario: nuevoEstado,
-      estadoMetadata: metadataLimpio
-    });
-
-    console.log(`✅ Estado actualizado a: ${nuevoEstado} para: ${userPhone}`);
-
-  } catch (error) {
-    console.error('❌ Error actualizando estado:', error);
-  }
-}
-
-async function limpiarEstado(state) {
-  try {
-    const myState = await state.getMyState();
-    const userPhone = state.id;
-
-    if (userPhone) {
-      timeoutManager.clearAll(userPhone);
-    }
-
-    await state.update({
-      estadoUsuario: ESTADOS_USUARIO.LIBRE,
-      estadoMetadata: {},
-      numeroControl: null,
-      nombreCompleto: null,
-      correoInstitucional: null,
-      esTrabajador: null,
-      identificacionSubida: false,
-      infoIdentificacion: null,
-      timestampIdentificacion: null,
-      ultimaInteraccion: Date.now()
-    });
-
-  } catch (error) {
-    console.error('❌ Error limpiando estado:', error);
-  }
-}
-
-async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
-  try {
-    const myState = await state.getMyState();
-
-    if (myState?.redirigiendo || myState?.enRedireccion) {
-      console.log('⚠️ Ya se está redirigiendo, evitando recursividad');
+    // 🔧 VERIFICAR BLOQUEO PRIMERO
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
     }
 
-    await state.update({
-      redirigiendo: true,
-      enRedireccion: true
-    });
+    const input = ctx.body?.toLowerCase().trim();
+    console.log(`🔍 FLOW PRINCIPAL - Mensaje: "${input}"`);
 
-    await limpiarEstado(state);
-    await new Promise(resolve => setTimeout(resolve, 200));
+    // 🔧 MEJORAR LA DETECCIÓN DE SALUDOS
+    const esSaludo = esSaludoValido(input);
 
-    setTimeout(async () => {
-      await state.update({
-        redirigiendo: false,
-        enRedireccion: false
-      });
-    }, 1000);
-
-    return gotoFlow(flowMenu);
-  } catch (error) {
-    console.error('❌ Error en redirección al menú:', error);
-
-    await state.update({
-      redirigiendo: false,
-      enRedireccion: false
-    });
-
-    await flowDynamic('🔧 Reiniciando bot... Por favor escribe *menú* para continuar.');
-    await limpiarEstado(state);
-    return gotoFlow(flowMenu);
-  }
-}
-
-async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
-  if (ctx.from === CONTACTO_ADMIN) return false;
-
-  try {
-    const myState = await state.getMyState();
-
-    if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-      console.log(`🔒 Bloqueando mensaje de ${ctx.from} - Proceso en curso`);
-
-      const input = ctx.body?.toLowerCase().trim();
-
-      if (input === 'estado') {
-        const metadata = myState.estadoMetadata || {};
-        const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
-        const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-        const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
-        await flowDynamic([
-          '📊 **Estado del Proceso**',
-          '',
-          `📋 ${metadata.tipo || 'Proceso en curso'}`,
-          `⏰ Tiempo transcurrido: ${minutosTranscurridos} min`,
-          `⏳ Tiempo restante: ${minutosRestantes} min`,
-          '',
-          '🔄 El proceso continúa en segundo plano...',
-          '',
-          '⏰ Se completará automáticamente.'
-        ].join('\n'));
-      } else if (input) {
-        await flowDynamic([
-          '⏳ *Proceso en curso* ⏳',
-          '',
-          '📋 Tu solicitud está siendo procesada activamente...',
-          '',
-          '🔄 **No es necesario que escribas nada**',
-          '⏰ El proceso continuará automáticamente',
-          '',
-          '💡 **Solo escribe:**',
-          '*estado* - Para ver el progreso actual',
-          '',
-          '¡Gracias por tu paciencia! 🙏'
-        ].join('\n'));
-      }
-
-      return true;
+    if (!esSaludo) {
+      console.log(`⚠️ Mensaje no reconocido como saludo: "${input}"`);
+      // Pero como llegó aquí por palabra clave, procedemos igual
     }
-  } catch (error) {
-    console.error('❌ Error en verificación de estado bloqueado:', error);
-  }
 
-  return false;
-}
+    console.log(`✅ BOT ACTIVADO por: "${input}"`);
+
+    // LIMPIAR ESTADO Y PROCEDER
+    await limpiarEstado(state);
+    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_MENU);
+
+    // ENVIAR BIENVENIDA
+    try {
+      await flowDynamic([{
+        body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
+        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
+      }]);
+    } catch (error) {
+      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
+    }
+
+    return gotoFlow(flowMenu);
+  });
+
+
+// ==== FLUJO MENÚ PRINCIPAL - ACTUALIZADO ====
+const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7', '8'])
+  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
+
+    console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body, 'Usuario:', ctx.from);
+
+    if (ctx.from === normalizarIdWhatsAppBusiness(CONTACTO_ADMIN)) return;
+
+    // 🔧 VERIFICAR BLOQUEO PRIMERO
+    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+      return;
+    }
+
+    const opcion = ctx.body.trim();
+
+    // 🔧 ACTUALIZAR ESTADO AL ESTAR EN MENÚ
+    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_MENU);
+
+    // Si es un comando de menú, mostrar opciones
+    if (opcion === 'menu' || opcion === 'menú') {
+      await mostrarOpcionesMenu(flowDynamic);
+      return;
+    }
+
+    // Si es una opción numérica, procesarla
+    if (['1', '2', '3', '4', '5', '6', '7', '8'].includes(opcion)) {
+      await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
+      return;
+    }
+
+    // Si no es ninguna de las anteriores, mostrar menú
+    await mostrarOpcionesMenu(flowDynamic);
+  });
 
 // ==== FUNCIÓN PARA MOSTRAR OPCIONES DEL MENÚ ====
 async function mostrarOpcionesMenu(flowDynamic) {
@@ -1316,75 +3987,14 @@ async function mostrarOpcionesMenu(flowDynamic) {
     '4️⃣ 📊 Sistema SIE',
     '5️⃣ 🙏 Información adicional',
     '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
-    '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-    '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+    //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+    //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
     '',
     '💡 *Escribe solo el número (1-8)*'
   ].join('\n'));
 }
 
-async function enviarAlAdmin(provider, mensaje, ctx = null) {
-  try {
-    const sock = provider.vendor;
-    if (!sock) {
-      console.error('❌ No hay conexión a WhatsApp para enviar al admin');
-      return false;
-    }
-
-    const adminIdNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
-
-    console.log(`📤 Enviando mensaje al admin (${adminIdNormalizado}):`);
-    console.log(`📝 Mensaje (primeras 100 chars): ${mensaje.substring(0, 100)}...`);
-
-    await sock.sendMessage(adminIdNormalizado, { text: mensaje });
-
-    console.log('✅ Información enviada al administrador');
-    return true;
-  } catch (error) {
-    console.error('❌ Error enviando información al administrador:', error.message);
-    return false;
-  }
-}
-
-// ==== FUNCIONES DE IMÁGENES/MEDIA ====================
-function esImagenValida(ctx) {
-  if (!ctx || typeof ctx !== 'object') return false;
-
-  if (ctx.message) {
-    const messageKeys = Object.keys(ctx.message);
-    const hasMediaMessage = messageKeys.some(key => {
-      return key.includes('Message') &&
-        !key.includes('conversation') &&
-        !key.includes('extendedTextMessage') &&
-        !key.includes('protocolMessage') &&
-        !key.includes('senderKeyDistributionMessage');
-    });
-
-    if (hasMediaMessage) {
-      if (ctx.message.imageMessage) return true;
-      if (ctx.message.documentMessage) {
-        const mimeType = ctx.message.documentMessage.mimetype;
-        if (mimeType && mimeType.startsWith('image/')) return true;
-      }
-      if (ctx.message.viewOnceMessageV2 || ctx.message.viewOnceMessage) return true;
-      return true;
-    }
-  }
-
-  if (ctx.type === 'image' || ctx.type === 'sticker' || ctx.type === 'document') return true;
-  if (ctx.media || ctx.hasMedia || ctx.mimetype) return true;
-  if (ctx.key && ctx.key.remoteJid && ctx.key.id) return true;
-
-  if (ctx.body) {
-    const bodyLower = ctx.body.toLowerCase();
-    const imageKeywords = ['foto', 'photo', 'imagen', 'image', 'cámara', 'camera', '📷', '📸'];
-    if (imageKeywords.some(keyword => bodyLower.includes(keyword))) return true;
-  }
-
-  return false;
-}
-
-// ==== FUNCION PARA PROCESAR OPCIONES ====================
+// ==== FUNCIÓN PARA PROCESAR OPCIONES - ACTUALIZADA ====
 async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   console.log('🎯 Procesando opción:', opcion);
 
@@ -1436,1796 +4046,8 @@ async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   }
 }
 
-// ==== FUNCION PARA MANEJAR INACTIVIDAD ====================
-async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
-  if (ctx.from === CONTACTO_ADMIN) return;
-
-  const userPhone = ctx.from;
-  timeoutManager.clearTimeout(userPhone);
-
-  timeoutManager.setTimeout(userPhone, async () => {
-    try {
-      const myState = await state.getMyState();
-
-      if (myState?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-        await flowDynamic([
-          '⏰ *Sesión Inactiva*',
-          '',
-          'He notado que no has interactuado conmigo en los últimos 2 minutos.',
-          '',
-          '💡 **Para reactivar el bot, escribe:**',
-          '• *hola* - Para reiniciar la conversación',
-          '• *inicio* - Para volver al menú principal',
-          '',
-          '¡Estoy aquí para ayudarte! 🐦'
-        ].join('\n'));
-
-        await state.update({
-          estadoUsuario: ESTADOS_USUARIO.LIBRE,
-          ultimaInteraccion: Date.now()
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error en manejo de inactividad:', error);
-    }
-  }, 2 * 60 * 1000);
-}
-
-// ==== FUNCION PARA MOSTRAR ESTADO BLOQUEADO ====================
-async function mostrarEstadoBloqueado(flowDynamic, myState) {
-  const metadata = myState.estadoMetadata || {};
-  const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
-  const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-  const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
-  const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
-  const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
-
-  await flowDynamic([
-    '🔒 *Proceso en Curso* 🔒',
-    '',
-    `📋 ${metadata.tipo || 'Proceso largo'}`,
-    `⏰ Tiempo transcurrido: ${minutosTranscurridos} minutos`,
-    `⏳ Tiempo restante: ${minutosRestantes} minutos`,
-    `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
-    `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
-    '',
-    '🔄 **Estamos trabajando en tu solicitud...**',
-    '📱 Por favor espera, *este proceso toma aproximadamente 30 minutos*',
-    '',
-    '💡 **Para ver el progreso actual escribe:**',
-    '*estado*',
-    '',
-    '⏰ El proceso continuará automáticamente.'
-  ].join('\n'));
-}
-
-// ==== FLUJOS ====================
-
-const flowConexionBaseDatos = addKeyword(utils.setEvent('CONEXION_BASE_DATOS'))
-  .addAnswer(
-    '🔐 *ACCESO AL SISTEMA - BASE DE DATOS ACTEXTITA* 🔐\n\n' +
-    'Por favor selecciona tu tipo de usuario:\n\n' +
-    '1️⃣ 👨‍🎓 Soy alumno\n' +
-    '2️⃣ 👨‍💼 Soy administrador\n\n' +
-    '🔙 Escribe *menú* para volver al menú principal.',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim().toLowerCase();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🎓 Identificado como alumno. Vamos a verificar tu número de control...');
-        return gotoFlow(flowCapturaNumeroControlBaseDatos);
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('👨‍💼 Identificado como administrador. Vamos a verificar tus credenciales...');
-        return gotoFlow(flowCapturaUsuarioAdmin);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
-      return gotoFlow(flowConexionBaseDatos);
-    }
-  );
-
-const flowGestionServicios = addKeyword(utils.setEvent('GESTION_SERVICIOS'))
-  .addAnswer(
-    '👨‍💼 *GESTIÓN DE SERVICIOS - EXCLUSIVO TRABAJADORES* 👨‍💼\n\n' +
-    'Selecciona una opción:\n\n' +
-    '1️⃣ 🔐 Restablecer contraseña de sistema\n' +
-    '2️⃣ 👤 Crear nuevo usuario de sistema\n' +
-    '3️⃣ 🔍 Consultar usuarios del sistema\n' +
-    '4️⃣ 📊 Verificar estructura de base de datos\n' +
-    '5️⃣ 🗃️ Acceso a Base de Datos Actextita\n' +
-    '\n🔙 Escribe *menú* para volver al menú principal.',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim().toLowerCase();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña de sistema...');
-        console.log('🚀 Redirigiendo a flowRestablecimientoSistema');
-        await limpiarEstado(state);
-        return gotoFlow(flowRestablecimientoSistema);
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('👤 Iniciando proceso de creación de nuevo usuario...');
-        console.log('🚀 Redirigiendo a flowNuevoUsuario');
-        await limpiarEstado(state);
-        return gotoFlow(flowNuevoUsuario);
-      }
-
-      if (opcion === '3') {
-        await flowDynamic('🔍 Iniciando consulta de usuarios...');
-        console.log('🚀 Redirigiendo a flowConsultaUsuario');
-        return gotoFlow(flowConsultaUsuario);
-      }
-
-      if (opcion === '4') {
-        await flowDynamic('📊 Verificando estructura de base de datos...');
-
-        const estructuraValida = await verificarEstructurausuariosprueba();
-
-        if (estructuraValida) {
-          await flowDynamic([
-            '✅ *Estructura de base de datos verificada*',
-            '',
-            '📋 **Base de datos:** usuariosprueba',
-            '📍 **Servidor:** 172.30.247.185',
-            '',
-            '💡 La estructura es correcta y todos los campos están presentes.',
-            '',
-            '🔙 Escribe *menú* para volver al menú principal.'
-          ].join('\n'));
-        } else {
-          await flowDynamic([
-            '❌ *Error en la estructura de base de datos*',
-            '',
-            '⚠️ No se pudo verificar la estructura de la base de datos.',
-            '',
-            '💡 **Posibles causas:**',
-            '• Problemas de conexión',
-            '• La tabla usuariosprueba no existe',
-            '• Permisos insuficientes',
-            '',
-            '🔙 Escribe *menú* para volver al menú principal.'
-          ].join('\n'));
-        }
-
-        return gotoFlow(flowGestionServicios);
-      }
-
-      if (opcion === '5') {
-        await flowDynamic('🗃️ Redirigiendo a Base de Datos Actextita...');
-        console.log('🚀 Redirigiendo a flowConexionBaseDatos');
-        return gotoFlow(flowConexionBaseDatos);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3*, *4* o *5*.');
-      return gotoFlow(flowGestionServicios);
-    }
-  );
-
-const flowCapturaNumeroControlBaseDatos = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTROL_BASE_DATOS'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en número de control - base datos');
-        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *número de control*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu número de control. Por favor escríbelo.');
-        return gotoFlow(flowCapturaNumeroControlBaseDatos);
-      }
-
-      if (!/^[A-Za-z0-9]{8,9}$/.test(input)) {
-        await flowDynamic('❌ Formato de número de control inválido. Debe tener 8 o 9 caracteres alfanuméricos.');
-        return gotoFlow(flowCapturaNumeroControlBaseDatos);
-      }
-
-      await state.update({ numeroControl: input });
-      await flowDynamic(`✅ Recibimos tu número de control: *${input}*\n\n🔍 Consultando en la base de datos...`);
-
-      const resultado = await consultarAlumnoEnBaseDatos(input);
-
-      if (resultado.encontrado) {
-        await flowDynamic([
-          '✅ *¡Alumno encontrado en el sistema!* ✅',
-          '',
-          `📋 **Información del alumno:**`,
-          `🔢 Número de control: ${resultado.numero_control}`,
-          `👤 Nombre: ${resultado.nombre || 'No especificado'}`,
-          `📚 Carrera: ${resultado.carrera || 'No especificado'}`,
-          `📅 Semestre: ${resultado.semestre || 'No especificado'}`,
-          `📍 Grupo: ${resultado.grupo || 'No especificado'}`,
-          `🔄 Estado: ${resultado.estado || 'No especificado'}`,
-          '',
-          '💾 *Base de datos: actextita*',
-          '🔗 *Servidor: 172.30.247.186*'
-        ].join('\n'));
-      } else {
-        await flowDynamic([
-          '❌ *Alumno no encontrado*',
-          '',
-          `El número de control *${input}* no fue encontrado en las tablas:`,
-          '• anuevo_ingreso',
-          '• a_resagados',
-          '',
-          '💡 **Verifica:**',
-          '• Que el número de control sea correcto',
-          '• Que estés registrado en el sistema',
-          '',
-          '🔙 Escribe *menú* para volver al menú principal.'
-        ].join('\n'));
-      }
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowMenu);
-    }
-  );
-
-const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en usuario admin');
-        await flowDynamic('⏱️ No recibimos tu usuario. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-  })
-  .addAnswer(
-    '👤 Por favor escribe tu *nombre de usuario de administrador*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu usuario. Por favor escríbelo.');
-        return gotoFlow(flowCapturaUsuarioAdmin);
-      }
-
-      await state.update({ usuarioAdmin: input });
-      await flowDynamic(`✅ Recibimos tu usuario: *${input}*\n\n🔍 Verificando en la base de datos de administradores...`);
-
-      try {
-        const adminEncontrado = await verificarAdministradorEnBaseDatos(input);
-
-        if (adminEncontrado) {
-          await flowDynamic([
-            '✅ *¡Administrador verificado!* ✅',
-            '',
-            `👤 Usuario: ${input}`,
-            `📍 Base de datos: actextita`,
-            `🔗 Servidor: 172.30.247.186`,
-            '',
-            '🔄 Generando nueva contraseña segura...'
-          ].join('\n'));
-
-          const nuevaContrasena = generarContrasenaSegura();
-          console.log(`🔐 Contraseña generada para ${input}: ${nuevaContrasena}`);
-
-          const resultadoActualizacion = await actualizarContrasenaAdmin(input, nuevaContrasena);
-
-          if (resultadoActualizacion) {
-            await flowDynamic([
-              '🔐 *Contraseña actualizada exitosamente* 🔐',
-              '',
-              `📋 **Tus nuevas credenciales:**`,
-              `👤 Usuario: ${input}`,
-              `🔐 Nueva contraseña: *${resultadoActualizacion}*`,
-              `💾 Base de datos: actextita`,
-              `🔗 Servidor: 172.30.247.186`,
-              `📊 Tabla: admins`,
-              '',
-              '⚠️ **Importante:**',
-              '• Guarda esta contraseña en un lugar seguro',
-              '• Cámbiala después del primer acceso',
-              '• No compartas tus credenciales',
-              '',
-              '💡 **Nota:** La contraseña se almacena encriptada en la base de datos.',
-              '',
-              '🔙 Escribe *menú* para volver al menú principal.'
-            ].join('\n'));
-          } else {
-            await flowDynamic([
-              '❌ *Error al actualizar la contraseña*',
-              '',
-              'No pudimos actualizar tu contraseña en la base de datos.',
-              '',
-              '💡 **Posibles causas:**',
-              '• Problemas de conexión con el servidor 172.30.247.186',
-              '• El usuario no existe en la tabla admins',
-              '• Error en el proceso de encriptación',
-              '',
-              '🔙 Contacta al administrador del sistema o escribe *menú* para volver.'
-            ].join('\n'));
-          }
-        } else {
-          await flowDynamic([
-            '❌ *Administrador no encontrado*',
-            '',
-            `El usuario *${input}* no fue encontrado en:`,
-            `💾 Base de datos: actextita`,
-            `🔗 Servidor: 172.30.247.186`,
-            `📊 Tabla: admins`,
-            '',
-            '💡 **Verifica:**',
-            '• Que el usuario sea correcto',
-            '• Que tengas permisos de administrador activos',
-            '• Que tu usuario esté registrado en el sistema correcto',
-            '',
-            '🔙 Escribe *menú* para volver al menú principal.'
-          ].join('\n'));
-        }
-      } catch (error) {
-        console.error('❌ Error en el proceso de administrador:', error);
-        await flowDynamic([
-          '❌ *Error en el proceso*',
-          '',
-          'Ocurrió un error al procesar tu solicitud.',
-          '',
-          `🔗 Servidor intentado: 172.30.247.186`,
-          '',
-          '🔙 Por favor intenta nuevamente o escribe *menú* para volver.'
-        ].join('\n'));
-      }
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowMenu);
-    }
-  );
-
-const flowBuscarUsuarioEspecifico = addKeyword(utils.setEvent('BUSCAR_USUARIO_ESPECIFICO'))
-  .addAnswer(
-    '🔎 Escribe el *ID de usuario, nombre de usuario o ID de persona* a buscar:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos el dato a buscar. Por favor escríbelo.');
-        return gotoFlow(flowBuscarUsuarioEspecifico);
-      }
-
-      const usuario = await consultarUsuarioEnusuariosprueba(input);
-
-      if (usuario) {
-        await flowDynamic([
-          '✅ *Usuario encontrado* ✅',
-          '',
-          `📋 **Información del usuario:**`,
-          `🆔 ID Usuario: ${usuario.id_usuario}`,
-          `👤 Usuario: ${usuario.usuario}`,
-          `👥 ID Rol: ${usuario.id_rol}`,
-          `👤 ID Persona: ${usuario.id_persona}`,
-          `📍 Ubicación: ${usuario.ubicacion || 'No especificada'}`,
-          `📅 Fecha inserción: ${usuario.fecha_insert || 'No especificada'}`,
-          `🔄 Estado: ${usuario.estado || 'No especificado'}`,
-        ].join('\n'));
-      } else {
-        await flowDynamic([
-          '❌ *Usuario no encontrado*',
-          '',
-          'El usuario no fue encontrado en la tabla usuariosprueba.',
-          '',
-          '💡 **Verifica:**',
-          '• El ID de usuario',
-          '• El nombre de usuario',
-          '• El ID de persona',
-        ].join('\n'));
-      }
-
-      await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
-      return gotoFlow(flowGestionServicios);
-    }
-  );
-
-const flowListarTodosUsuarios = addKeyword(utils.setEvent('LISTAR_TODOS_USUARIOS'))
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    await flowDynamic('📋 Consultando todos los usuarios en usuariosprueba...');
-
-    const usuarios = await listarTodosusuariosprueba();
-
-    if (usuarios.length > 0) {
-      let mensaje = '👥 *LISTA DE USUARIOS - usuariosprueba* 👥\n\n';
-
-      usuarios.forEach((usuario, index) => {
-        mensaje += `${index + 1}. ${usuario.usuario} \n`;
-        mensaje += `   🆔 ID: ${usuario.id_usuario} | Rol: ${usuario.id_rol} | Persona: ${usuario.id_persona}\n`;
-        mensaje += `   📍 ${usuario.ubicacion || 'Sin ubicación'} | 🔄 ${usuario.estado || 'Sin estado'}\n`;
-        mensaje += `   📅 ${usuario.fecha_insert || 'Sin fecha'}\n\n`;
-      });
-
-      mensaje += `📊 Total: ${usuarios.length} usuarios\n`;
-      mensaje += '💡 *Base de datos: 172.30.247.185*';
-
-      await flowDynamic(mensaje);
-    } else {
-      await flowDynamic('❌ No se encontraron usuarios en la tabla usuariosprueba.');
-    }
-
-    await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
-    return gotoFlow(flowGestionServicios);
-  });
-
-const flowConsultaUsuario = addKeyword(EVENTS.ACTION)
-  .addAnswer(
-    '🔍 *CONSULTA DE USUARIOS - usuariosprueba* 🔍\n\nSelecciona una opción:\n\n1️⃣ 🔎 Buscar usuario específico\n2️⃣ 📋 Listar todos los usuarios\n\n🔙 Escribe *menú* para volver al menú principal.',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim().toLowerCase();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🔎 Iniciando búsqueda de usuario específico...');
-        return gotoFlow(flowBuscarUsuarioEspecifico);
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('📋 Obteniendo lista de todos los usuarios...');
-        return gotoFlow(flowListarTodosUsuarios);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
-      return gotoFlow(flowConsultaUsuario);
-    }
-  );
-
-const flowSubMenuContrasena = addKeyword(utils.setEvent('SUBMENU_CONTRASENA'))
-  .addAnswer(
-    '🔐 *RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL*\n\n' +
-    'Una vez comenzado este proceso no podrá ser detenido hasta completarse.\n\n' +
-    '👥 *Selecciona tu tipo de usuario:*\n\n' +
-    '1️⃣ ¿Eres un estudiante?\n' +
-    '2️⃣ ¿Eres un trabajador o docente?\n\n' +
-    '🔙 Escribe *menú* para volver al menú principal.',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim().toLowerCase();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...');
-        await state.update({ esTrabajador: false, tipoProceso: 'CONTRASENA' });
-        return gotoFlow(flowCapturaNumeroControl);
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...');
-        await state.update({ esTrabajador: true, tipoProceso: 'CONTRASENA' });
-        return gotoFlow(flowCapturaCorreoTrabajador);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
-      return gotoFlow(flowSubMenuContrasena);
-    }
-  );
-
-const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TRABAJADOR'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en correo trabajador');
-        await flowDynamic('⏱️ No recibimos tu correo. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-
-    await state.update({
-      ultimaInteraccion: Date.now(),
-      esTrabajador: true
-    });
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *correo institucional* (ejemplo: nombre.apellido@aguascalientes.tecnm.mx):',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu correo. Por favor escríbelo.');
-        return gotoFlow(flowCapturaCorreoTrabajador);
-      }
-
-      if (!isValidText(input) || !validarCorreoTrabajador(input)) {
-        await flowDynamic('❌ Correo institucional inválido. Debe ser: nombre.apellido@aguascalientes.tecnm.mx\nIntenta de nuevo o escribe *menú* para volver.');
-        return gotoFlow(flowCapturaCorreoTrabajador);
-      }
-
-      await state.update({
-        correoInstitucional: input,
-        esTrabajador: true
-      });
-      await flowDynamic(`✅ Recibimos tu correo institucional: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaNombre);
-    }
-  );
-
-const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTROL'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en número de control');
-        await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-    await state.update({
-      ultimaInteraccion: Date.now()
-    });
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *número de control*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim().toLowerCase();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu número de control. Por favor escríbelo.');
-        return gotoFlow(flowCapturaNumeroControl);
-      }
-
-      if (!isValidText(input) || !validarNumeroControl(input)) {
-        await flowDynamic('❌ Número de control inválido. Intenta de nuevo o escribe *menú* para volver.');
-        return gotoFlow(flowCapturaNumeroControl);
-      }
-
-      await state.update({ numeroControl: input });
-      await flowDynamic(`✅ Recibimos tu número de control: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaNombre);
-    }
-  );
-
-const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en nombre completo');
-        await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-    await state.update({
-      ultimaInteraccion: Date.now()
-    });
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *nombre completo*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
-        return gotoFlow(flowCapturaNombre);
-      }
-
-      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
-        return gotoFlow(flowCapturaNombre);
-      }
-
-      if (input.length < 3) {
-        await flowDynamic('❌ El nombre parece muy corto. Escribe tu *nombre completo* real.');
-        return gotoFlow(flowCapturaNombre);
-      }
-
-      const myState = (await state.getMyState()) || {};
-      const identificacion = myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl;
-
-      await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu identificación: *${identificacion}*`);
-      await state.update({ nombreCompleto: input });
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaIdentificacion);
-    }
-  );
-
-const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICACION'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 4 minutos en identificación');
-        await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 4 * 60 * 1000);
-  })
-  .addAnswer(
-    [
-      '📸 *Verificación de Identidad - Toma la foto AHORA* 📸',
-      '',
-      'Es importante que solamente respondas con la fotografía de tu credencial escolar del ITA. No envíes mensajes de texto ni otros tipos de archivos. \nEn caso de no contar con tu credencial escolar, puedes enviar una identificación oficial vigente con fotografía (INE, pasaporte, cédula profesional, etc.)',
-      '',
-      '⚠️ **IMPORTANTE PARA FOTOS DESDE WHATSAPP:**',
-      '• Usa la cámara de tu celular, NO la computadora',
-      '• Toca el ícono de 📎 (clip)',
-      '• Selecciona "Cámara" o "Camera"',
-      '• Toma una foto NUEVA de tu credencial',
-      '• Asegúrate de que sea CLARA y legible',
-      '',
-      '⏰ **Tienes 4 minutos** para enviar la fotografía'
-    ].join('\n'),
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      if (!esImagenValida(ctx)) {
-        await flowDynamic([
-          '❌ *No recibimos una fotografía válida*',
-          '',
-          '⚠️ **Para WhatsApp Web/Desktop:**',
-          '1. Usa tu CELULAR para tomar la foto',
-          '2. Toca el clip 📎 en WhatsApp',
-          '3. Selecciona "Cámara" (NO "Galería")',
-          '4. Toma foto NUEVA de tu credencial',
-          '5. Envíala directamente',
-          '',
-          '🔄 **Intenta de nuevo por favor.**'
-        ].join('\n'));
-
-        return gotoFlow(flowCapturaIdentificacion);
-      }
-
-      await state.update({
-        identificacionSubida: true,
-        timestampIdentificacion: Date.now(),
-        fotoEnVivo: true
-      });
-
-      await flowDynamic('✅ *¡Perfecto! Foto tomada correctamente con la cámara*\n\n📋 Continuando con el proceso...');
-
-      const myState = await state.getMyState();
-      const tipoProceso = myState.tipoProceso || 'CONTRASENA';
-
-      if (tipoProceso === 'AUTENTICADOR') {
-        return gotoFlow(flowAutenticador);
-      } else {
-        return gotoFlow(flowContrasena);
-      }
-    }
-  );
-
-// ==== FLUJO FINAL DE CONTRASEÑA - VERSIÓN CORREGIDA ====
-const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
-  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    const myState = await state.getMyState();
-    const nombreCompleto = myState.nombreCompleto;
-    const esTrabajador = myState.esTrabajador || false;
-    const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl;
-
-    if (!nombreCompleto || !identificacion) {
-      await flowDynamic('❌ Información incompleta. Volviendo al inicio.');
-      return gotoFlow(flowMenu);
-    }
-
-    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-      tipo: "🔐 Restablecimiento de Contraseña",
-      inicio: Date.now(),
-      esTrabajador: esTrabajador
-    });
-
-    await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-      tipo: "Restablecimiento de Contraseña",
-      inicio: Date.now()
-    }, {
-      numeroControl: myState.numeroControl,
-      nombreCompleto: myState.nombreCompleto,
-      identificacionSubida: myState.identificacionSubida,
-      timestampIdentificacion: myState.timestampIdentificacion
-    });
-
-    const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n💾 *MySQL:* ${conexionMySQL ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ Reacciona para validar que está listo`;
-
-    // 🔧 SOLUCIÓN: ENVIAR UNA SOLA VEZ
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
-
-    if (envioExitoso) {
-      await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
-    } else {
-      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
-    }
-
-    let minutosRestantes = 30;
-
-    const intervalId = setInterval(async () => {
-      minutosRestantes -= 10;
-      if (minutosRestantes > 0) {
-        try {
-          await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
-        } catch (error) {
-          console.error('❌ Error enviando notificación:', error.message);
-        }
-      }
-    }, 10 * 60 * 1000);
-
-    const timeoutId = setTimeout(async () => {
-      clearInterval(intervalId);
-
-      try {
-        const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`;
-
-        await flowDynamic([
-          '✅ *¡Contraseña restablecida exitosamente!* ✅',
-          '',
-          '📋 **Tu nueva contraseña temporal:**',
-          '🔐 *SoporteCC1234$*',
-          '',
-          '💡 **Instrucciones para acceder:**',
-          '*Te recomendamos que este primer inicio de sesión lo realices desde tu computadora*',
-          '',
-          '1. Cierra la pestaña actual donde intentabas acceder al correo',
-          '2. Ingresa a: https://office.com o https://login.microsoftonline.com/?whr=tecnm.mx',
-          '3. Ingresa tu correo institucional: ' + correoUsuario,
-          '4. Usa la contraseña temporal: *SoporteCC1234$*',
-          '5. Te solicitará cambiar la contraseña:',
-          '   - Contraseña actual: *SoporteCC1234$*',
-          '   - Nueva contraseña: (crea una personalizada)',
-          '',
-          '🔒 **Recomendaciones de seguridad:**',
-          '• Mínimo 11 caracteres',
-          '• Incluye mayusculas, minúsculas, números y símbolos (%$#!&/-_.*+)',
-          '• No compartas tu contraseña',
-          '',
-          '🔙 Escribe *menú* para volver al menú principal.'
-        ].join('\n'));
-
-      } catch (error) {
-        console.error('❌ Error enviando mensaje final:', error.message);
-        await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.');
-      }
-
-      await limpiarEstado(state);
-      await limpiarEstadoMySQL(ctx.from);
-
-    }, 30 * 60 * 1000);
-
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        timeoutId: timeoutId,
-        intervalId: intervalId
-      }
-    });
-
-    return gotoFlow(flowBloqueoActivo);
-  });
-
-const flowSubMenuAutenticador = addKeyword(utils.setEvent('SUBMENU_AUTENTICADOR'))
-  .addAnswer(
-    '🔑 *RESTABLECIMIENTO DE AUTENTICADOR*\n\n' +
-    'Una vez comenzado este proceso no podrá ser detenido hasta completarse.\n\n' +
-    '👥 *Selecciona tu tipo de usuario:*\n\n' +
-    '1️⃣ ¿Eres un estudiante?\n' +
-    '2️⃣ ¿Eres un trabajador o docente?\n\n' +
-    '🔙 Escribe *menú* para volver al menú principal.',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      const opcion = ctx.body.trim().toLowerCase();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...');
-        await state.update({ esTrabajador: false, tipoProceso: 'AUTENTICADOR' });
-        return gotoFlow(flowCapturaNumeroControl);
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...');
-        await state.update({ esTrabajador: true, tipoProceso: 'AUTENTICADOR' });
-        return gotoFlow(flowCapturaCorreoTrabajador);
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
-      return gotoFlow(flowSubMenuAutenticador);
-    }
-  );
-
-// ==== FLUJO FINAL DE AUTENTICADOR - VERSIÓN CORREGIDA ====
-const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
-  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    const myState = await state.getMyState();
-    const nombreCompleto = myState.nombreCompleto;
-    const esTrabajador = myState.esTrabajador || false;
-    const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl;
-
-    if (!nombreCompleto || !identificacion) {
-      await flowDynamic('❌ Información incompleta. Volviendo al inicio.');
-      return gotoFlow(flowMenu);
-    }
-
-    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-      tipo: "🔑 Configuración de Autenticador",
-      inicio: Date.now(),
-      esTrabajador: esTrabajador
-    });
-
-    await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-      tipo: "Configuración de Autenticador",
-      inicio: Date.now()
-    }, {
-      numeroControl: myState.numeroControl,
-      nombreCompleto: myState.nombreCompleto,
-      identificacionSubida: myState.identificacionSubida,
-      timestampIdentificacion: myState.timestampIdentificacion
-    });
-
-    const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
-    const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n💾 *MySQL:* ${conexionMySQL ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n🔗 *Remoto:* ${conexionRemota ? '✅ CONECTADO' : '❌ DESCONECTADO'}\n\n⚠️ *Proceso en curso...*`;
-
-    // 🔧 SOLUCIÓN: ENVIAR UNA SOLA VEZ
-    const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
-
-    if (envioExitoso) {
-      await flowDynamic('⏳ Permítenos un momento, vamos a desconfigurar tu autenticador... \n\n *Te solicitamos no enviar mensajes en lo que realizamos esté proceso, esté proceso durará aproximadamente 30 minutos.*');
-    } else {
-      await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
-    }
-
-    let minutosRestantes = 30;
-
-    const intervalId = setInterval(async () => {
-      minutosRestantes -= 10;
-      if (minutosRestantes > 0) {
-        try {
-          await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar la configuración del autenticador...`);
-        } catch (error) {
-          console.error('❌ Error enviando notificación:', error.message);
-        }
-      }
-    }, 10 * 60 * 1000);
-
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        intervalId: intervalId
-      }
-    });
-
-    const timeoutId = setTimeout(async () => {
-      clearInterval(intervalId);
-
-      try {
-        const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`;
-
-        await flowDynamic([
-          '✅ *Autenticador desconfigurado correctamente* ✅',
-          '',
-          '💡 **Instrucciones para reconfigurar:**',
-          '*Es importante que estos pasos los realices en una computadora*',
-          '',
-          '1. Cierra la pestaña actual donde intentabas acceder al correo',
-          '2. Ingresa a: https://office.com o https://login.microsoftonline.com/?whr=tecnm.mx',
-          '3. Ingresa tu correo institucional: ' + correoUsuario,
-          '4. Ingresa tu contraseña actual',
-          '5. Te aparecerá una página para reconfigurar tu autenticador',
-          '6. Sigue los pasos que se muestran en pantalla',
-          '',
-          '📱 **Necesitarás:**',
-          '• Configurar la aplicación de autenticador',
-          '• Ingresar un número de teléfono',
-          '',
-          '🔒 **Será necesario configurar un nuevo método de autenticación**',
-          '',
-          '🔙 Escribe *menú* para volver al menú principal.'
-        ].join('\n'));
-
-      } catch (error) {
-        console.error('❌ Error enviando mensaje final:', error.message);
-        await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.');
-      }
-
-      await limpiarEstado(state);
-      await limpiarEstadoMySQL(ctx.from);
-
-    }, 30 * 60 * 1000);
-
-    await state.update({
-      estadoMetadata: {
-        ...(await state.getMyState())?.estadoMetadata,
-        timeoutId: timeoutId,
-        intervalId: intervalId
-      }
-    });
-
-    return gotoFlow(flowBloqueoActivo);
-  });
-
-const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_SISTEMA'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en restablecimiento sistema');
-        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *nombre completo*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
-        return gotoFlow(flowRestablecimientoSistema);
-      }
-
-      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
-        return gotoFlow(flowRestablecimientoSistema);
-      }
-
-      await state.update({ nombreCompleto: input });
-      await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaDepartamento);
-    }
-  );
-
-const flowCapturaDepartamento = addKeyword(utils.setEvent('CAPTURA_DEPARTAMENTO'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en departamento');
-        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-  })
-  .addAnswer(
-    '🏢 Por favor escribe el *departamento al que perteneces*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos el departamento. Por favor escríbelo.');
-        return gotoFlow(flowCapturaDepartamento);
-      }
-
-      if (!isValidText(input)) {
-        await flowDynamic('❌ Texto inválido. Escribe el *nombre del departamento*.');
-        return gotoFlow(flowCapturaDepartamento);
-      }
-
-      await state.update({ departamento: input });
-      await flowDynamic(`✅ Recibimos tu departamento: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaUsuarioSistema);
-    }
-  );
-
-const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SISTEMA'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en usuario sistema');
-        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-  })
-  .addAnswer(
-    '👤 Por favor escribe tu *nombre de usuario del sistema* (el que usas para iniciar sesión):',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu usuario del sistema. Por favor escríbelo.');
-        return gotoFlow(flowCapturaUsuarioSistema);
-      }
-
-      if (!isValidText(input)) {
-        await flowDynamic('❌ Texto inválido. Escribe tu *nombre de usuario del sistema*.');
-        return gotoFlow(flowCapturaUsuarioSistema);
-      }
-
-      await flowDynamic('🔍 Verificando usuario en el sistema...');
-
-      try {
-        if (!conexionRemota) {
-          await flowDynamic('❌ Error de conexión a la base de datos. Intenta más tarde.');
-          return gotoFlow(flowGestionServicios);
-        }
-
-        const queryVerificar = `SELECT id_usuario, usuario, ubicacion FROM usuariosprueba WHERE usuario = ?`;
-        const [usuarios] = await conexionRemota.execute(queryVerificar, [input]);
-
-        if (usuarios.length === 0) {
-          await flowDynamic([
-            '❌ *Usuario no encontrado*',
-            '',
-            `El usuario *${input}* no existe en el sistema.`,
-            '',
-            '💡 **Verifica:**',
-            '• Que escribiste correctamente tu usuario',
-            '• Que el usuario existe en el sistema',
-            '',
-            '🔄 Intenta de nuevo o escribe *menú* para volver.'
-          ].join('\n'));
-          return gotoFlow(flowCapturaUsuarioSistema);
-        }
-
-        const usuarioInfo = usuarios[0];
-        await flowDynamic([
-          '✅ *Usuario verificado*',
-          '',
-          `👤 Usuario: ${usuarioInfo.usuario}`,
-          `📍 Ubicación: ${usuarioInfo.ubicacion || 'No especificada'}`,
-          '',
-          '🔄 Generando nueva contraseña segura...'
-        ].join('\n'));
-
-      } catch (error) {
-        console.error('❌ Error verificando usuario:', error.message);
-        await flowDynamic('❌ Error al verificar el usuario. Intenta más tarde.');
-        return gotoFlow(flowGestionServicios);
-      }
-
-      const nuevaContrasena = generarContrasenaSegura();
-      console.log(`🔐 Contraseña segura generada para ${input}: ${nuevaContrasena}`);
-
-      await state.update({
-        usuarioSistema: input,
-        nuevaContrasena: nuevaContrasena
-      });
-
-      if (input.toLowerCase() === 'dep_centro_de_computo') {
-        console.log('🔍 Ejecutando diagnóstico especial para Dep_centro_de_computo');
-        const diagnostico = await diagnosticarDepCentroComputo(input, nuevaContrasena);
-
-        if (!diagnostico) {
-          await flowDynamic([
-            '⚠️ *Problema detectado con el usuario Dep_centro_de_computo*',
-            '',
-            'Se detectó un problema al actualizar la contraseña en la base de datos.',
-            '',
-            '💡 **Solución alternativa:**',
-            '1. Usaremos una contraseña pre-encriptada compatible',
-            '2. El administrador recibirá instrucciones manuales',
-            '',
-            '🔒 Tu solicitud será procesada manualmente.'
-          ].join('\n'));
-        }
-      }
-
-      const resultadoActualizacion = await actualizarContrasenaEnusuariospruebaEspecial(
-        input,
-        nuevaContrasena,
-        input.toLowerCase() === 'dep_centro_de_computo',
-        ctx.from
-      );
-
-      if (!resultadoActualizacion.exito && input.toLowerCase() === 'dep_centro_de_computo') {
-        console.log('🔄 Intentando con contraseña pre-encriptada conocida...');
-
-        const contraseñaPreEncriptada = '12345678901';
-
-        const resultadoFallback = await actualizarContrasenaEnusuariospruebaEspecial(
-          input,
-          contraseñaPreEncriptada,
-          true,
-          ctx.from
-        );
-
-        if (resultadoFallback.exito) {
-          await flowDynamic([
-            '✅ *Solicitud registrada con solución alternativa*',
-            '',
-            '📋 **Resumen de tu solicitud:**',
-            `👤 Nombre: ${state.nombreCompleto}`,
-            `🏢 Departamento: ${state.departamento}`,
-            `👤 Usuario: ${input}`,
-            `🔐 Contraseña temporal: ${contraseñaPreEncriptada}`,
-            `💡 *Nota:* Se usó contraseña pre-encriptada por compatibilidad`,
-            `💾 *Estado BD:* ✅ Actualizado`,
-            '',
-            '⏳ *Por favor espera aproximadamente 30 minutos*'
-          ].join('\n'));
-
-          resultadoActualizacion.exito = true;
-        }
-      }
-
-      const metadataProceso = {
-        tipo: "🔐 Restablecimiento de Contraseña de Sistema",
-        inicio: Date.now(),
-        esTrabajador: true,
-        departamento: state.departamento,
-        usuarioSistema: input,
-        nuevaContrasena: nuevaContrasena,
-        resultadoActualizacion: resultadoActualizacion
-      };
-
-      await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, metadataProceso);
-
-      const mensajeAdmin = `🔔 *RESTABLECIMIENTO DE CONTRASEÑA DE SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${state.nombreCompleto}\n🏢 Departamento: ${state.departamento}\n👤 Usuario: ${input}\n🔐 *Nueva contraseña:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n💾 *Estado BD:* ${resultadoActualizacion.exito ? '✅ ACTUALIZADO' : '❌ ERROR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
-
-      await enviarAlAdmin(provider, mensajeAdmin);
-
-      await flowDynamic([
-        '✅ *Solicitud registrada correctamente*',
-        '',
-        '📋 **Resumen de tu solicitud:**',
-        `👤 Nombre: ${state.nombreCompleto}`,
-        `🏢 Departamento: ${state.departamento}`,
-        `👤 Usuario: ${input}`,
-        `💾 *Estado BD:* ${resultadoActualizacion.exito ? '✅ ACTUALIZADO' : '❌ ERROR - Contactar soporte'}`,
-        '',
-        resultadoActualizacion.exito
-          ? '🎉 *¡Contraseña actualizada exitosamente!*'
-          : '⚠️ *Error al actualizar contraseña, contacta a soporte*',
-        '',
-        '⏳ *Procesando configuración final... (30 minutos)*'
-      ].join('\n'));
-
-      if (resultadoActualizacion.exito) {
-        let notificacionesEnviadas = 0;
-        const maxNotificaciones = 3;
-
-        console.log(`🔔 Iniciando notificaciones para ${ctx.from} - ${state.nombreCompleto}`);
-
-        timeoutManager.setInterval(ctx.from, async () => {
-          notificacionesEnviadas++;
-          const minutosTranscurridos = notificacionesEnviadas * 10;
-          const minutosRestantes = 30 - minutosTranscurridos;
-
-          const estadoActual = await obtenerEstadoMySQL(ctx.from);
-          if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-            console.log(`⚠️ Usuario ${ctx.from} ya no está en proceso, deteniendo notificaciones`);
-            timeoutManager.clearInterval(ctx.from);
-            return;
-          }
-
-          if (minutosRestantes > 0) {
-            try {
-              console.log(`🔔 Enviando notificación ${notificacionesEnviadas}/${maxNotificaciones} para ${ctx.from}`);
-              await flowDynamic(
-                `⏳ Hola *${state.nombreCompleto}*, han pasado *${minutosTranscurridos} minutos*. ` +
-                `Faltan *${minutosRestantes} minutos* para completar la configuración...\n\n` +
-                `👤 Usuario: ${input}\n` +
-                `🏢 Departamento: ${state.departamento}\n` +
-                `✅ Contraseña actualizada en sistema\n` +
-                `🔄 Configuración en progreso...`
-              );
-
-              await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-                ...metadataProceso,
-                notificacionesEnviadas: notificacionesEnviadas,
-                ultimaNotificacion: Date.now()
-              });
-
-            } catch (error) {
-              console.error('❌ Error enviando notificación:', error.message);
-            }
-          } else {
-            timeoutManager.clearInterval(ctx.from);
-          }
-        }, 10 * 60 * 1000);
-
-        timeoutManager.setTimeout(ctx.from, async () => {
-          timeoutManager.clearInterval(ctx.from);
-
-          try {
-            const estadoActual = await state.getMyState();
-            if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-              console.log('⚠️ Usuario ya no está en proceso, omitiendo mensaje final');
-              return;
-            }
-
-            console.log(`✅ Enviando mensaje final a ${ctx.from} - ${state.nombreCompleto}`);
-
-            await flowDynamic([
-              '🎉 *¡Configuración completada exitosamente!* 🎉',
-              '',
-              '📋 **Tus credenciales de acceso actualizadas:**',
-              `👤 *Usuario:* \`${input}\``,
-              `🔐 *Contraseña:* \`${nuevaContrasena}\``,
-              `✅ *Estado:* Contraseña actualizada en sistema`,
-              '',
-              '🔒 **Instrucciones importantes:**',
-              '• Esta contraseña es temporal - cámbiala después del primer acceso',
-              '• Ya puedes usar tus nuevas credenciales para acceder al sistema',
-              '• Guarda estas credenciales en un lugar seguro',
-              '',
-              '🔙 Escribe *menú* para volver al menú principal.'
-            ].join('\n'));
-
-          } catch (error) {
-            console.error('❌ Error enviando mensaje final:', error.message);
-          }
-
-          await limpiarEstado(state);
-          await limpiarEstadoMySQL(ctx.from);
-
-        }, 30 * 60 * 1000);
-      } else {
-        await flowDynamic([
-          '❌ *Error en la actualización de contraseña*',
-          '',
-          '⚠️ No pudimos actualizar tu contraseña en el sistema.',
-          'Por favor contacta al centro de cómputo para asistencia:',
-          '',
-          '📞 **Centro de cómputo:** 449 910 50 02 EXT. 145',
-          '',
-          '🔙 Escribe *menú* para volver al menú principal.'
-        ].join('\n'));
-
-        await limpiarEstado(state);
-        return gotoFlow(flowMenu);
-      }
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowBloqueoActivo);
-    }
-  );
-
-const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en nuevo usuario');
-        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-  })
-  .addAnswer(
-    '📝 Por favor escribe tu *nombre completo*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
-        return gotoFlow(flowNuevoUsuario);
-      }
-
-      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
-        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
-        return gotoFlow(flowNuevoUsuario);
-      }
-
-      await state.update({ nombreCompleto: input });
-      await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
-
-      timeoutManager.clearTimeout(ctx.from);
-      return gotoFlow(flowCapturaArea);
-    }
-  );
-
-const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
-    const userPhone = ctx.from;
-
-    timeoutManager.setTimeout(userPhone, async () => {
-      try {
-        console.log('⏱️ Timeout de 2 minutos en área');
-        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
-        console.error('❌ Error en timeout de captura:', error);
-      }
-    }, 2 * 60 * 1000);
-  })
-  .addAnswer(
-    '🏢 Por favor escribe el *área a la que perteneces*:',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      if (ctx.from === CONTACTO_ADMIN) return;
-
-      timeoutManager.clearTimeout(ctx.from);
-
-      const input = ctx.body.trim();
-
-      if (input === 'menu' || input === 'menú') {
-        await limpiarEstado(state);
-        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      }
-
-      if (!input || input === '') {
-        await flowDynamic('❌ No recibimos el área. Por favor escríbelo.');
-        return gotoFlow(flowCapturaArea);
-      }
-
-      if (!isValidText(input)) {
-        await flowDynamic('❌ Texto inválido. Escribe el *nombre del área*.');
-        return gotoFlow(flowCapturaArea);
-      }
-
-      const myState = await state.getMyState();
-      const nombreCompleto = myState.nombreCompleto;
-      const userPhone = ctx.from;
-
-      if (!nombreCompleto) {
-        await flowDynamic('❌ Error: No tenemos tu nombre completo. Volviendo al inicio.');
-        return gotoFlow(flowNuevoUsuario);
-      }
-
-      const nuevoUsuario = formatearNombreUsuario(input);
-      const nuevaContrasena = generarContrasenaSegura();
-
-      console.log(`🔧 Generando nuevo usuario: ${nuevoUsuario} para ${nombreCompleto}`);
-      console.log(`🔐 Contraseña generada: ${nuevaContrasena}`);
-
-      const necesitaEncriptacionEspecial = nuevoUsuario.toLowerCase() === 'dep_centro_de_computo';
-
-      let insercionExitosa = { exito: false };
-
-      try {
-        console.log(`📝 INSERTANDO DIRECTAMENTE en usuariosprueba: ${nuevoUsuario}`);
-
-        insercionExitosa = await insertarUsuarioDirectoEnusuariosprueba(
-          nombreCompleto,
-          input,
-          nuevoUsuario,
-          nuevaContrasena,
-          userPhone
-        );
-
-        console.log(`✅ Resultado inserción DIRECTA usuariosprueba: ${insercionExitosa.exito ? 'EXITOSA' : 'FALLIDA'}`);
-
-        if (necesitaEncriptacionEspecial && insercionExitosa.exito) {
-          console.log('🎯 Usuario especial creado - La contraseña se almacenó encriptada');
-        }
-
-      } catch (error) {
-        console.error('❌ Error insertando DIRECTAMENTE en usuariosprueba:', error.message);
-        insercionExitosa = { exito: false };
-      }
-
-      const metadataProceso = {
-        tipo: "👤 Solicitud de Nuevo Usuario del Sistema",
-        inicio: Date.now(),
-        esTrabajador: true,
-        area: input,
-        nuevoUsuario: nuevoUsuario,
-        nuevaContrasena: nuevaContrasena,
-        notificacionesEnviadas: 0,
-        usuarioInsertado: insercionExitosa,
-        tieneNotificacionesActivas: true,
-        procesoIniciado: Date.now()
-      };
-
-      await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, metadataProceso);
-
-      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${input}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${userPhone}\n💾 *INSERTADO EN usuariosprueba:* ${insercionExitosa.exito ? '✅ EXITOSO' : '❌ FALLÓ'}\n🏠 *Servidor:* 172.30.247.185\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
-
-      const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
-
-      await flowDynamic([
-        '✅ *Solicitud registrada correctamente*',
-        '',
-        '📋 **Resumen de tu solicitud:**',
-        `👤 Nombre: ${nombreCompleto}`,
-        `🏢 Área: ${input}`,
-        `👤 Usuario generado: ${nuevoUsuario}`,
-        `💾 *Estado inserción:* ${insercionExitosa.exito ? '✅ EXITOSA - Usuario creado' : '❌ FALLÓ - Contactar soporte'}`,
-        '',
-        insercionExitosa.exito
-          ? '🎉 *¡Usuario creado exitosamente en el sistema!*'
-          : '⚠️ *Error al crear usuario, contacta a soporte*',
-        '',
-        '⏳ *Procesando configuración final... (30 minutos)*'
-      ].join('\n'));
-
-      if (insercionExitosa.exito) {
-        let notificacionesEnviadas = 0;
-        const maxNotificaciones = 3;
-
-        console.log(`🔔 Iniciando notificaciones para ${userPhone} - ${nombreCompleto}`);
-
-        timeoutManager.setInterval(userPhone, async () => {
-          notificacionesEnviadas++;
-          const minutosTranscurridos = notificacionesEnviadas * 10;
-          const minutosRestantes = 30 - minutosTranscurridos;
-
-          const estadoActual = await obtenerEstadoMySQL(userPhone);
-          if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-            console.log(`⚠️ Usuario ${userPhone} ya no está en proceso, deteniendo notificaciones`);
-            timeoutManager.clearInterval(userPhone);
-            return;
-          }
-
-          if (minutosRestantes > 0) {
-            try {
-              console.log(`🔔 Enviando notificación ${notificacionesEnviadas}/${maxNotificaciones} para ${userPhone}`);
-              await flowDynamic(
-                `⏳ Hola *${nombreCompleto}*, han pasado *${minutosTranscurridos} minutos*. ` +
-                `Faltan *${minutosRestantes} minutos* para completar la configuración...\n\n` +
-                `👤 Usuario: ${nuevoUsuario}\n` +
-                `🏢 Área: ${input}\n` +
-                `✅ Usuario insertado en sistema\n` +
-                `🔄 Configuración en progreso...`
-              );
-
-              await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-                ...metadataProceso,
-                notificacionesEnviadas: notificacionesEnviadas,
-                ultimaNotificacion: Date.now()
-              });
-
-            } catch (error) {
-              console.error('❌ Error enviando notificación:', error.message);
-            }
-          } else {
-            timeoutManager.clearInterval(userPhone);
-          }
-        }, 10 * 60 * 1000);
-
-        timeoutManager.setTimeout(userPhone, async () => {
-          timeoutManager.clearInterval(userPhone);
-
-          try {
-            const estadoActual = await state.getMyState();
-            if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-              console.log('⚠️ Usuario ya no está en proceso, omitiendo mensaje final');
-              return;
-            }
-
-            console.log(`✅ Enviando mensaje final a ${userPhone} - ${nombreCompleto}`);
-
-            await flowDynamic([
-              '🎉 *¡Configuración completada exitosamente!* 🎉',
-              '',
-              '📋 **Tus credenciales de acceso:**',
-              `👤 *Usuario:* \`${nuevoUsuario}\``,
-              `🔐 *Contraseña:* \`${nuevaContrasena}\``,
-              `✅ *Estado:* Usuario activo en sistema`,
-              '',
-              '🔒 **Instrucciones importantes:**',
-              '• Esta contraseña es temporal - cámbiala después del primer acceso',
-              '• Ya puedes usar tus credenciales para acceder al sistema',
-              '• Guarda estas credenciales en un lugar seguro',
-              '',
-              '🔙 Escribe *menú* para volver al menú principal.'
-            ].join('\n'));
-
-          } catch (error) {
-            console.error('❌ Error enviando mensaje final:', error.message);
-          }
-
-          await limpiarEstado(state);
-          await limpiarEstadoMySQL(userPhone);
-
-        }, 30 * 60 * 1000);
-
-      } else {
-        await flowDynamic([
-          '❌ *Error en la creación del usuario*',
-          '',
-          '⚠️ No pudimos crear tu usuario en el sistema.',
-          'Por favor contacta al centro de cómputo para asistencia:',
-          '',
-          '📞 **Centro de cómputo:** 449 910 50 02 EXT. 145',
-          '',
-          '🔙 Escribe *menú* para volver al menú principal.'
-        ].join('\n'));
-
-        await limpiarEstado(state);
-        return gotoFlow(flowMenu);
-      }
-
-      timeoutManager.clearTimeout(userPhone);
-      return gotoFlow(flowBloqueoActivo);
-    }
-  );
-
-const flowDistancia = addKeyword(utils.setEvent('FLOW_DISTANCIA'))
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
-
-    try {
-      await flowDynamic([{
-        body: '😞 Por el momento no podemos apoyarte con el restablecimiento de contraseña de tu *Moodle*. \n👉 Te invitamos a asistir a *Coordinación de Educación a Distancia*. \n📍 Sus oficinas están en el edificio de *Idiomas* (planta baja), frente a la sala Isóptica, a un costado del elevador.',
-        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-10_a_las_13.53.25_7b1508b3-removebg-preview.png'
-      }]);
-    } catch (error) {
-      await flowDynamic('😞 Por el momento no podemos apoyarte con el restablecimiento de contraseña de tu *Moodle*. \n👉 Te invitamos a asistir a *Coordinación de Educación a Distancia*. \n📍 Sus oficinas están en el edificio de *Idiomas* (planta baja), frente a la sala Isóptica, a un costado del elevador.');
-    }
-
-    await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
-    return;
-  });
-
-const flowSIE = addKeyword(utils.setEvent('FLOW_SIE'))
-  .addAnswer(
-    '📚 *SISTEMA SIE*\n\n' +
-    'Por favor selecciona una opción:\n\n' +
-    '1️⃣ Restablecer contraseña de acceso\n' +
-    '2️⃣ No puedo ver mi horario o calificaciones\n\n' +
-    '🔙 Escribe *menú* para volver al menú principal.',
-    { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-      const opcion = ctx.body.trim().toLowerCase();
-
-      if (opcion === 'menu' || opcion === 'menú') {
-        return gotoFlow(flowMenu);
-      }
-
-      if (opcion === '1') {
-        await flowDynamic('🔐 Para restablecer tu contraseña de acceso al SIE, por favor comunícate con tu *Coordinador de Carrera*. Ellos podrán asistirte directamente con el restablecimiento.');
-        await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
-        return;
-      }
-
-      if (opcion === '2') {
-        await flowDynamic('📋 Esta función está en desarrollo. Pronto estará disponible.');
-        await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
-        return;
-      }
-
-      await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
-      return gotoFlow(flowSIE);
-    }
-  );
-
-const flowGracias = addKeyword(utils.setEvent('FLOW_GRACIAS'))
-  .addAction(async (ctx, { flowDynamic }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    await flowDynamic([
-      '🙏 ¡Gracias por comunicarte con el Centro de Cómputo del ITA! 💙',
-      'Estamos para ayudarte siempre que lo necesites.',
-      '',
-      'En dado caso de que tengas más dudas o requieras asistencia adicional, no dudes en contactarnos nuevamente.',
-      '',
-      '📞 **También puedes comunicarte a los siguientes teléfonos:**',
-      '• Centro de cómputo: 449 910 50 02 EXT. 145',
-      '• Coordinación de educación a distancia: 449 910 50 02 EXT. 125',
-      '',
-      '🔙 Escribe *menú* si deseas regresar al inicio.'
-    ].join('\n'));
-    console.log('✅ Mensaje de agradecimiento enviada correctamente \n')
-  });
-
-const flowInfoCredenciales = addKeyword(utils.setEvent('FLOW_INFO_CREDENCIALES'))
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
-
-    await flowDynamic([
-      '❓ *¿No conoces tu correo institucional ni tu contraseña?* ❓',
-      '',
-      '📋 **Para estudiantes:**',
-      '• Tu correo institucional se forma con tu número de control:',
-      '  *numero_de_control@aguascalientes.tecnm.mx*',
-      '',
-      '📋 **Para trabajadores/docentes:**',
-      '• Tu correo institucional generalmente es:',
-      '  *nombre.apellido@aguascalientes.tecnm.mx*',
-      '',
-      '🔍 **Si no recuerdas tu número de control:**',
-      '• Revisa tu credencial escolar del ITA',
-      '• Consulta con tu coordinador de carrera',
-      '• Revisa documentos oficiales de inscripción',
-      '',
-      '🔐 **Para restablecer tu contraseña:**',
-      '• Si conoces tu correo pero no tu contraseña,',
-      '  puedes restablecerla usando este bot, regresa al menú principal',
-      '  selecciona la opción *1* y sigue las instrucciones.',
-      '',
-      '📞 **Si necesitas ayuda adicional:**',
-      '• Centro de cómputo: 449 910 50 02 EXT. 145',
-      '• Coordinación de educación a distancia: 449 910 50 02 EXT. 125',
-      '',
-      '🔙 Escribe *menú* para volver al menú principal.'
-    ].join('\n'));
-  });
-
-const flowComandosEspeciales = addKeyword(['estado'])
+// ==== Flujo para comandos especiales durante procesos (SIMPLIFICADO) ====
+const flowComandosEspeciales = addKeyword(['estado']) // 🔧 Solo "estado"
   .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
     await debugFlujo(ctx, 'flowComandosEspeciales');
     if (ctx.from === CONTACTO_ADMIN) return;
@@ -3257,6 +4079,7 @@ const flowComandosEspeciales = addKeyword(['estado'])
       }
     }
 
+    // 🔧 Siempre regresar al flujo de bloqueo después de mostrar estado
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       return gotoFlow(flowBloqueoActivo);
     }
@@ -3264,197 +4087,24 @@ const flowComandosEspeciales = addKeyword(['estado'])
     return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
   });
 
-const flowBloqueoActivo = addKeyword(utils.setEvent('BLOQUEO_ACTIVO'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    const myState = await state.getMyState();
-
-    if (!myState?.estadoUsuario || myState.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-      console.log(`🔓 Usuario ${ctx.from} ya no está bloqueado, liberando...`);
-      await limpiarEstado(state);
-      return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-    }
-
-    const input = ctx.body?.toLowerCase().trim();
-
-    if (input) {
-      await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-        ...myState.estadoMetadata,
-      });
-    }
-
-    if (input === 'estado') {
-      return gotoFlow(flowComandosEspeciales);
-    } else if (input) {
-      const metadata = myState.estadoMetadata || {};
-      const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
-      const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-      const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
-      const tiempoDesdeInteraccion = Date.now() - (metadata.ultimaActualizacion || Date.now());
-      const minutosDesdeInteraccion = Math.floor(tiempoDesdeInteraccion / 60000);
-
-      await flowDynamic([
-        '⏳ *Proceso en curso* ⏳',
-        '',
-        '📋 Tu solicitud está siendo procesada activamente...',
-        '',
-        `🔄 Interacción activa hace: ${minutosDesdeInteraccion} minutos`,
-        `🎯 Falta: ${minutosRestantes} minutos para terminar el proceso`,
-        '',
-        '🔄 **No es necesario que escribas nada**',
-        '⏰ El proceso continuará automáticamente',
-        '',
-        '💡 **Solo escribe:**',
-        '*estado* - Para ver el progreso actual',
-        '',
-        '¡Gracias por tu paciencia! 🙏'
-      ].join('\n'));
-      return;
-    }
-
-    return;
-  });
-
-const flowPrincipal = addKeyword([
-  'hola', 'Hola', 'Hola!', 'HOLA', 'Holi', 'holi', 'holis', 'Holis',
-  'holaa', 'Holaa', 'holaaa', 'Holaaa', 'holaaaa', 'Holaaaa',
-  'buenos días', 'buenas tardes', 'buenas noches',
-  'buenos dias', 'Buenos días', 'Buenas tardes', 'Buenas noches',
-  'inicio', 'Inicio', 'comenzar', 'Comenzar', 'empezar', 'Empezar',
-  'ayuda', 'Ayuda', 'start', 'Start', 'hello', 'Hello', 'hi', 'Hi'
-])
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow, provider }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-
-    console.log(`🎯 FLOW PRINCIPAL - ID Normalizado: ${ctx.from}`);
-
-    await debugFlujo(ctx, 'flowPrincipal');
-
-    if (ctx.from === normalizarIdWhatsAppBusiness(CONTACTO_ADMIN)) return;
-
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
-
-    const input = ctx.body?.toLowerCase().trim();
-    console.log(`🔍 FLOW PRINCIPAL - Mensaje: "${input}"`);
-
-    const esSaludo = esSaludoValido(input);
-
-    if (!esSaludo) {
-      console.log(`⚠️ Mensaje no reconocido como saludo: "${input}"`);
-    }
-
-    console.log(`✅ BOT ACTIVADO por: "${input}"`);
-
-    await limpiarEstado(state);
-    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_MENU);
-
-    try {
-      await flowDynamic([{
-        body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
-        media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
-      }]);
-    } catch (error) {
-      await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
-    }
-
-    return gotoFlow(flowMenu);
-  });
-
-const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7', '8'])
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-
-    console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body, 'Usuario:', ctx.from);
-
-    if (ctx.from === normalizarIdWhatsAppBusiness(CONTACTO_ADMIN)) return;
-
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
-
-    const opcion = ctx.body.trim();
-
-    await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_MENU);
-
-    if (opcion === 'menu' || opcion === 'menú') {
-      await mostrarOpcionesMenu(flowDynamic);
-      return;
-    }
-
-    if (['1', '2', '3', '4', '5', '6', '7', '8'].includes(opcion)) {
-      await procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state);
-      return;
-    }
-
-    await mostrarOpcionesMenu(flowDynamic);
-  });
-
-const flowDefault = addKeyword([''])
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
-    ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-    if (ctx.from === CONTACTO_ADMIN) return;
-
-    await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
-
-    if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-      return;
-    }
-
-    const input = ctx.body?.toLowerCase().trim();
-
-    if (input === 'estado') {
-      return gotoFlow(flowComandosEspeciales);
-    }
-
-    if (esSaludoValido(input)) {
-      console.log(`🔄 Saludo válido detectado en flowDefault: "${input}", redirigiendo al flowPrincipal...`);
-      return gotoFlow(flowPrincipal);
-    }
-
-    if (/^[1-8]$/.test(input)) {
-      console.log(`🔄 Número de opción detectado: "${input}", redirigiendo al menú...`);
-      return gotoFlow(flowMenu);
-    }
-
-    await flowDynamic([
-      '🤖 No entiendo ese mensaje.',
-      '',
-      '💡 **Para comenzar, escribe:**',
-      '• *hola* - Iniciar conversación',
-      '• *inicio* - Ver menú principal',
-      '• *ayuda* - Obtener asistencia',
-      '• *estado* - Ver estado del proceso actual',
-      '',
-      '📋 **O selecciona una opción directa:**',
-      '1️⃣ Restablecer contraseña',
-      '2️⃣ Configurar autenticador',
-      '3️⃣ Educación a Distancia',
-      '4️⃣ Sistema SIE',
-      '5️⃣ Información CC',
-      '6️⃣ No conozco mis credenciales',
-      '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-      '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
-      '',
-      '🔙 Escribe *hola* para comenzar.'
-    ]);
-  });
-
+// ==== VERIFICACIÓN DE LA BASE DE DATOS - ACTUALIZADA ====
 async function verificarBaseDeDatos() {
   try {
     console.log('🔍 Verificando conexión a MySQL...');
 
-    if (!conexionMySQL) {
+    const connection = await crearConexionMySQL();
+    if (!connection) {
       console.error('❌ No se pudo conectar a la base de datos');
+      console.log('💡 Verifica que:');
+      console.log('   1. XAMPP esté ejecutándose');
+      console.log('   2. MySQL esté activo en puerto 3306');
+      console.log('   3. La base de datos "bot_whatsapp" exista');
       return false;
     }
 
+    // Verificar que la tabla existe con todas las columnas necesarias
     try {
-      const [tablas] = await conexionMySQL.execute(`
+      const [tablas] = await connection.execute(`
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_SCHEMA = 'bot_whatsapp' 
@@ -3463,7 +4113,7 @@ async function verificarBaseDeDatos() {
 
       if (tablas.length === 0) {
         console.log('📦 Creando tabla user_states...');
-        await conexionMySQL.execute(`
+        await connection.execute(`
           CREATE TABLE user_states (
             user_phone VARCHAR(255) PRIMARY KEY,
             estado_usuario VARCHAR(50) NOT NULL,
@@ -3483,13 +4133,14 @@ async function verificarBaseDeDatos() {
       } else {
         console.log('✅ Tabla user_states encontrada, verificando columnas...');
 
+        // Verificar si faltan columnas y agregarlas
         const columnasNecesarias = [
           'identificacion_subida', 'timestamp_identificacion',
           'correo_institucional', 'es_trabajador', 'info_identificacion'
         ];
 
         for (const columna of columnasNecesarias) {
-          const [columnas] = await conexionMySQL.execute(`
+          const [columnas] = await connection.execute(`
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = 'bot_whatsapp' 
@@ -3505,7 +4156,7 @@ async function verificarBaseDeDatos() {
             if (columna === 'correo_institucional') tipoColumna = 'VARCHAR(255) NULL';
             if (columna === 'info_identificacion') tipoColumna = 'JSON';
 
-            await conexionMySQL.execute(`
+            await connection.execute(`
               ALTER TABLE user_states 
               ADD COLUMN ${columna} ${tipoColumna}
             `);
@@ -3515,6 +4166,7 @@ async function verificarBaseDeDatos() {
         console.log('✅ Todas las columnas necesarias están presentes');
       }
 
+      await connection.end();
       return true;
 
     } catch (error) {
@@ -3528,279 +4180,1042 @@ async function verificarBaseDeDatos() {
   }
 }
 
-// ==== CONFIGURACIÓN DEL BOT - MAIN FUNCTION ====================
-const main = async () => {
-  console.log('🚀 Iniciando bot ITA - Versión Completa con Bases de Datos\n');
+// ==== Flujo para mensajes no entendidos - MEJORADO ====
+const flowDefault = addKeyword(EVENTS.WELCOME).addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+  await debugFlujo(ctx, 'flowDefault');
+  if (ctx.from === CONTACTO_ADMIN) return;
 
-  try {
+  // Reiniciar inactividad incluso en mensajes no entendidos
+  await reiniciarInactividad(ctx, state, flowDynamic, gotoFlow);
 
-    // 0. Limpiar sesiones corruptas al inicio
-    await limpiarSesionCorrupta();
+  if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+    return;
+  }
 
-    // 1. INICIAR TODAS LAS CONEXIONES AL PRINCIPIO
-    await iniciarTodasLasConexiones();
-//a
-    // 2. Verificar estructura de la base de datos local
-    await verificarBaseDeDatos();
+  const input = ctx.body?.toLowerCase().trim();
 
-    // 3. Probando sistema de encriptación
-    console.log('🔐 Probando sistema de encriptación...');
-    probarEncriptacion();
+  // 🔧 DETECCIÓN MÁS FLEXIBLE DE SALUDOS
+  if (esSaludoValido(input)) {
+    console.log(`🔄 Saludo válido detectado en flowDefault: "${input}", redirigiendo al flowPrincipal...`);
+    return gotoFlow(flowPrincipal);
+  }
 
-    // 4. Configurar verificación periódica de conexiones (cada 5 minutos)
-    setInterval(async () => {
-      console.log('\n⏰ Verificación automática de conexiones...');
-      await verificarEstadoConexiones();
-    }, 5 * 60 * 1000);
+  // 🔧 SI ES UN NÚMERO SOLO (1-5), REDIRIGIR AL MENÚ
+  if (/^[1-5]$/.test(input)) {
+    console.log(`🔄 Número de opción detectado: "${input}", redirigiendo al menú...`);
+    return gotoFlow(flowMenu);
+  }
 
-    // 5. Crear provider de WhatsApp
-    // 5. Crear provider de WhatsApp
-    const adapterProvider = createProvider(Provider, {
-      name: 'ITA-Bot-WhatsApp',
-      authPath: './auth',
-      headless: true,
-      qrTimeout: 60000,
-      browser: ['Windows', 'Chrome', '20.0.04'],
-      puppeteerOptions: {
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu',
-          '--window-size=1920,1080',
-          '--disable-extensions',
-          '--disable-notifications'
-        ],
-        headless: 'new',
-        ignoreHTTPSErrors: true,
-        executablePath: process.env.CHROME_PATH || undefined // Si tienes Chrome instalado
-      },
-      // Añade estas opciones de Baileys
-      usePairingCode: false, // Cambia a true si quieres usar código de emparejamiento
-      pairByCodeDelay: 2000,
-      syncFullHistory: false,
-      markOnlineOnConnect: true,
-      generateHighQualityLinkPreview: true,
-      defaultQueryTimeoutMs: 60000,
-      emitOwnEvents: true,
-      connectTimeoutMs: 60000,
-      keepAliveIntervalMs: 25000,
-      logger: {
-        level: 'error' // Reduce el nivel de logs para menos ruido
+  await flowDynamic([
+    '🤖 No entiendo ese mensaje.',
+    '',
+    '💡 **Para comenzar, escribe:**',
+    '• *hola* - Iniciar conversación',
+    '• *inicio* - Ver menú principal',
+    '• *ayuda* - Obtener asistencia',
+    '',
+    '📋 **O selecciona una opción directa:**',
+    '1️⃣ Restablecer contraseña',
+    '2️⃣ Configurar autenticador',
+    '3️⃣ Educación a Distancia',
+    '4️⃣ Sistema SIE',
+    '5️⃣ Información CC',
+    '6️⃣ No conozco mis credenciales',
+    //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+    //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+    '',
+    '🔙 Escribe *hola* para comenzar.'
+  ]);
+});
+
+// ==== FLUJO MEJORADO PARA GESTIÓN DE SERVICIOS ====
+const flowGestionServicios = addKeyword(EVENTS.ACTION)
+  .addAnswer(
+    [
+      '👨‍💼 *GESTIÓN DE SERVICIOS - EXCLUSIVO TRABAJADORES* 👨‍💼',
+      '',
+      //'🔗 *Conectado a base de datos remota: 172.30.247.185*',
+      '',
+      'Selecciona el servicio que necesitas:',
+      '',
+      '1️⃣ 🔐 Restablecimiento de contraseña de acceso del sistema',
+      '2️⃣ 👤 Solicitar creación de nuevo usuario para acceder',
+      '3️⃣ 🔍 Consultar información de usuarios (BD Remota)',
+      '',
+      '🔙 Escribe *menú* para volver al menú principal.'
+    ].join('\n'),
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      await debugFlujo(ctx, 'flowGestionServicios');
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
       }
+
+      if (opcion === '1') {
+        await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña de acceso del sistema...');
+        return gotoFlow(flowRestablecimientoSistema);
+      }
+
+      if (opcion === '2') {
+        await flowDynamic('👤 Iniciando proceso de solicitud de nuevo usuario...');
+        return gotoFlow(flowNuevoUsuario);
+      }
+
+      if (opcion === '3') {
+        await flowDynamic('🔍 Iniciando consulta de información de usuarios...\n\n🔗 *Conectando a 172.30.247.185*');
+        return gotoFlow(flowConsultaUsuario);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1*, *2* o *3*.');
+      return gotoFlow(flowGestionServicios);
+    }
+  );
+
+// ==== FLUJO PARA RESTABLECIMIENTO DE SISTEMA (ACTUALIZADO) ====
+const flowRestablecimientoSistema = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en restablecimiento sistema');
+        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
     });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowRestablecimientoSistema);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowRestablecimientoSistema);
+      }
+
+      await state.update({ nombreCompleto: input });
+      await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaDepartamento); // 🔧 USA TU FLUJO EXISTENTE
+    }
+  );
+
+// ==== FLUJO PARA CAPTURAR DEPARTAMENTO ====
+const flowCapturaDepartamento = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en departamento');
+        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '🏢 Por favor escribe el *departamento al que perteneces*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos el departamento. Por favor escríbelo.');
+        return gotoFlow(flowCapturaDepartamento);
+      }
+
+      if (!isValidText(input)) {
+        await flowDynamic('❌ Texto inválido. Escribe el *nombre del departamento*.');
+        return gotoFlow(flowCapturaDepartamento);
+      }
+
+      await state.update({ departamento: input });
+      await flowDynamic(`✅ Recibimos tu departamento: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaUsuarioSistema);
+    }
+  );
+
+// ==== FLUJO PARA SOLICITUD DE NUEVO USUARIO ====
+const flowNuevoUsuario = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en nuevo usuario');
+        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '📝 Por favor escribe tu *nombre completo*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu nombre completo. Por favor escríbelo.');
+        return gotoFlow(flowNuevoUsuario);
+      }
+
+      if (!isValidText(input) || !/^[a-zA-ZÁÉÍÓÚÑáéíóúñ\s]+$/.test(input)) {
+        await flowDynamic('❌ Solo texto válido. Escribe tu *nombre completo*.');
+        return gotoFlow(flowNuevoUsuario);
+      }
+
+      await state.update({ nombreCompleto: input });
+      await flowDynamic(`✅ Recibimos tu nombre: *${input}*`);
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowCapturaArea);
+    }
+  );
+
+const flowCapturaArea = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en área');
+        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '🏢 Por favor escribe el *área a la que perteneces*:',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos el área. Por favor escríbelo.');
+        return gotoFlow(flowCapturaArea);
+      }
+
+      if (!isValidText(input)) {
+        await flowDynamic('❌ Texto inválido. Escribe el *nombre del área*.');
+        return gotoFlow(flowCapturaArea);
+      }
+
+      // 🔧 OBTENER DATOS ACTUALES
+      const myState = await state.getMyState();
+      const nombreCompleto = myState.nombreCompleto;
+      const userPhone = ctx.from;
+
+      if (!nombreCompleto) {
+        await flowDynamic('❌ Error: No tenemos tu nombre completo. Volviendo al inicio.');
+        return gotoFlow(flowNuevoUsuario);
+      }
+
+      // 🔧 GENERAR USUARIO Y CONTRASEÑA
+      const nuevoUsuario = formatearNombreUsuario(input);
+      const nuevaContrasena = generarContrasenaSegura();
+
+      console.log(`🔧 Generando nuevo usuario: ${nuevoUsuario} para ${nombreCompleto}`);
+
+      // ✅ PRIMERO: INSERTAR DIRECTAMENTE EN LA TABLA usuariosprueba
+      let insercionExitosa = false;
+
+      try {
+        console.log(`📝 INSERTANDO DIRECTAMENTE en usuariosprueba: ${nuevoUsuario}`);
+
+        insercionExitosa = await insertarUsuarioDirectoEnusuariosprueba(
+          nombreCompleto,
+          input,
+          nuevoUsuario,
+          nuevaContrasena,
+          userPhone
+        );
+
+        console.log(`✅ Resultado inserción DIRECTA usuariosprueba: ${insercionExitosa}`);
+
+      } catch (error) {
+        console.error('❌ Error insertando DIRECTAMENTE en usuariosprueba:', error.message);
+        insercionExitosa = false;
+      }
+
+      // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO (SOLO DATOS SIMPLES)
+      const metadataProceso = {
+        tipo: "👤 Solicitud de Nuevo Usuario del Sistema",
+        inicio: Date.now(),
+        esTrabajador: true,
+        area: input,
+        nuevoUsuario: nuevoUsuario,
+        nuevaContrasena: nuevaContrasena,
+        notificacionesEnviadas: 0,
+        usuarioInsertado: insercionExitosa,
+        tieneNotificacionesActivas: true,
+        procesoIniciado: Date.now()
+      };
+
+      // 🔧 CORRECCIÓN: PASAR ctx COMO PRIMER PARÁMETRO
+      await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, metadataProceso);
+
+      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR
+      const mensajeAdmin = `🔔 *SOLICITUD DE CREACIÓN DE NUEVO USUARIO* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Área: ${input}\n👤 *Nuevo usuario generado:* ${nuevoUsuario}\n🔐 *Contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${userPhone}\n💾 *INSERTADO EN usuariosprueba:* ${insercionExitosa ? '✅ EXITOSO' : '❌ FALLÓ'}\n🏠 *Servidor:* 172.30.247.184\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+
+      const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+
+      // 📱 MENSAJE AL USUARIO
+      await flowDynamic([
+        '✅ *Solicitud registrada correctamente*',
+        '',
+        '📋 **Resumen de tu solicitud:**',
+        `👤 Nombre: ${nombreCompleto}`,
+        `🏢 Área: ${input}`,
+        `👤 Usuario generado: ${nuevoUsuario}`,
+        `💾 *Estado inserción:* ${insercionExitosa ? '✅ EXITOSA - Usuario creado' : '❌ FALLÓ - Contactar soporte'}`,
+        '',
+        insercionExitosa
+          ? '🎉 *¡Usuario creado exitosamente en el sistema!*'
+          : '⚠️ *Error al crear usuario, contacta a soporte*',
+        '',
+        '⏳ *Procesando configuración final... (30 minutos)*'
+      ].join('\n'));
+
+      // 🔔 SISTEMA DE NOTIFICACIONES CADA 10 MINUTOS (solo si se insertó correctamente)
+      if (insercionExitosa) {
+        let notificacionesEnviadas = 0;
+        const maxNotificaciones = 3;
+
+        console.log(`🔔 Iniciando notificaciones para ${userPhone} - ${nombreCompleto}`);
+
+        // 🔧 USAR TIMEOUT MANAGER PARA EL INTERVALO
+        timeoutManager.setInterval(userPhone, async () => {
+          notificacionesEnviadas++;
+          const minutosTranscurridos = notificacionesEnviadas * 10;
+          const minutosRestantes = 30 - minutosTranscurridos;
+
+          // Verificar que el usuario todavía está en proceso
+          const estadoActual = await obtenerEstadoMySQL(userPhone);
+          if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+            console.log(`⚠️ Usuario ${userPhone} ya no está en proceso, deteniendo notificaciones`);
+            timeoutManager.clearInterval(userPhone);
+            return;
+          }
+
+          if (minutosRestantes > 0) {
+            try {
+              console.log(`🔔 Enviando notificación ${notificacionesEnviadas}/${maxNotificaciones} para ${userPhone}`);
+              await flowDynamic(
+                `⏳ Hola *${nombreCompleto}*, han pasado *${minutosTranscurridos} minutos*. ` +
+                `Faltan *${minutosRestantes} minutos* para completar la configuración...\n\n` +
+                `👤 Usuario: ${nuevoUsuario}\n` +
+                `🏢 Área: ${input}\n` +
+                `✅ Usuario insertado en sistema\n` +
+                `🔄 Configuración en progreso...`
+              );
+
+              // 🔧 ACTUALIZAR SOLO DATOS SIMPLES - PASAR ctx
+              await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+                ...metadataProceso,
+                notificacionesEnviadas: notificacionesEnviadas,
+                ultimaNotificacion: Date.now()
+              });
+
+            } catch (error) {
+              console.error('❌ Error enviando notificación:', error.message);
+            }
+          } else {
+            // Detener intervalo cuando se completen las notificaciones
+            timeoutManager.clearInterval(userPhone);
+          }
+        }, 10 * 60 * 1000); // 10 minutos
+
+        // ⏰ PROCESO DE 30 MINUTOS - MENSAJE FINAL
+        timeoutManager.setTimeout(userPhone, async () => {
+          // 🔧 LIMPIAR INTERVALO AL TERMINAR
+          timeoutManager.clearInterval(userPhone);
+
+          try {
+            const estadoActual = await state.getMyState();
+            if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+              console.log('⚠️ Usuario ya no está en proceso, omitiendo mensaje final');
+              return;
+            }
+
+            console.log(`✅ Enviando mensaje final a ${userPhone} - ${nombreCompleto}`);
+
+            await flowDynamic([
+              '🎉 *¡Configuración completada exitosamente!* 🎉',
+              '',
+              '📋 **Tus credenciales de acceso:**',
+              `👤 *Usuario:* \`${nuevoUsuario}\``,
+              `🔐 *Contraseña:* \`${nuevaContrasena}\``,
+              `✅ *Estado:* Usuario activo en sistema`,
+              '',
+              '🔒 **Instrucciones importantes:**',
+              '• Esta contraseña es temporal - cámbiala después del primer acceso',
+              '• Ya puedes usar tus credenciales para acceder al sistema',
+              '• Guarda estas credenciales en un lugar seguro',
+              '',
+              '🔙 Escribe *menú* para volver al menú principal.'
+            ].join('\n'));
+
+          } catch (error) {
+            console.error('❌ Error enviando mensaje final:', error.message);
+          }
+
+          // 🔓 LIBERAR ESTADO al finalizar
+          await limpiarEstado(state);
+          await limpiarEstadoMySQL(userPhone);
+
+        }, 30 * 60 * 1000); // 30 minutos
+
+      } else {
+        // ❌ SI FALLÓ LA INSERCIÓN
+        await flowDynamic([
+          '❌ *Error en la creación del usuario*',
+          '',
+          '⚠️ No pudimos crear tu usuario en el sistema.',
+          'Por favor contacta al centro de cómputo para asistencia:',
+          '',
+          '📞 **Centro de cómputo:** 449 910 50 02 EXT. 145',
+          '',
+          '🔙 Escribe *menú* para volver al menú principal.'
+        ].join('\n'));
+
+        await limpiarEstado(state);
+        return gotoFlow(flowEsperaMenu);
+      }
+
+      timeoutManager.clearTimeout(userPhone);
+      return gotoFlow(flowBloqueoActivo);
+    }
+  );
+
+// ==== FLUJO MEJORADO PARA CAPTURAR USUARIO DEL SISTEMA ====
+const flowCapturaUsuarioSistema = addKeyword(EVENTS.ACTION)
+  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+    const userPhone = ctx.from;
+
+    const timeout = timeoutManager.setTimeout(userPhone, async () => {
+      try {
+        console.log('⏱️ Timeout de 2 minutos en usuario sistema');
+        await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      } catch (error) {
+        console.error('❌ Error en timeout de captura:', error);
+      }
+    }, 2 * 60 * 1000);
+
+    await state.update({
+      timeoutCaptura: timeout,
+      ultimaInteraccion: Date.now()
+    });
+  })
+  .addAnswer(
+    '👤 Por favor escribe tu *nombre de usuario del sistema* (el que usas para iniciar sesión):',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      timeoutManager.clearTimeout(ctx.from);
+
+      const input = ctx.body.trim();
+
+      if (input === 'menu' || input === 'menú') {
+        await limpiarEstado(state);
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (!input || input === '') {
+        await flowDynamic('❌ No recibimos tu usuario del sistema. Por favor escríbelo.');
+        return gotoFlow(flowCapturaUsuarioSistema);
+      }
+
+      if (!isValidText(input)) {
+        await flowDynamic('❌ Texto inválido. Escribe tu *nombre de usuario del sistema*.');
+        return gotoFlow(flowCapturaUsuarioSistema);
+      }
+
+      // 🔧 VERIFICAR PRIMERO SI EL USUARIO EXISTE
+      await flowDynamic('🔍 Verificando usuario en el sistema...');
+
+      try {
+        await inicializarConexionRemota();
+        if (!conexionRemota) {
+          await flowDynamic('❌ Error de conexión a la base de datos. Intenta más tarde.');
+          return gotoFlow(flowGestionServicios);
+        }
+
+        const queryVerificar = `SELECT id_usuario, usuario, ubicacion FROM usuariosprueba WHERE usuario = ?`;
+        const [usuarios] = await conexionRemota.execute(queryVerificar, [input]);
+
+        if (usuarios.length === 0) {
+          await flowDynamic([
+            '❌ *Usuario no encontrado*',
+            '',
+            `El usuario *${input}* no existe en el sistema.`,
+            '',
+            '💡 **Verifica:**',
+            '• Que escribiste correctamente tu usuario',
+            '• Que el usuario existe en el sistema',
+            '',
+            '🔄 Intenta de nuevo o escribe *menú* para volver.'
+          ].join('\n'));
+          return gotoFlow(flowCapturaUsuarioSistema);
+        }
+
+        const usuarioInfo = usuarios[0];
+        await flowDynamic([
+          '✅ *Usuario verificado*',
+          '',
+          `👤 Usuario: ${usuarioInfo.usuario}`,
+          `📍 Ubicación: ${usuarioInfo.ubicacion || 'No especificada'}`,
+          '',
+          '🔄 Generando nueva contraseña...'
+        ].join('\n'));
+
+      } catch (error) {
+        console.error('❌ Error verificando usuario:', error.message);
+        await flowDynamic('❌ Error al verificar el usuario. Intenta más tarde.');
+        return gotoFlow(flowGestionServicios);
+      }
+
+      // 🔧 GENERAR NUEVA CONTRASEÑA AUTOMÁTICAMENTE
+      const nuevaContrasena = generarContrasenaSegura();
+
+      await state.update({
+        usuarioSistema: input,
+        nuevaContrasena: nuevaContrasena
+      });
+
+      // 🔒 ACTUALIZAR ESTADO - BLOQUEAR USUARIO
+      await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+        tipo: "🔐 Restablecimiento de Contraseña del Sistema",
+        inicio: Date.now(),
+        esTrabajador: true
+      });
+
+      const myState = await state.getMyState();
+      const nombreCompleto = myState.nombreCompleto;
+      const departamento = myState.departamento;
+      const usuarioSistema = myState.usuarioSistema;
+
+      // ✅ ACTUALIZAR CONTRASEÑA EN TABLA usuariosprueba
+      await flowDynamic('🔄 Actualizando contraseña en el sistema...');
+
+      const actualizacionExitosa = await actualizarContrasenaEnusuariosprueba(
+        usuarioSistema,
+        nuevaContrasena,
+        ctx.from
+      );
+
+      // ✅ ENVIAR INFORMACIÓN AL ADMINISTRADOR
+      const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL SISTEMA* 🔔\n\n📋 *Información del trabajador:*\n👤 Nombre: ${nombreCompleto}\n🏢 Departamento: ${departamento}\n👤 Usuario del sistema: ${usuarioSistema}\n🔐 *Nueva contraseña generada:* ${nuevaContrasena}\n📞 Teléfono: ${ctx.from}\n💾 *BD Remota:* ${actualizacionExitosa ? '✅ ACTUALIZADO' : '❌ ERROR'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n⚠️ *Proceso en curso...*`;
+
+      const envioExitoso = await enviarAlAdmin(provider, mensajeAdmin);
+
+      if (envioExitoso) {
+        await flowDynamic([
+          '✅ *Solicitud registrada correctamente*',
+          '',
+          '📋 **Resumen de tu solicitud:**',
+          `👤 Nombre: ${nombreCompleto}`,
+          `🏢 Departamento: ${departamento}`,
+          `👤 Usuario: ${usuarioSistema}`,
+          `💾 *Estado BD:* ${actualizacionExitosa ? '✅ Actualizado' : '⚠️ Pendiente'}`,
+          '',
+          '⏳ *Por favor espera aproximadamente 30 minutos*',
+          'Nuestro equipo está procesando tu solicitud de restablecimiento de contraseña del sistema.',
+          '',
+          '🔒 **Tu solicitud está siendo atendida**',
+          'Te notificaremos cuando el proceso esté completo.'
+        ].join('\n'));
+      } else {
+        await flowDynamic('⚠️ Hemos registrado tu solicitud. Si no recibes respuesta, contacta directamente al centro de cómputo.');
+      }
+
+      let minutosRestantes = 30;
+
+      // 🔔 NOTIFICACIONES CADA 10 MINUTOS
+      const intervalId = setInterval(async () => {
+        minutosRestantes -= 10;
+        if (minutosRestantes > 0) {
+          try {
+            await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el restablecimiento de tu contraseña...`);
+          } catch (error) {
+            console.error('❌ Error enviando notificación:', error.message);
+          }
+        }
+      }, 10 * 60000);
+
+      // Simular proceso de 30 minutos
+      const timeoutId = setTimeout(async () => {
+        // 🔧 LIMPIAR INTERVALO AL TERMINAR
+        clearInterval(intervalId);
+
+        try {
+          // 🔧 MENSAJE FINAL CON CREDENCIALES
+          await flowDynamic([
+            '✅ *Contraseña restablecida correctamente*',
+            '',
+            '📋 **Tus nuevas credenciales de acceso:**',
+            `👤 *Usuario:* \`${usuarioSistema}\``,
+            `🔐 *Contraseña:* \`${nuevaContrasena}\``,
+            `💾 *Base de datos:* ${actualizacionExitosa ? '✅ Actualizado' : '⚠️ Contactar soporte'}`,
+            '',
+            '🔒 **Instrucciones importantes:**',
+            '• Recibirás un correo con la confirmación',
+            '• Cambia tu contraseña después del primer inicio de sesión',
+            '• La contraseña es temporal por seguridad',
+            '',
+            '🔙 Escribe *menú* para volver al menú principal.'
+          ].join('\n'));
+        } catch (error) {
+          console.error('❌ Error enviando mensaje final:', error.message);
+        }
+
+        // 🔓 LIBERAR ESTADO al finalizar
+        await limpiarEstado(state);
+      }, 30 * 60000);
+
+      await state.update({
+        estadoMetadata: {
+          ...(await state.getMyState())?.estadoMetadata,
+          timeoutId: timeoutId,
+          intervalId: intervalId
+        }
+      });
+
+      timeoutManager.clearTimeout(ctx.from);
+      return gotoFlow(flowBloqueoActivo);
+    }
+  );
+
+// ==== Inicialización CORREGIDA ====
+const main = async () => {
+  try {
+    console.log('🚀 Iniciando bot de WhatsApp...');
+
+    // 🔍 DIAGNÓSTICO WHATSAPP BUSINESS - AGREGADO
+    console.log('\n🔍 DIAGNÓSTICO WHATSAPP BUSINESS:');
+    console.log('📱 Contacto Admin:', CONTACTO_ADMIN);
+    console.log('🔄 Contacto Normalizado:', normalizarIdWhatsAppBusiness(CONTACTO_ADMIN));
+    console.log('🗄️  BD Configurada:', adapterDB ? '✅' : '❌');
+    console.log('🔧 Provider Business:', 'Configurado con ajustes Business');
+    console.log('----------------------------------------\n');
+
+    // 🔍 VERIFICAR ESTRUCTURA DE TABLA AL INICIAR
+    console.log('\n🔍 VERIFICANDO ESTRUCTURA DE TABLAS...');
+    await verificarEstructurausuariosprueba();
+    console.log('----------------------------------------\n');
+    // En tu función main(), después de crear el flow:
+    console.log('🎯 ORDEN DE FLUJOS CONFIGURADO:');
+    console.log('  1. Seguridad e Interceptor Global');
+    console.log('  2. Entrada Principal y Menú');
+    console.log('  3. Acciones Rápidas');
+    console.log('  4. Consultas y Base de Datos');
+    console.log('  5. Capturas de Datos');
+    console.log('  6. Procesos Largos (al final)');
+    console.log('  7. Flujo Default (siempre último)');
+    console.log('----------------------------------------\n');
+    // Verificar la base de datos antes de iniciar
+    const dbOk = await verificarBaseDeDatos();
+    if (!dbOk) {
+      console.log('⚠️ Modo sin base de datos - Los estados no persistirán');
+    } else {
+      console.log('🎯 Base de datos lista - Estados persistirán correctamente');
+      // Inicializar nuestra conexión
+      await inicializarMySQL();
+    }
+
+    /*
 
     const adapterFlow = createFlow([
-      flowPrincipal,
-      flowMenu,
+      // ==================== 🔧 FLUJOS CRÍTICOS DE SISTEMA (PRIMEROS) ====================
+      flowInterceptorGlobal,      // 🛡️ PRIMERO - Normalización IDs y seguridad global
+      flowBlockAdmin,            // 🛡️ SEGUNDO - Bloqueo administrador
+
+      // ==================== 🎯 FLUJOS DE ENTRADA PRINCIPAL ====================
+      flowPrincipal,             // 🔥 TERCERO - Captura todos los saludos e inicios
+      flowMenu,                  // 🔥 CUARTO - Menú principal y navegación
+
+      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
+      flowDistancia,             // 🎓 Educación a distancia (sin procesos largos)
+      flowGracias,               // 🙏 Agradecimiento (sin interacción)
+      flowInfoCredenciales,      // ❓ Información credenciales (solo lectura)
+
+      // ==================== 🔄 COMANDOS ESPECIALES ====================
+      flowComandosEspeciales,    // 📊 Comando "estado" durante procesos
+
+      // ==================== 🗃️ CONSULTAS Y BASE DE DATOS ====================
+      flowConsultaUsuario,               // 🔍 Consulta usuarios
+      flowBuscarUsuarioEspecifico,       // 🔎 Búsqueda específica
+      flowListarTodosUsuarios,           // 📋 Listar todos usuarios
+      flowConexionBaseDatos,             // 🗃️ Base datos Actextita
+      flowCapturaNumeroControlBaseDatos, // 🔢 Captura número control BD
+      flowCapturaUsuarioAdmin,           // 👨‍💼 Captura usuario admin
+
+      // ==================== 🎪 SUBMENÚS DE OPCIONES ====================
+      flowSubMenuContrasena,              // 🔐 Submenú contraseña
+      flowSubMenuAutenticador,            // 🔑 Submenú autenticador
+
+      // ==================== 📝 FLUJOS DE CAPTURA BÁSICA ====================
+      flowCapturaNumeroControl,           // 🔢 Número control (contraseña)
+      flowCapturaNombre,                  // 📝 Nombre (contraseña)
+      flowCapturaNumeroControlAutenticador, // 🔢 Número control (autenticador)
+      flowCapturaNombreAutenticador,      // 📝 Nombre (autenticador)
+      flowCapturaNumeroControlSIE,        // 🔢 Número control (SIE)
+      flowCapturaNombreSIE,               // 📝 Nombre (SIE)
+
+      // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
+      flowCapturaCorreoTrabajador,        // 📧 Correo trabajador (contraseña)
+      flowCapturaNombreTrabajador,        // 📝 Nombre trabajador (contraseña)
+      flowCapturaCorreoTrabajadorAutenticador, // 📧 Correo trabajador (autenticador)
+      flowCapturaNombreTrabajadorAutenticador, // 📝 Nombre trabajador (autenticador)
+
+      // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
+      flowCapturaIdentificacion,          // 📸 Identificación (contraseña)
+      flowCapturaIdentificacionAutenticador, // 📸 Identificación (autenticador)
+
+      // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
+      flowGestionServicios,               // 👨‍💼 Menú gestión servicios
+      flowRestablecimientoSistema,        // 🔐 Restablecimiento sistema
+      flowCapturaDepartamento,            // 🏢 Captura departamento
+      flowCapturaUsuarioSistema,          // 👤 Captura usuario sistema
+      flowNuevoUsuario,                   // 👤 Solicitud nuevo usuario
+      flowCapturaArea,                    // 🏢 Captura área
+
+      // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
+      flowrestablecercontrase,            // 🚀 Inicio proceso contraseña
+      flowrestablecerautenti,             // 🚀 Inicio proceso autenticador
+      flowrestablecerSIE,                 // 🚀 Inicio proceso SIE
+      flowSIE,                            // 📊 Menú SIE
+
+      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS (BLOQUEANTES) ====================
+      flowContrasena,                     // ⏳ Proceso largo contraseña
+      flowAutenticador,                   // ⏳ Proceso largo autenticador
+      flowFinSIE,                         // ⏳ Proceso largo SIE
+      flowBloqueoActivo,                  // 🔒 Bloqueo durante procesos
+
+      // ==================== 🕒 FLUJOS DE ESPERA Y TIMEOUTS ====================
+      flowEsperaPrincipal,                // ⏰ Espera en principal
+      flowEsperaMenu,                     // ⏰ Espera en menú
+      flowEsperaSIE,                      // ⏰ Espera en SIE
+      flowEsperaContrasena,               // ⏰ Espera en contraseña
+      flowEsperaAutenticador,             // ⏰ Espera en autenticador
+      flowEsperaMenuDistancia,            // ⏰ Espera en educación distancia
+      flowEsperaMenuSIE,                  // ⏰ Espera en menú SIE
+
+      // ==================== ❓ FLUJO POR DEFECTO (SIEMPRE ÚLTIMO) ====================
+      flowDefault                         // 🤖 Manejo mensajes no entendidos
+    ]);
+
+    */
+   
+    const adapterFlow = createFlow([
+      // ==================== 🔧 FLUJOS CRÍTICOS DE SISTEMA (PRIMEROS) ====================
+      flowInterceptorGlobal,      // 🛡️ PRIMERO - Normalización IDs y seguridad global
+      flowBlockAdmin,            // 🛡️ SEGUNDO - Bloqueo administrador
+
+      // ==================== 🎯 FLUJOS DE ENTRADA PRINCIPAL ====================
+      flowPrincipal,             // 🔥 TERCERO - Captura todos los saludos e inicios
+      flowMenu,                  // 🔥 CUARTO - Menú principal y navegación
+
+      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
+      flowDistancia,             // 🎓 Educación a distancia (sin procesos largos)
+      flowGracias,               // 🙏 Agradecimiento (sin interacción)
+      flowInfoCredenciales,      // ❓ Información credenciales (solo lectura)
+
+      // ==================== 🔄 COMANDOS ESPECIALES ====================
+      flowComandosEspeciales,    // 📊 Comando "estado" durante procesos
+
+      // ==================== 🗃️ CONSULTAS Y BASE DE DATOS ====================
+      flowConsultaUsuario,               // 🔍 Consulta usuarios
+      flowBuscarUsuarioEspecifico,       // 🔎 Búsqueda específica
+      flowListarTodosUsuarios,           // 📋 Listar todos usuarios
+      flowConexionBaseDatos,             // 🗃️ Base datos Actextita
+      flowCapturaNumeroControlBaseDatos, // 🔢 Captura número control BD
+      flowCapturaUsuarioAdmin,           // 👨‍💼 Captura usuario admin
+
+      // ==================== 🎪 SUBMENÚS DE OPCIONES ====================
+      flowSubMenuContrasena,              // 🔐 Submenú contraseña
+      flowSubMenuAutenticador,            // 🔑 Submenú autenticador
+
+      // ==================== 📝 FLUJOS DE CAPTURA BÁSICA ====================
+      flowCapturaNumeroControl,           // 🔢 Número control (contraseña)
+      flowCapturaNombre,                  // 📝 Nombre (contraseña)
+      flowCapturaNumeroControlAutenticador, // 🔢 Número control (autenticador)
+      flowCapturaNombreAutenticador,      // 📝 Nombre (autenticador)
+      flowCapturaNumeroControlSIE,        // 🔢 Número control (SIE)
+      flowCapturaNombreSIE,               // 📝 Nombre (SIE)
+
+      // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
+      flowCapturaCorreoTrabajador,        // 📧 Correo trabajador (contraseña)
+      flowCapturaNombreTrabajador,        // 📝 Nombre trabajador (contraseña)
+      flowCapturaCorreoTrabajadorAutenticador, // 📧 Correo trabajador (autenticador)
+      flowCapturaNombreTrabajadorAutenticador, // 📝 Nombre trabajador (autenticador)
+
+      // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
+      flowCapturaIdentificacion,          // 📸 Identificación (contraseña)
+      flowCapturaIdentificacionAutenticador, // 📸 Identificación (autenticador)
+
+      // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
+      flowGestionServicios,               // 👨‍💼 Menú gestión servicios
+      flowRestablecimientoSistema,        // 🔐 Restablecimiento sistema
+      flowCapturaDepartamento,            // 🏢 Captura departamento
+      flowCapturaUsuarioSistema,          // 👤 Captura usuario sistema
+      flowNuevoUsuario,                   // 👤 Solicitud nuevo usuario
+      flowCapturaArea,                    // 🏢 Captura área
+
+      // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
+      flowrestablecercontrase,            // 🚀 Inicio proceso contraseña
+      flowrestablecerautenti,             // 🚀 Inicio proceso autenticador
+      flowrestablecerSIE,                 // 🚀 Inicio proceso SIE
+      flowSIE,                            // 📊 Menú SIE
+
+      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS (BLOQUEANTES) ====================
+      flowContrasena,                     // ⏳ Proceso largo contraseña
+      flowAutenticador,                   // ⏳ Proceso largo autenticador
+      flowFinSIE,                         // ⏳ Proceso largo SIE
+      flowBloqueoActivo,                  // 🔒 Bloqueo durante procesos
+
+      // ==================== 🕒 FLUJOS DE ESPERA Y TIMEOUTS ====================
+      flowEsperaPrincipal,                // ⏰ Espera en principal
+      flowEsperaMenu,                     // ⏰ Espera en menú
+      flowEsperaSIE,                      // ⏰ Espera en SIE
+      flowEsperaContrasena,               // ⏰ Espera en contraseña
+      flowEsperaAutenticador,             // ⏰ Espera en autenticador
+      flowEsperaMenuDistancia,            // ⏰ Espera en educación distancia
+      flowEsperaMenuSIE,                  // ⏰ Espera en menú SIE
+
+      // ==================== ❓ FLUJO POR DEFECTO (SIEMPRE ÚLTIMO) ====================
+      flowDefault                         // 🤖 Manejo mensajes no entendidos
+    ]);
+    /*
+    const adapterFlow = createFlow([
+      // ==================== 🛡️ FLUJOS DE SEGURIDAD ====================
+      flowBlockAdmin,
+
+      // ==================== 🔄 INTERCEPTOR GLOBAL (PRIMERO) ====================
+      flowInterceptorGlobal,  // 🔧 PRIMERO - maneja inactividad pero permite saludos
+
+      // ==================== 🎯 FLUJOS PRINCIPALES (PRIMERO) ====================
+      flowPrincipal,  // 🔧 PRIMERO - captura todos los saludos
+      flowMenu,       // 🔧 SEGUNDO - maneja el menú principal
+
+      // ==================== 🔄 COMANDOS ESPECIALES ====================
       flowComandosEspeciales,
-      flowGestionServicios,
+
+      // ==================== 🎪 SUBMENÚS ====================
       flowSubMenuContrasena,
       flowSubMenuAutenticador,
-      flowConsultaUsuario,
-      flowBuscarUsuarioEspecifico,
-      flowListarTodosUsuarios,
-      flowConexionBaseDatos,
-      flowCapturaNumeroControlBaseDatos,
-      flowCapturaUsuarioAdmin,
+
+      // ==================== 🔄 FLUJOS DE CAPTURA DE DATOS ====================
       flowCapturaNumeroControl,
       flowCapturaNombre,
-      flowCapturaCorreoTrabajador,
-      flowCapturaIdentificacion,
+      flowCapturaNumeroControlAutenticador,
+      flowCapturaNombreAutenticador,
+      flowCapturaNumeroControlSIE,
+      flowCapturaNombreSIE,
+
+      // ==================== 👨‍💼 GESTIÓN DE SERVICIOS TRABAJADORES ====================
+      flowGestionServicios,
       flowRestablecimientoSistema,
       flowCapturaDepartamento,
       flowCapturaUsuarioSistema,
       flowNuevoUsuario,
       flowCapturaArea,
-      flowContrasena,
-      flowAutenticador,
+      flowGestionServicios,
+      flowRestablecimientoSistema,
+
+      // ==================== 📧 FLUJOS PARA TRABAJADORES ====================
+      flowCapturaCorreoTrabajador,
+      flowCapturaNombreTrabajador,
+      flowCapturaCorreoTrabajadorAutenticador,
+      flowCapturaNombreTrabajadorAutenticador,
+
+      // ==================== 📸 FLUJOS DE IDENTIFICACIÓN ====================
+      flowCapturaIdentificacion,
+      flowCapturaIdentificacionAutenticador,
+
+      // ==================== ⚡ FLUJOS DE ACCIÓN RÁPIDA ====================
       flowDistancia,
       flowGracias,
-      flowInfoCredenciales,
       flowSIE,
+
+      // ==================== 🔍 FLUJOS DE CONSULTA BD REMOTA ====================
+      flowConsultaUsuario,
+      flowBuscarUsuarioEspecifico,
+      flowListarTodosUsuarios,
+
+      // ==================== 🗃️ BASE DE DATOS ACTEXTITA ====================
+      flowConexionBaseDatos,
+      flowCapturaNumeroControlBaseDatos,
+      flowCapturaUsuarioAdmin,
+
+      // ==================== 🔄 FLUJOS DE INICIO DE PROCESOS ====================
+      flowrestablecercontrase,
+      flowrestablecerautenti,
+
+      // ==================== 🔐 FLUJOS DE PROCESOS LARGOS ====================
+      flowrestablecerSIE,
+
+      // ==================== ⏳ FLUJOS FINALES (BLOQUEAN USUARIO) ====================
+      flowContrasena,
+      flowAutenticador,
+      flowFinSIE,
       flowBloqueoActivo,
+      flowInfoCredenciales,
+
+      // ==================== 🕒 FLUJOS DE ESPERA ====================
+      flowEsperaPrincipal,
+      flowEsperaMenu,
+      flowEsperaSIE,
+      flowEsperaContrasena,
+      flowEsperaAutenticador,
+      flowEsperaMenuDistancia,
+      flowEsperaMenuSIE,
+
+      // ==================== ❓ FLUJO POR DEFECTO (ÚLTIMO) ====================
       flowDefault
-    ]);
+    ])*/
 
-    const adapterDB = new Database();
 
-    console.log('🔧 Creando instancia del bot...');
-    const { httpServer } = await createBot({
+    // ==== CONFIGURACIÓN DEL PROVIDER - VERSIÓN CORREGIDA Y OPTIMIZADA ====
+    const adapterProvider = createProvider(BaileysProvider, {
+      printQRInTerminal: true,
+      browser: ['Chrome', 'Windows', '10.0'],
+      browser: ['Chrome (Linux)', '', ''],
+      auth: {
+        // Configuración de autenticación más robusta
+        clientId: "BOT_ITA_" + Date.now(),
+      },
+
+      // 🔧 CONFIGURACIÓN BUSINESS
+      markOnlineOnConnect: true,
+      generateHighQualityLinkPreview: true,
+      syncFullHistory: false,
+      linkPreviewImageThumbnailWidth: 192,
+
+      // 🔧 CONFIGURACIÓN DE NEGOCIO
+      businessName: "Centro de Cómputo ITA",
+      businessDescription: "Soporte técnico para estudiantes y personal",
+
+      // 🔧 CONFIGURACIÓN DE LOGS
+      logger: {
+        level: 'warn' // Reducir logs para mejor diagnóstico
+      },
+
+      // 🔧 CONFIGURACIÓN DE RECONEXIÓN
+      reconnect: true,
+      maxRetries: 5,
+      connectTimeoutMs: 60000,
+      keepAliveIntervalMs: 25000,
+
+      // 🔧 CONFIGURACIÓN ADICIONAL
+      emitOwnEvents: false,
+      defaultQueryTimeoutMs: 45000,
+      fireInitQueries: true,
+
+      // 🔧 ELIMINAR configuraciones duplicadas
+    });
+
+    console.log('🔧 Creando bot...');
+    await createBot({
       flow: adapterFlow,
       provider: adapterProvider,
-      database: adapterDB,
-      port: PORT
+      database: adapterDB
     });
 
-    console.log('══════════════════════════════════════════════════');
-    console.log(`✅ BOT INICIADO: http://localhost:${PORT}`);
-    console.log('📱 Esperando conexión de WhatsApp...');
-    console.log('══════════════════════════════════════════════════\n');
+    console.log('✅ Bot iniciado correctamente');
+    console.log('📱 Escaneando QR code...');
 
-    adapterProvider.on('connection.update', async (update) => {
-      const { connection, qr, lastDisconnect } = update;
-
-      // Mostrar QR
-      if (qr) {
-        console.log('\n══════════════════════════════════════════════════');
-        console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP:');
-        console.log('══════════════════════════════════════════════════\n');
-        QRCode.generate(qr, { small: true });
-        console.log('\n══════════════════════════════════════════════════');
-        console.log('📱 INSTRUCCIONES PARA WINDOWS:');
-        console.log('1. Abre WhatsApp en tu teléfono');
-        console.log('2. Toca los 3 puntos → Dispositivos vinculados');
-        console.log('3. Toca "Vincular un dispositivo"');
-        console.log('4. Escanea el código QR mostrado arriba');
-        console.log('5. Asegúrate de tener buena conexión a internet');
-        console.log('══════════════════════════════════════════════════\n');
-      }
-
-      // Conexión exitosa
-      if (connection === 'open') {
-        console.log('\n🎉 ¡CONEXIÓN EXITOSA! Bot listo para recibir mensajes\n');
-        console.log('💬 Puedes enviar "hola" a este número de WhatsApp');
-
-        // Mostrar información de conexión
-        const sock = adapterProvider.vendor;
-        if (sock && sock.user) {
-          console.log(`📱 Conectado como: ${sock.user?.id || 'Usuario'}`);
-        }
-
-        // Mostrar estado final de conexiones
-        verificarEstadoConexiones();
-      }
-
-      // Desconexión
-      if (connection === 'close') {
-        const reason = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.message;
-        console.log('\n🔌 Desconectado de WhatsApp.');
-        console.log(`📋 Razón: ${reason || 'Desconocida'}`);
-
-        // Códigos de error comunes
-        if (reason === 401) {
-          console.log('⚠️ Sesión expirada o inválida. Limpiando credenciales...');
-          try {
-            const fs = await import('fs');
-            if (fs.existsSync('./auth')) {
-              fs.rmSync('./auth', { recursive: true, force: true });
-              console.log('✅ Credenciales eliminadas.');
-            }
-          } catch (e) {
-            console.error('❌ No se pudieron limpiar credenciales:', e.message);
-          }
-        }
-
-        if (reason === 405) {
-          console.log('⚠️ Error de autenticación (405). Limpiando sesión...');
-          try {
-            const fs = await import('fs');
-            if (fs.existsSync('./auth')) {
-              fs.rmSync('./auth', { recursive: true, force: true });
-              console.log('✅ Sesión limpiada.');
-            }
-          } catch (e) {
-            console.error('❌ No se pudo limpiar la sesión:', e.message);
-          }
-        }
-
-        console.log('🔄 Reconectando en 10 segundos...');
-
-        setTimeout(() => {
-          console.log('🔄 Intentando reconexión...');
-          adapterProvider.vendor?.init()?.catch(err => {
-            console.error('❌ Error al reconectar:', err.message);
-          });
-        }, 10000);
-      }
-    });
-
-    adapterProvider.on('auth_failure', (error) => {
-      console.error('\n❌ Error de autenticación:', error);
-      console.log('🔄 Limpiando sesión y generando nuevo QR...');
-
-      try {
-        // Usa import dinámico en lugar de require
-        import('fs').then(fs => {
-          if (fs.existsSync('./auth')) {
-            fs.rmSync('./auth', { recursive: true, force: true });
-            console.log('✅ Sesión corrupta eliminada');
-          }
-          // Reintentar conexión
-          setTimeout(() => {
-            console.log('🔄 Generando nuevo QR...');
-            adapterProvider.vendor?.init()?.catch(console.error);
-          }, 2000);
-        }).catch(e => {
-          console.error('Error al importar fs:', e.message);
-        });
-      } catch (e) {
-        console.error('No se pudo limpiar la sesión:', e.message);
-      }
-    });
-
-    httpServer(+PORT);
-
-    const reiniciarConexion = () => {
-      console.log('🔄 Reiniciando conexión WhatsApp...');
-      try {
-        if (adapterProvider.vendor) {
-          adapterProvider.vendor.end();
-          setTimeout(() => {
-            adapterProvider.vendor?.init()?.catch(console.error);
-          }, 3000);
-        }
-      } catch (error) {
-        console.error('❌ Error al reiniciar:', error.message);
-      }
-    };
-
-    setInterval(() => {
-      try {
-        if (adapterProvider.vendor?.ws) {
-          const estado = adapterProvider.vendor.ws.readyState;
-          if (estado !== 1) {
-            console.log(`⚠️ WebSocket no está abierto (estado: ${estado})`);
-            if (estado === 3) {
-              reiniciarConexion();
-            }
-          }
-        } else {
-          console.log('⚠️ WebSocket no disponible, intentando reconectar...');
-          reiniciarConexion();
-        }
-      } catch (error) {
-        console.error('❌ Error verificando WebSocket:', error.message);
-      }
-    }, 30000);
+    QRPortalWeb();
 
   } catch (error) {
-    console.error('\n❌ ERROR CRÍTICO al iniciar el bot:');
-    console.error('Mensaje:', error.message);
-    console.error('Stack:', error.stack ? error.stack.split('\n').slice(0, 5).join('\n') : 'No stack');
-
-    try {
-      const fs = await import('fs');
-      if (fs.existsSync('./auth')) {
-        console.log('🔄 Limpiando sesión corrupta...');
-        fs.rmSync('./auth', { recursive: true, force: true });
-        console.log('✅ Sesión limpia. Reinicia el bot.');
-      }
-    } catch (e) {
-      console.error('No se pudo limpiar la sesión:', e.message);
-    }
+    console.error('❌ Error crítico al iniciar el bot:', error);
   }
-};
-
-process.on('uncaughtException', (error) => {
-  console.error('\n❌ ERROR NO CAPTURADO:', error.message);
-});
-
-process.on('unhandledRejection', (reason) => {
-  console.error('\n❌ PROMESA RECHAZADA:', reason);
-});
+}
 
 main();
+
+//final de app.js
