@@ -3509,7 +3509,7 @@ const main = async () => {
       authPath: './auth',
       headless: true,
       qrTimeout: 60000,
-      printQRInTerminal: true,
+      // REMOVE THIS LINE: printQRInTerminal: true,
       browser: ['Windows', 'Chrome', '20.0.04'],
       puppeteerOptions: {
         args: [
@@ -3531,8 +3531,8 @@ const main = async () => {
       flowPrincipal,
       flowMenu,
       flowComandosEspeciales,
-      flowSubMenuContrasena,
       flowGestionServicios,
+      flowSubMenuContrasena,
       flowSubMenuAutenticador,
       flowConsultaUsuario,
       flowBuscarUsuarioEspecifico,
@@ -3544,7 +3544,6 @@ const main = async () => {
       flowCapturaNombre,
       flowCapturaCorreoTrabajador,
       flowCapturaIdentificacion,
-      flowGestionServicios,
       flowRestablecimientoSistema,
       flowCapturaDepartamento,
       flowCapturaUsuarioSistema,
@@ -3575,26 +3574,41 @@ const main = async () => {
     console.log('📱 Esperando conexión de WhatsApp...');
     console.log('══════════════════════════════════════════════════\n');
 
-    adapterProvider.on('qr', (qr) => {
-      console.log('\n══════════════════════════════════════════════════');
-      console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP:');
-      console.log('══════════════════════════════════════════════════\n');
-      QRCode.generate(qr, { small: true });
-      console.log('\n══════════════════════════════════════════════════');
-      console.log('📱 INSTRUCCIONES PARA WINDOWS:');
-      console.log('1. Abre WhatsApp en tu teléfono');
-      console.log('2. Toca los 3 puntos → Dispositivos vinculados');
-      console.log('3. Toca "Vincular un dispositivo"');
-      console.log('4. Escanea el código QR mostrado arriba');
-      console.log('══════════════════════════════════════════════════\n');
-    });
+    // Manejo manual del QR
+    adapterProvider.on('connection.update', async (update) => {
+      const { connection, qr } = update;
 
-    adapterProvider.on('ready', () => {
-      console.log('\n🎉 ¡CONEXIÓN EXITOSA! Bot listo para recibir mensajes\n');
-      console.log('💬 Puedes enviar "hola" a este número de WhatsApp');
+      if (qr) {
+        console.log('\n══════════════════════════════════════════════════');
+        console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP:');
+        console.log('══════════════════════════════════════════════════\n');
+        QRCode.generate(qr, { small: true });
+        console.log('\n══════════════════════════════════════════════════');
+        console.log('📱 INSTRUCCIONES PARA WINDOWS:');
+        console.log('1. Abre WhatsApp en tu teléfono');
+        console.log('2. Toca los 3 puntos → Dispositivos vinculados');
+        console.log('3. Toca "Vincular un dispositivo"');
+        console.log('4. Escanea el código QR mostrado arriba');
+        console.log('══════════════════════════════════════════════════\n');
+      }
 
-      // Mostrar estado final de conexiones
-      verificarEstadoConexiones();
+      if (connection === 'open') {
+        console.log('\n🎉 ¡CONEXIÓN EXITOSA! Bot listo para recibir mensajes\n');
+        console.log('💬 Puedes enviar "hola" a este número de WhatsApp');
+
+        // Mostrar estado final de conexiones
+        verificarEstadoConexiones();
+      }
+
+      if (connection === 'close') {
+        console.log('\n🔌 Desconectado de WhatsApp.');
+        console.log('🔄 Reconectando en 5 segundos...');
+
+        setTimeout(() => {
+          console.log('🔄 Intentando reconexión...');
+          adapterProvider.vendor?.init()?.catch(console.error);
+        }, 5000);
+      }
     });
 
     adapterProvider.on('auth_failure', (error) => {
@@ -3602,24 +3616,23 @@ const main = async () => {
       console.log('🔄 Limpiando sesión y generando nuevo QR...');
 
       try {
-        const fs = require('fs');
-        if (fs.existsSync('./auth')) {
-          fs.rmSync('./auth', { recursive: true, force: true });
-          console.log('✅ Sesión corrupta eliminada');
-        }
+        // Usa import dinámico en lugar de require
+        import('fs').then(fs => {
+          if (fs.existsSync('./auth')) {
+            fs.rmSync('./auth', { recursive: true, force: true });
+            console.log('✅ Sesión corrupta eliminada');
+          }
+          // Reintentar conexión
+          setTimeout(() => {
+            console.log('🔄 Generando nuevo QR...');
+            adapterProvider.vendor?.init()?.catch(console.error);
+          }, 2000);
+        }).catch(e => {
+          console.error('Error al importar fs:', e.message);
+        });
       } catch (e) {
         console.error('No se pudo limpiar la sesión:', e.message);
       }
-    });
-
-    adapterProvider.on('disconnected', (reason) => {
-      console.log('\n🔌 Desconectado de WhatsApp. Razón:', reason);
-      console.log('🔄 Reconectando en 5 segundos...');
-
-      setTimeout(() => {
-        console.log('🔄 Intentando reconexión...');
-        adapterProvider.vendor?.init()?.catch(console.error);
-      }, 5000);
     });
 
     httpServer(+PORT);
@@ -3670,7 +3683,7 @@ const main = async () => {
         console.log('✅ Sesión limpia. Reinicia el bot.');
       }
     } catch (e) {
-      console.error('No se pudo limpiar la sesión');
+      console.error('No se pudo limpiar la sesión:', e.message);
     }
   }
 };
