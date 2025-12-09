@@ -100,7 +100,7 @@ let conexionActextita = null;
 // ==== FUNCIÓN PARA INICIAR TODAS LAS CONEXIONES AL INICIO ====
 async function iniciarTodasLasConexiones() {
   console.log('🚀 INICIANDO TODAS LAS CONEXIONES A BASES DE DATOS...\n');
-  
+
   // 1. Conexión MySQL Local
   console.log('1. 🔗 Conectando a MySQL Local (bot_whatsapp)...');
   try {
@@ -116,10 +116,10 @@ async function iniciarTodasLasConexiones() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
-    
+
     await conexionMySQL.execute('SELECT 1');
     console.log('✅ MySQL Local: CONECTADO\n');
-    
+
     // Configurar manejo de errores para reconexión automática
     conexionMySQL.on('error', (err) => {
       console.error('❌ Error en conexión MySQL:', err.message);
@@ -130,7 +130,7 @@ async function iniciarTodasLasConexiones() {
         }, 5000);
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error conectando a MySQL Local:', error.message, '\n');
   }
@@ -150,10 +150,10 @@ async function iniciarTodasLasConexiones() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
-    
+
     await conexionRemota.execute('SELECT 1');
     console.log('✅ usuariosprueba: CONECTADO\n');
-    
+
     // Verificar tabla usuariosprueba
     try {
       const [tablas] = await conexionRemota.execute("SHOW TABLES LIKE 'usuariosprueba'");
@@ -167,7 +167,7 @@ async function iniciarTodasLasConexiones() {
     } catch (error) {
       console.error('❌ Error verificando tabla usuariosprueba:', error.message);
     }
-    
+
     // Configurar manejo de errores para reconexión automática
     conexionRemota.on('error', (err) => {
       console.error('❌ Error en conexión usuariosprueba:', err.message);
@@ -178,7 +178,7 @@ async function iniciarTodasLasConexiones() {
         }, 5000);
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error conectando a usuariosprueba:', error.message, '\n');
   }
@@ -198,10 +198,10 @@ async function iniciarTodasLasConexiones() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
-    
+
     await conexionActextita.execute('SELECT 1');
     console.log('✅ actextita: CONECTADO\n');
-    
+
     // Verificar tabla admins
     try {
       const [tablas] = await conexionActextita.execute("SHOW TABLES LIKE 'admins'");
@@ -215,7 +215,7 @@ async function iniciarTodasLasConexiones() {
     } catch (error) {
       console.error('❌ Error verificando tabla admins:', error.message);
     }
-    
+
     // Configurar manejo de errores para reconexión automática
     conexionActextita.on('error', (err) => {
       console.error('❌ Error en conexión actextita:', err.message);
@@ -226,7 +226,7 @@ async function iniciarTodasLasConexiones() {
         }, 5000);
       }
     });
-    
+
   } catch (error) {
     console.error('❌ Error conectando a actextita:', error.message, '\n');
   }
@@ -246,7 +246,7 @@ async function reconectarBaseRemota() {
     if (conexionRemota) {
       try { await conexionRemota.end(); } catch (e) { }
     }
-    
+
     conexionRemota = await mysql.createConnection({
       host: '172.30.247.185',
       user: 'ccomputo',
@@ -257,7 +257,7 @@ async function reconectarBaseRemota() {
       acquireTimeout: 30000,
       timeout: 30000
     });
-    
+
     console.log('✅ Reconexión a usuariosprueba exitosa');
   } catch (error) {
     console.error('❌ Error en reconexión a usuariosprueba:', error.message);
@@ -271,7 +271,7 @@ async function reconectarActextita() {
     if (conexionActextita) {
       try { await conexionActextita.end(); } catch (e) { }
     }
-    
+
     conexionActextita = await mysql.createConnection({
       host: '172.30.247.186',
       user: 'root',
@@ -282,7 +282,7 @@ async function reconectarActextita() {
       acquireTimeout: 30000,
       timeout: 30000
     });
-    
+
     console.log('✅ Reconexión a actextita exitosa');
   } catch (error) {
     console.error('❌ Error en reconexión a actextita:', error.message);
@@ -293,9 +293,9 @@ async function reconectarActextita() {
 // Función para verificar el estado de todas las conexiones
 async function verificarEstadoConexiones() {
   console.log('\n📊 ESTADO ACTUAL DE CONEXIONES:');
-  
+
   const estados = [];
-  
+
   // Verificar MySQL Local
   try {
     if (conexionMySQL) {
@@ -307,7 +307,7 @@ async function verificarEstadoConexiones() {
   } catch (error) {
     estados.push('❌ MySQL Local: ERROR - ' + error.message);
   }
-  
+
   // Verificar usuariosprueba
   try {
     if (conexionRemota) {
@@ -319,7 +319,7 @@ async function verificarEstadoConexiones() {
   } catch (error) {
     estados.push('❌ usuariosprueba (185): ERROR - ' + error.message);
   }
-  
+
   // Verificar actextita
   try {
     if (conexionActextita) {
@@ -331,10 +331,10 @@ async function verificarEstadoConexiones() {
   } catch (error) {
     estados.push('❌ actextita (186): ERROR - ' + error.message);
   }
-  
+
   estados.forEach(estado => console.log(estado));
   console.log('');
-  
+
   return {
     mysqlLocal: conexionMySQL ? true : false,
     usuariosprueba: conexionRemota ? true : false,
@@ -1270,8 +1270,8 @@ async function mostrarOpcionesMenu(flowDynamic) {
     '4️⃣ 📊 Sistema SIE',
     '5️⃣ 🙏 Información adicional',
     '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
-    //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-    //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+    '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+    '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
     '',
     '💡 *Escribe solo el número (1-8)*'
   ].join('\n'));
@@ -1286,10 +1286,10 @@ async function enviarAlAdmin(provider, mensaje, ctx = null) {
     }
 
     const adminIdNormalizado = normalizarIdWhatsAppBusiness(CONTACTO_ADMIN);
-    
+
     console.log(`📤 Enviando mensaje al admin (${adminIdNormalizado}):`);
     console.log(`📝 Mensaje (primeras 100 chars): ${mensaje.substring(0, 100)}...`);
-    
+
     await sock.sendMessage(adminIdNormalizado, { text: mensaje });
 
     console.log('✅ Información enviada al administrador');
@@ -1486,6 +1486,92 @@ const flowConexionBaseDatos = addKeyword(utils.setEvent('CONEXION_BASE_DATOS'))
 
       await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.');
       return gotoFlow(flowConexionBaseDatos);
+    }
+  );
+
+const flowGestionServicios = addKeyword(utils.setEvent('GESTION_SERVICIOS'))
+  .addAnswer(
+    '👨‍💼 *GESTIÓN DE SERVICIOS - EXCLUSIVO TRABAJADORES* 👨‍💼\n\n' +
+    'Selecciona una opción:\n\n' +
+    '1️⃣ 🔐 Restablecer contraseña de sistema\n' +
+    '2️⃣ 👤 Crear nuevo usuario de sistema\n' +
+    '3️⃣ 🔍 Consultar usuarios del sistema\n' +
+    '4️⃣ 📊 Verificar estructura de base de datos\n' +
+    '5️⃣ 🗃️ Acceso a Base de Datos Actextita\n' +
+    '\n🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+      ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
+      if (ctx.from === CONTACTO_ADMIN) return;
+
+      const opcion = ctx.body.trim().toLowerCase();
+
+      if (opcion === 'menu' || opcion === 'menú') {
+        return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+      }
+
+      if (opcion === '1') {
+        await flowDynamic('🔐 Iniciando proceso de restablecimiento de contraseña de sistema...');
+        console.log('🚀 Redirigiendo a flowRestablecimientoSistema');
+        await limpiarEstado(state);
+        return gotoFlow(flowRestablecimientoSistema);
+      }
+
+      if (opcion === '2') {
+        await flowDynamic('👤 Iniciando proceso de creación de nuevo usuario...');
+        console.log('🚀 Redirigiendo a flowNuevoUsuario');
+        await limpiarEstado(state);
+        return gotoFlow(flowNuevoUsuario);
+      }
+
+      if (opcion === '3') {
+        await flowDynamic('🔍 Iniciando consulta de usuarios...');
+        console.log('🚀 Redirigiendo a flowConsultaUsuario');
+        return gotoFlow(flowConsultaUsuario);
+      }
+
+      if (opcion === '4') {
+        await flowDynamic('📊 Verificando estructura de base de datos...');
+
+        const estructuraValida = await verificarEstructurausuariosprueba();
+
+        if (estructuraValida) {
+          await flowDynamic([
+            '✅ *Estructura de base de datos verificada*',
+            '',
+            '📋 **Base de datos:** usuariosprueba',
+            '📍 **Servidor:** 172.30.247.185',
+            '',
+            '💡 La estructura es correcta y todos los campos están presentes.',
+            '',
+            '🔙 Escribe *menú* para volver al menú principal.'
+          ].join('\n'));
+        } else {
+          await flowDynamic([
+            '❌ *Error en la estructura de base de datos*',
+            '',
+            '⚠️ No se pudo verificar la estructura de la base de datos.',
+            '',
+            '💡 **Posibles causas:**',
+            '• Problemas de conexión',
+            '• La tabla usuariosprueba no existe',
+            '• Permisos insuficientes',
+            '',
+            '🔙 Escribe *menú* para volver al menú principal.'
+          ].join('\n'));
+        }
+
+        return gotoFlow(flowGestionServicios);
+      }
+
+      if (opcion === '5') {
+        await flowDynamic('🗃️ Redirigiendo a Base de Datos Actextita...');
+        console.log('🚀 Redirigiendo a flowConexionBaseDatos');
+        return gotoFlow(flowConexionBaseDatos);
+      }
+
+      await flowDynamic('❌ Opción no válida. Escribe *1*, *2*, *3*, *4* o *5*.');
+      return gotoFlow(flowGestionServicios);
     }
   );
 
@@ -3305,8 +3391,8 @@ const flowDefault = addKeyword([''])
       '4️⃣ Sistema SIE',
       '5️⃣ Información CC',
       '6️⃣ No conozco mis credenciales',
-      //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-      //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+      '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+      '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
       '',
       '🔙 Escribe *hola* para comenzar.'
     ]);
@@ -3399,24 +3485,24 @@ async function verificarBaseDeDatos() {
 // ==== CONFIGURACIÓN DEL BOT - MAIN FUNCTION ====================
 const main = async () => {
   console.log('🚀 Iniciando bot ITA - Versión Completa con Bases de Datos\n');
-  
+
   try {
     // 1. INICIAR TODAS LAS CONEXIONES AL PRINCIPIO
     await iniciarTodasLasConexiones();
-    
+
     // 2. Verificar estructura de la base de datos local
     await verificarBaseDeDatos();
-    
+
     // 3. Probando sistema de encriptación
     console.log('🔐 Probando sistema de encriptación...');
     probarEncriptacion();
-    
+
     // 4. Configurar verificación periódica de conexiones (cada 5 minutos)
     setInterval(async () => {
       console.log('\n⏰ Verificación automática de conexiones...');
       await verificarEstadoConexiones();
     }, 5 * 60 * 1000);
-    
+
     // 5. Crear provider de WhatsApp
     const adapterProvider = createProvider(Provider, {
       name: 'ITA-Bot-WhatsApp',
@@ -3446,6 +3532,7 @@ const main = async () => {
       flowMenu,
       flowComandosEspeciales,
       flowSubMenuContrasena,
+      flowGestionServicios,
       flowSubMenuAutenticador,
       flowConsultaUsuario,
       flowBuscarUsuarioEspecifico,
@@ -3505,7 +3592,7 @@ const main = async () => {
     adapterProvider.on('ready', () => {
       console.log('\n🎉 ¡CONEXIÓN EXITOSA! Bot listo para recibir mensajes\n');
       console.log('💬 Puedes enviar "hola" a este número de WhatsApp');
-      
+
       // Mostrar estado final de conexiones
       verificarEstadoConexiones();
     });
