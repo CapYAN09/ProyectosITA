@@ -11,6 +11,52 @@ import { encriptarContrasena, desencriptarContrasena, probarEncriptacion, encrip
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
 const PORT = process.env.PORT ?? 3008
 
+// Función para limpiar sesiones corruptas
+async function limpiarSesionCorrupta() {
+  try {
+    console.log('🧹 Verificando sesiones anteriores...');
+    const fs = await import('fs');
+    const path = await import('path');
+    
+    const authPath = './auth';
+    if (fs.existsSync(authPath)) {
+      // Verificar si hay archivos de sesión corruptos
+      const files = fs.readdirSync(authPath);
+      const tieneCredencialesValidas = files.some(file => 
+        file.includes('creds') || file.includes('session')
+      );
+      
+      if (tieneCredencialesValidas) {
+        console.log('⚠️ Encontrada sesión anterior. Verificando...');
+        
+        // Verificar tamaño de archivos (sesiones corruptas suelen ser muy pequeñas)
+        let esCorrupta = false;
+        for (const file of files) {
+          const filePath = path.join(authPath, file);
+          const stats = fs.statSync(filePath);
+          if (stats.size < 100) { // Archivo muy pequeño probablemente corrupto
+            console.log(`⚠️ Archivo sospechoso: ${file} (${stats.size} bytes)`);
+            esCorrupta = true;
+          }
+        }
+        
+        if (esCorrupta) {
+          console.log('🧹 Eliminando sesión corrupta...');
+          fs.rmSync(authPath, { recursive: true, force: true });
+          console.log('✅ Sesión limpiada.');
+          return true;
+        }
+      }
+    }
+    
+    console.log('✅ Sin sesiones corruptas detectadas.');
+    return false;
+  } catch (error) {
+    console.error('❌ Error verificando sesión:', error.message);
+    return false;
+  }
+}
+
 // ==== Función para debuggear flujos ====
 async function debugFlujo(ctx, nombreFlujo) {
   console.log(`🔍 [DEBUG] ${nombreFlujo} - Usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
@@ -3487,6 +3533,10 @@ const main = async () => {
   console.log('🚀 Iniciando bot ITA - Versión Completa con Bases de Datos\n');
 
   try {
+
+    // 0. Limpiar sesiones corruptas al inicio
+    await limpiarSesionCorrupta();
+    
     // 1. INICIAR TODAS LAS CONEXIONES AL PRINCIPIO
     await iniciarTodasLasConexiones();
 
@@ -3504,12 +3554,12 @@ const main = async () => {
     }, 5 * 60 * 1000);
 
     // 5. Crear provider de WhatsApp
+    // 5. Crear provider de WhatsApp
     const adapterProvider = createProvider(Provider, {
       name: 'ITA-Bot-WhatsApp',
       authPath: './auth',
       headless: true,
       qrTimeout: 60000,
-      // REMOVE THIS LINE: printQRInTerminal: true,
       browser: ['Windows', 'Chrome', '20.0.04'],
       puppeteerOptions: {
         args: [
@@ -3520,10 +3570,26 @@ const main = async () => {
           '--no-first-run',
           '--no-zygote',
           '--disable-gpu',
-          '--window-size=1920,1080'
+          '--window-size=1920,1080',
+          '--disable-extensions',
+          '--disable-notifications'
         ],
         headless: 'new',
-        ignoreHTTPSErrors: true
+        ignoreHTTPSErrors: true,
+        executablePath: process.env.CHROME_PATH || undefined // Si tienes Chrome instalado
+      },
+      // Añade estas opciones de Baileys
+      usePairingCode: false, // Cambia a true si quieres usar código de emparejamiento
+      pairByCodeDelay: 2000,
+      syncFullHistory: false,
+      markOnlineOnConnect: true,
+      generateHighQualityLinkPreview: true,
+      defaultQueryTimeoutMs: 60000,
+      emitOwnEvents: true,
+      connectTimeoutMs: 60000,
+      keepAliveIntervalMs: 25000,
+      logger: {
+        level: 'error' // Reduce el nivel de logs para menos ruido
       }
     });
 
@@ -3574,10 +3640,10 @@ const main = async () => {
     console.log('📱 Esperando conexión de WhatsApp...');
     console.log('══════════════════════════════════════════════════\n');
 
-    // Manejo manual del QR
     adapterProvider.on('connection.update', async (update) => {
-      const { connection, qr } = update;
+      const { connection, qr, lastDisconnect } = update;
 
+      // Mostrar QR
       if (qr) {
         console.log('\n══════════════════════════════════════════════════');
         console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP:');
@@ -3589,25 +3655,66 @@ const main = async () => {
         console.log('2. Toca los 3 puntos → Dispositivos vinculados');
         console.log('3. Toca "Vincular un dispositivo"');
         console.log('4. Escanea el código QR mostrado arriba');
+        console.log('5. Asegúrate de tener buena conexión a internet');
         console.log('══════════════════════════════════════════════════\n');
       }
 
+      // Conexión exitosa
       if (connection === 'open') {
         console.log('\n🎉 ¡CONEXIÓN EXITOSA! Bot listo para recibir mensajes\n');
         console.log('💬 Puedes enviar "hola" a este número de WhatsApp');
+
+        // Mostrar información de conexión
+        const sock = adapterProvider.vendor;
+        if (sock && sock.user) {
+          console.log(`📱 Conectado como: ${sock.user?.id || 'Usuario'}`);
+        }
 
         // Mostrar estado final de conexiones
         verificarEstadoConexiones();
       }
 
+      // Desconexión
       if (connection === 'close') {
+        const reason = lastDisconnect?.error?.output?.statusCode || lastDisconnect?.error?.message;
         console.log('\n🔌 Desconectado de WhatsApp.');
-        console.log('🔄 Reconectando en 5 segundos...');
+        console.log(`📋 Razón: ${reason || 'Desconocida'}`);
+
+        // Códigos de error comunes
+        if (reason === 401) {
+          console.log('⚠️ Sesión expirada o inválida. Limpiando credenciales...');
+          try {
+            const fs = await import('fs');
+            if (fs.existsSync('./auth')) {
+              fs.rmSync('./auth', { recursive: true, force: true });
+              console.log('✅ Credenciales eliminadas.');
+            }
+          } catch (e) {
+            console.error('❌ No se pudieron limpiar credenciales:', e.message);
+          }
+        }
+
+        if (reason === 405) {
+          console.log('⚠️ Error de autenticación (405). Limpiando sesión...');
+          try {
+            const fs = await import('fs');
+            if (fs.existsSync('./auth')) {
+              fs.rmSync('./auth', { recursive: true, force: true });
+              console.log('✅ Sesión limpiada.');
+            }
+          } catch (e) {
+            console.error('❌ No se pudo limpiar la sesión:', e.message);
+          }
+        }
+
+        console.log('🔄 Reconectando en 10 segundos...');
 
         setTimeout(() => {
           console.log('🔄 Intentando reconexión...');
-          adapterProvider.vendor?.init()?.catch(console.error);
-        }, 5000);
+          adapterProvider.vendor?.init()?.catch(err => {
+            console.error('❌ Error al reconectar:', err.message);
+          });
+        }, 10000);
       }
     });
 
