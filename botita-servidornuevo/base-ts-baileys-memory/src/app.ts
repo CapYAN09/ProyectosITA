@@ -1,23 +1,133 @@
-import { createBot, createProvider, createFlow, addKeyword, utils, EVENTS } from '@builderbot/bot'
-import { MemoryDB as Database } from '@builderbot/bot'
-import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
-import QRCode from 'qrcode-terminal'
-import mysql from 'mysql2/promise'
-
-// 🔐 IMPORTAR FUNCIONES DE ENCRIPTACIÓN DESDE src/
+import { createBot, createProvider, createFlow, addKeyword, utils, EVENTS } from '@builderbot/bot';
+import { MemoryDB as Database } from '@builderbot/bot';
+import { BaileysProvider as Provider } from '@builderbot/provider-baileys';
+import QRCode from 'qrcode-terminal';
+import mysql, { Connection, RowDataPacket } from 'mysql2/promise';
 import { encriptarContrasena, desencriptarContrasena, probarEncriptacion, encriptarContrasenaParaBD } from './encriptacion.js'
 
+// Tipos e interfaces
+interface DBConfig {
+  host: string;
+  user: string;
+  password: string;
+  database: string;
+  port: number;
+}
+
+interface DBConfigs {
+  [key: string]: DBConfig;
+}
+
+interface EstadoMetadata {
+  [key: string]: any;
+  ultimaActualizacion?: number;
+  tipo?: string;
+  inicio?: number;
+  esTrabajador?: boolean;
+  timeoutId?: NodeJS.Timeout;
+  intervalId?: NodeJS.Timeout;
+}
+
+interface EstadoUsuario {
+  estadoUsuario?: string;
+  estadoMetadata?: EstadoMetadata;
+  numeroControl?: string | null;
+  nombreCompleto?: string | null;
+  correoInstitucional?: string | null;
+  esTrabajador?: boolean | null;
+  identificacionSubida?: boolean;
+  infoIdentificacion?: any;
+  timestampIdentificacion?: number | null;
+  ultimaInteraccion?: number;
+  redirigiendo?: boolean;
+  enRedireccion?: boolean;
+  tipoProceso?: string;
+  departamento?: string;
+  usuarioAdmin?: string;
+  usuarioSistema?: string;
+  nuevaContrasena?: string;
+  area?: string;
+  fotoEnVivo?: boolean;
+}
+
+interface ConsultaAlumnoResult {
+  encontrado: boolean;
+  error?: string;
+  numero_control?: string;
+  nombre?: string;
+  carrera?: string;
+  semestre?: string;
+  grupo?: string;
+  estado?: string;
+  [key: string]: any;
+}
+
+interface UsuarioInfo {
+  id_usuario: number;
+  usuario: string;
+  id_rol: number;
+  id_persona: number;
+  ubicacion?: string;
+  fecha_insert?: string;
+  estado?: string;
+  password?: string;
+  [key: string]: any;
+}
+
+interface InsertUsuarioResult {
+  exito: boolean;
+  contrasenaSinEncriptar?: string;
+  contrasenaGuardada?: string;
+  necesitaEncriptacionEspecial?: boolean;
+  mensaje?: string;
+  error?: string;
+}
+
+interface ActualizacionContrasenaResult {
+  exito: boolean;
+  contrasenaSinEncriptar?: string;
+  tipo?: string;
+  mensaje?: string;
+  error?: string;
+  code?: string;
+  sqlState?: string;
+}
+
+interface EstadoMySQL {
+  estadoUsuario?: string;
+  estadoMetadata?: EstadoMetadata;
+  numeroControl?: string;
+  nombreCompleto?: string;
+  correoInstitucional?: string;
+  esTrabajador?: boolean;
+  identificacionSubida?: boolean;
+}
+
+interface BotContext {
+  from: string;
+  body?: string;
+  message?: any;
+  type?: string;
+  media?: boolean;
+  hasMedia?: boolean;
+  mimetype?: string;
+  key?: {
+    remoteJid?: string;
+    id?: string;
+  };
+}
+
 // Contacto específico donde se enviará la información
-const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
-const PORT = process.env.PORT ?? 3008
+const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net';
+const PORT = process.env.PORT ?? '3008';
 
 // ==== Función para debuggear flujos ====
-async function debugFlujo(ctx, nombreFlujo) {
+async function debugFlujo(ctx: BotContext, nombreFlujo: string) {
   console.log(`🔍 [DEBUG] ${nombreFlujo} - Usuario: ${ctx.from}, Mensaje: "${ctx.body}"`);
 }
 
 // ==== CONFIGURACIONES DE BASE DE DATOS ====================
-const DB_CONFIG = {
+const DB_CONFIG: DBConfigs = {
   actextita: {           // Para tabla admins
     host: '172.30.247.186',
     user: 'root',
@@ -43,40 +153,43 @@ const DB_CONFIG = {
 
 // ==== CLASE TIMEOUT MANAGER ====================
 class TimeoutManager {
+  private timeouts: Map<string, NodeJS.Timeout>;
+  private intervals: Map<string, NodeJS.Timeout>;
+
   constructor() {
     this.timeouts = new Map();
     this.intervals = new Map();
   }
 
-  setTimeout(userPhone, callback, delay) {
+  setTimeout(userPhone: string, callback: () => void, delay: number): NodeJS.Timeout {
     this.clearTimeout(userPhone);
     const timeoutId = setTimeout(callback, delay);
     this.timeouts.set(userPhone, timeoutId);
     return timeoutId;
   }
 
-  setInterval(userPhone, callback, delay) {
+  setInterval(userPhone: string, callback: () => void, delay: number): NodeJS.Timeout {
     this.clearInterval(userPhone);
     const intervalId = setInterval(callback, delay);
     this.intervals.set(userPhone, intervalId);
     return intervalId;
   }
 
-  clearTimeout(userPhone) {
+  clearTimeout(userPhone: string): void {
     if (this.timeouts.has(userPhone)) {
-      clearTimeout(this.timeouts.get(userPhone));
+      clearTimeout(this.timeouts.get(userPhone)!);
       this.timeouts.delete(userPhone);
     }
   }
 
-  clearInterval(userPhone) {
+  clearInterval(userPhone: string): void {
     if (this.intervals.has(userPhone)) {
-      clearInterval(this.intervals.get(userPhone));
+      clearInterval(this.intervals.get(userPhone)!);
       this.intervals.delete(userPhone);
     }
   }
 
-  clearAll(userPhone) {
+  clearAll(userPhone: string): void {
     this.clearTimeout(userPhone);
     this.clearInterval(userPhone);
   }
@@ -85,22 +198,22 @@ class TimeoutManager {
 const timeoutManager = new TimeoutManager();
 
 // ==== SISTEMA DE ESTADOS DEL USUARIO ====================
-const ESTADOS_USUARIO = {
-  LIBRE: 'libre',
-  EN_PROCESO_LARGO: 'en_proceso_largo',
-  ESPERANDO_DATOS: 'esperando_datos',
-  EN_MENU: 'en_menu'
-};
+enum ESTADOS_USUARIO {
+  LIBRE = 'libre',
+  EN_PROCESO_LARGO = 'en_proceso_largo',
+  ESPERANDO_DATOS = 'esperando_datos',
+  EN_MENU = 'en_menu'
+}
 
 // ==== CONEXIONES A BASES DE DATOS ====================
-let conexionMySQL = null;
-let conexionRemota = null;
-let conexionActextita = null;
+let conexionMySQL: Connection | null = null;
+let conexionRemota: Connection | null = null;
+let conexionActextita: Connection | null = null;
 
 // ==== FUNCIÓN PARA INICIAR TODAS LAS CONEXIONES AL INICIO ====
-async function iniciarTodasLasConexiones() {
+async function iniciarTodasLasConexiones(): Promise<void> {
   console.log('🚀 INICIANDO TODAS LAS CONEXIONES A BASES DE DATOS...\n');
-
+  
   // 1. Conexión MySQL Local
   console.log('1. 🔗 Conectando a MySQL Local (bot_whatsapp)...');
   try {
@@ -116,12 +229,12 @@ async function iniciarTodasLasConexiones() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
-
+    
     await conexionMySQL.execute('SELECT 1');
     console.log('✅ MySQL Local: CONECTADO\n');
-
+    
     // Configurar manejo de errores para reconexión automática
-    conexionMySQL.on('error', (err) => {
+    conexionMySQL.on('error', (err: NodeJS.ErrnoException) => {
       console.error('❌ Error en conexión MySQL:', err.message);
       if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
         console.log('🔄 Reconectando a MySQL...');
@@ -130,8 +243,8 @@ async function iniciarTodasLasConexiones() {
         }, 5000);
       }
     });
-
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('❌ Error conectando a MySQL Local:', error.message, '\n');
   }
 
@@ -150,26 +263,26 @@ async function iniciarTodasLasConexiones() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
-
+    
     await conexionRemota.execute('SELECT 1');
     console.log('✅ usuariosprueba: CONECTADO\n');
-
+    
     // Verificar tabla usuariosprueba
     try {
-      const [tablas] = await conexionRemota.execute("SHOW TABLES LIKE 'usuariosprueba'");
+      const [tablas] = await conexionRemota.execute<RowDataPacket[]>("SHOW TABLES LIKE 'usuariosprueba'");
       if (tablas.length > 0) {
         console.log('📊 Tabla usuariosprueba: ENCONTRADA');
-        const [conteo] = await conexionRemota.execute("SELECT COUNT(*) as total FROM usuariosprueba");
+        const [conteo] = await conexionRemota.execute<RowDataPacket[]>("SELECT COUNT(*) as total FROM usuariosprueba");
         console.log(`👥 Total usuarios: ${conteo[0].total}`);
       } else {
         console.log('⚠️ Tabla usuariosprueba: NO ENCONTRADA');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error verificando tabla usuariosprueba:', error.message);
     }
-
+    
     // Configurar manejo de errores para reconexión automática
-    conexionRemota.on('error', (err) => {
+    conexionRemota.on('error', (err: NodeJS.ErrnoException) => {
       console.error('❌ Error en conexión usuariosprueba:', err.message);
       if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
         console.log('🔄 Reconectando a usuariosprueba...');
@@ -178,8 +291,8 @@ async function iniciarTodasLasConexiones() {
         }, 5000);
       }
     });
-
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('❌ Error conectando a usuariosprueba:', error.message, '\n');
   }
 
@@ -198,26 +311,26 @@ async function iniciarTodasLasConexiones() {
       enableKeepAlive: true,
       keepAliveInitialDelay: 10000
     });
-
+    
     await conexionActextita.execute('SELECT 1');
     console.log('✅ actextita: CONECTADO\n');
-
+    
     // Verificar tabla admins
     try {
-      const [tablas] = await conexionActextita.execute("SHOW TABLES LIKE 'admins'");
+      const [tablas] = await conexionActextita.execute<RowDataPacket[]>("SHOW TABLES LIKE 'admins'");
       if (tablas.length > 0) {
         console.log('📊 Tabla admins: ENCONTRADA');
-        const [conteo] = await conexionActextita.execute("SELECT COUNT(*) as total FROM admins");
+        const [conteo] = await conexionActextita.execute<RowDataPacket[]>("SELECT COUNT(*) as total FROM admins");
         console.log(`👥 Total administradores: ${conteo[0].total}`);
       } else {
         console.log('⚠️ Tabla admins: NO ENCONTRADA');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error verificando tabla admins:', error.message);
     }
-
+    
     // Configurar manejo de errores para reconexión automática
-    conexionActextita.on('error', (err) => {
+    conexionActextita.on('error', (err: NodeJS.ErrnoException) => {
       console.error('❌ Error en conexión actextita:', err.message);
       if (err.code === 'PROTOCOL_CONNECTION_LOST' || err.code === 'ECONNRESET') {
         console.log('🔄 Reconectando a actextita...');
@@ -226,8 +339,8 @@ async function iniciarTodasLasConexiones() {
         }, 5000);
       }
     });
-
-  } catch (error) {
+    
+  } catch (error: any) {
     console.error('❌ Error conectando a actextita:', error.message, '\n');
   }
 
@@ -240,13 +353,13 @@ async function iniciarTodasLasConexiones() {
 }
 
 // Funciones de reconexión específicas
-async function reconectarBaseRemota() {
+async function reconectarBaseRemota(): Promise<void> {
   console.log('🔄 Reconectando a usuariosprueba...');
   try {
     if (conexionRemota) {
-      try { await conexionRemota.end(); } catch (e) { }
+      await conexionRemota.end();
     }
-
+    
     conexionRemota = await mysql.createConnection({
       host: '172.30.247.185',
       user: 'ccomputo',
@@ -257,21 +370,21 @@ async function reconectarBaseRemota() {
       acquireTimeout: 30000,
       timeout: 30000
     });
-
+    
     console.log('✅ Reconexión a usuariosprueba exitosa');
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error en reconexión a usuariosprueba:', error.message);
     setTimeout(() => reconectarBaseRemota(), 10000);
   }
 }
 
-async function reconectarActextita() {
+async function reconectarActextita(): Promise<void> {
   console.log('🔄 Reconectando a actextita...');
   try {
     if (conexionActextita) {
-      try { await conexionActextita.end(); } catch (e) { }
+      await conexionActextita.end();
     }
-
+    
     conexionActextita = await mysql.createConnection({
       host: '172.30.247.186',
       user: 'root',
@@ -282,20 +395,24 @@ async function reconectarActextita() {
       acquireTimeout: 30000,
       timeout: 30000
     });
-
+    
     console.log('✅ Reconexión a actextita exitosa');
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error en reconexión a actextita:', error.message);
     setTimeout(() => reconectarActextita(), 10000);
   }
 }
 
 // Función para verificar el estado de todas las conexiones
-async function verificarEstadoConexiones() {
+async function verificarEstadoConexiones(): Promise<{
+  mysqlLocal: boolean;
+  usuariosprueba: boolean;
+  actextita: boolean;
+}> {
   console.log('\n📊 ESTADO ACTUAL DE CONEXIONES:');
-
-  const estados = [];
-
+  
+  const estados: string[] = [];
+  
   // Verificar MySQL Local
   try {
     if (conexionMySQL) {
@@ -304,10 +421,10 @@ async function verificarEstadoConexiones() {
     } else {
       estados.push('❌ MySQL Local: INACTIVA');
     }
-  } catch (error) {
+  } catch (error: any) {
     estados.push('❌ MySQL Local: ERROR - ' + error.message);
   }
-
+  
   // Verificar usuariosprueba
   try {
     if (conexionRemota) {
@@ -316,10 +433,10 @@ async function verificarEstadoConexiones() {
     } else {
       estados.push('❌ usuariosprueba (185): INACTIVA');
     }
-  } catch (error) {
+  } catch (error: any) {
     estados.push('❌ usuariosprueba (185): ERROR - ' + error.message);
   }
-
+  
   // Verificar actextita
   try {
     if (conexionActextita) {
@@ -328,13 +445,13 @@ async function verificarEstadoConexiones() {
     } else {
       estados.push('❌ actextita (186): INACTIVA');
     }
-  } catch (error) {
+  } catch (error: any) {
     estados.push('❌ actextita (186): ERROR - ' + error.message);
   }
-
+  
   estados.forEach(estado => console.log(estado));
   console.log('');
-
+  
   return {
     mysqlLocal: conexionMySQL ? true : false,
     usuariosprueba: conexionRemota ? true : false,
@@ -345,19 +462,19 @@ async function verificarEstadoConexiones() {
 // ==== FUNCIONES DE BASE DE DATOS ====================
 
 // 1. Consultar alumno en base de datos actextita
-async function consultarAlumnoEnBaseDatos(numeroControl) {
+async function consultarAlumnoEnBaseDatos(numeroControl: string): Promise<ConsultaAlumnoResult> {
   try {
     if (!conexionActextita) {
       console.log('⚠️ No hay conexión a actextita');
       return { encontrado: false, error: 'No hay conexión a actextita' };
     }
 
-    const [anuevoIngreso] = await conexionActextita.execute(
+    const [anuevoIngreso] = await conexionActextita.execute<RowDataPacket[]>(
       'SELECT * FROM anuevo_ingreso WHERE numero_control = ?',
       [numeroControl]
     );
 
-    const [aResagados] = await conexionActextita.execute(
+    const [aResagados] = await conexionActextita.execute<RowDataPacket[]>(
       'SELECT * FROM a_resagados WHERE numero_control = ?',
       [numeroControl]
     );
@@ -370,14 +487,14 @@ async function consultarAlumnoEnBaseDatos(numeroControl) {
       return { encontrado: false };
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error consultando alumno:', error.message);
     return { encontrado: false, error: error.message };
   }
 }
 
 // 2. Verificar administrador en base de datos actextita
-async function verificarAdministradorEnBaseDatos(usuario) {
+async function verificarAdministradorEnBaseDatos(usuario: string): Promise<boolean> {
   try {
     console.log(`🔍 Verificando administrador en actextita: ${usuario}`);
 
@@ -388,7 +505,7 @@ async function verificarAdministradorEnBaseDatos(usuario) {
 
     // Primero, verificar si la tabla existe
     try {
-      const [tablas] = await conexionActextita.execute(
+      const [tablas] = await conexionActextita.execute<RowDataPacket[]>(
         "SHOW TABLES LIKE 'admins'"
       );
 
@@ -396,12 +513,12 @@ async function verificarAdministradorEnBaseDatos(usuario) {
         console.log('❌ La tabla "admins" no existe en actextita');
         return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error verificando tabla admins:', error.message);
       return false;
     }
 
-    const [resultados] = await conexionActextita.execute(
+    const [resultados] = await conexionActextita.execute<RowDataPacket[]>(
       'SELECT usuario, estado, fecha_creacion FROM admins WHERE usuario = ? AND estado = "activo"',
       [usuario]
     );
@@ -415,14 +532,14 @@ async function verificarAdministradorEnBaseDatos(usuario) {
       return false;
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error verificando administrador en actextita:', error.message);
     return false;
   }
 }
 
 // 3. Actualizar contraseña de admin en actextita
-async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
+async function actualizarContrasenaAdmin(usuario: string, contrasenaSinEncriptar: string): Promise<string | false> {
   try {
     console.log(`🔐 Procesando actualización para admin en actextita: ${usuario}`);
     console.log(`🔐 Contraseña sin encriptar: ${contrasenaSinEncriptar}`);
@@ -444,7 +561,7 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
 
     // Verificar que la tabla admins existe
     try {
-      const [tablas] = await conexionActextita.execute(
+      const [tablas] = await conexionActextita.execute<RowDataPacket[]>(
         "SHOW TABLES LIKE 'admins'"
       );
 
@@ -452,13 +569,13 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
         console.error('❌ Error: La tabla "admins" no existe en actextita');
         return false;
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error verificando tabla admins:', error.message);
       return false;
     }
 
     // Actualizar contraseña
-    const [resultado] = await conexionActextita.execute(
+    const [resultado] = await conexionActextita.execute<mysql.ResultSetHeader>(
       'UPDATE admins SET contraseña = ? WHERE usuario = ?',
       [contrasenaEncriptada, usuario]
     );
@@ -469,7 +586,7 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
       console.log(`✅ Contraseña actualizada exitosamente para admin: ${usuario}`);
 
       // Verificar lo que se guardó
-      const [verificacion] = await conexionActextita.execute(
+      const [verificacion] = await conexionActextita.execute<RowDataPacket[]>(
         'SELECT contraseña FROM admins WHERE usuario = ?',
         [usuario]
       );
@@ -485,7 +602,7 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
       return false;
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error actualizando contraseña de admin en actextita:', error.message);
     console.error('❌ Error stack:', error.stack);
     return false;
@@ -493,7 +610,7 @@ async function actualizarContrasenaAdmin(usuario, contrasenaSinEncriptar) {
 }
 
 // 4. Verificar usuario en sistema usuariosprueba
-async function verificarUsuarioEnSistema(usuario) {
+async function verificarUsuarioEnSistema(usuario: string): Promise<UsuarioInfo | null> {
   try {
     if (!conexionRemota) {
       console.log('❌ No hay conexión a usuariosprueba');
@@ -506,23 +623,29 @@ async function verificarUsuarioEnSistema(usuario) {
       WHERE usuario = ?
     `;
 
-    const [usuarios] = await conexionRemota.execute(query, [usuario]);
+    const [usuarios] = await conexionRemota.execute<RowDataPacket[]>(query, [usuario]);
 
     if (usuarios.length > 0) {
       console.log(`✅ Usuario encontrado: ${usuario}`);
-      return usuarios[0];
+      return usuarios[0] as UsuarioInfo;
     } else {
       console.log(`❌ Usuario no encontrado: ${usuario}`);
       return null;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error verificando usuario:', error.message);
     return null;
   }
 }
 
 // 5. Insertar usuario directo en usuariosprueba
-async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usuario, contrasenaSinEncriptar, telefono) {
+async function insertarUsuarioDirectoEnusuariosprueba(
+  nombreCompleto: string, 
+  area: string, 
+  usuario: string, 
+  contrasenaSinEncriptar: string, 
+  telefono: string
+): Promise<InsertUsuarioResult> {
   try {
     if (!conexionRemota) {
       console.log('❌ No hay conexión a usuariosprueba');
@@ -560,7 +683,7 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
       VALUES (?, ?, ?, ?, ?, NOW(), ?)
     `;
 
-    const [result] = await conexionRemota.execute(query, [
+    const [result] = await conexionRemota.execute<mysql.ResultSetHeader>(query, [
       id_rol,
       id_persona,
       usuario,
@@ -578,14 +701,14 @@ async function insertarUsuarioDirectoEnusuariosprueba(nombreCompleto, area, usua
       necesitaEncriptacionEspecial: necesitaEncriptacionEspecial,
       mensaje: necesitaEncriptacionEspecial ? 'Contraseña almacenada encriptada (PHP compatible)' : 'Contraseña almacenada normalmente'
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error insertando usuario en usuariosprueba:', error.message);
     return { exito: false, error: error.message };
   }
 }
 
 // 6. Consultar usuario en usuariosprueba
-async function consultarUsuarioEnusuariosprueba(criterio) {
+async function consultarUsuarioEnusuariosprueba(criterio: string): Promise<UsuarioInfo | null> {
   try {
     if (!conexionRemota) {
       console.log('❌ No hay conexión a usuariosprueba');
@@ -598,23 +721,23 @@ async function consultarUsuarioEnusuariosprueba(criterio) {
     `;
 
     const parametros = [criterio, criterio, criterio, `%${criterio}%`];
-    const [rows] = await conexionRemota.execute(query, parametros);
+    const [rows] = await conexionRemota.execute<RowDataPacket[]>(query, parametros);
 
     if (rows.length > 0) {
       console.log(`✅ Usuario encontrado en usuariosprueba: ${rows[0].usuario}`);
-      return rows[0];
+      return rows[0] as UsuarioInfo;
     }
 
     console.log(`❌ Usuario no encontrado en usuariosprueba: ${criterio}`);
     return null;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error consultando en usuariosprueba:', error.message);
     return null;
   }
 }
 
 // 7. Listar todos usuariosprueba
-async function listarTodosusuariosprueba() {
+async function listarTodosusuariosprueba(): Promise<UsuarioInfo[]> {
   try {
     if (!conexionRemota) {
       console.log('❌ No hay conexión a usuariosprueba');
@@ -622,18 +745,23 @@ async function listarTodosusuariosprueba() {
     }
 
     const query = `SELECT * FROM usuariosprueba ORDER BY id_usuario LIMIT 50`;
-    const [rows] = await conexionRemota.execute(query);
+    const [rows] = await conexionRemota.execute<RowDataPacket[]>(query);
 
     console.log(`✅ ${rows.length} usuarios encontrados en usuariosprueba`);
-    return rows;
-  } catch (error) {
+    return rows as UsuarioInfo[];
+  } catch (error: any) {
     console.error('❌ Error listando usuarios de usuariosprueba:', error.message);
     return [];
   }
 }
 
 // 8. Actualizar contraseña en usuariosprueba
-async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaSinEncriptar, esEncriptada = false, telefono) {
+async function actualizarContrasenaEnusuariospruebaEspecial(
+  usuario: string, 
+  contrasenaSinEncriptar: string, 
+  esEncriptada: boolean = false, 
+  telefono: string
+): Promise<ActualizacionContrasenaResult> {
   try {
     console.log(`\n🔍 INICIANDO ACTUALIZACIÓN PARA: ${usuario}`);
 
@@ -651,7 +779,7 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
     if (necesitaEncriptacionEspecial) {
       console.log('🎯 USUARIO ESPECIAL DETECTADO - Aplicando encriptación PHP compatible');
 
-      const valoresConocidos = {
+      const valoresConocidos: {[key: string]: string} = {
         '12345678901': 'ZEdSa2NtRmlZVzVqYjIxd2JHRjBaV1E9'
       };
 
@@ -679,12 +807,12 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
 
     console.log(`🔍 Verificando existencia de usuario: ${usuario}`);
     const queryVerificar = `SELECT id_usuario, usuario, password FROM usuariosprueba WHERE usuario = ?`;
-    const [usuarios] = await conexionRemota.execute(queryVerificar, [usuario]);
+    const [usuarios] = await conexionRemota.execute<RowDataPacket[]>(queryVerificar, [usuario]);
 
     if (usuarios.length === 0) {
       console.log(`❌ Usuario no encontrado en usuariosprueba: ${usuario}`);
 
-      const [todosUsuarios] = await conexionRemota.execute(
+      const [todosUsuarios] = await conexionRemota.execute<RowDataPacket[]>(
         'SELECT usuario FROM usuariosprueba LIMIT 5'
       );
       console.log('📋 Usuarios existentes (primeros 5):');
@@ -702,7 +830,7 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
       WHERE usuario = ?
     `;
 
-    const [result] = await conexionRemota.execute(queryActualizar, [
+    const [result] = await conexionRemota.execute<mysql.ResultSetHeader>(queryActualizar, [
       contrasenaParaGuardar,
       usuario
     ]);
@@ -713,7 +841,7 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
       console.log(`🎉 Contraseña actualizada exitosamente para: ${usuario}`);
       console.log(`📊 Tipo: ${tipoEncriptacion}`);
 
-      const [verificacion] = await conexionRemota.execute(
+      const [verificacion] = await conexionRemota.execute<RowDataPacket[]>(
         'SELECT password FROM usuariosprueba WHERE usuario = ?',
         [usuario]
       );
@@ -735,7 +863,7 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
       return { exito: false, error: 'No se afectaron filas' };
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error en actualizarContrasenaEnusuariospruebaEspecial:', error.message);
     console.error('❌ Error SQL Code:', error.code);
     console.error('❌ Error SQL State:', error.sqlState);
@@ -751,7 +879,7 @@ async function actualizarContrasenaEnusuariospruebaEspecial(usuario, contrasenaS
 }
 
 // 9. Verificar estructura usuariosprueba
-async function verificarEstructurausuariosprueba() {
+async function verificarEstructurausuariosprueba(): Promise<boolean> {
   try {
     if (!conexionRemota) {
       console.log('❌ No hay conexión a usuariosprueba');
@@ -760,21 +888,26 @@ async function verificarEstructurausuariosprueba() {
 
     console.log('🔍 VERIFICANDO ESTRUCTURA DE TABLA usuariosprueba:');
 
-    const [columnas] = await conexionRemota.execute(`SHOW COLUMNS FROM usuariosprueba`);
+    const [columnas] = await conexionRemota.execute<RowDataPacket[]>(`SHOW COLUMNS FROM usuariosprueba`);
     console.log('📋 Columnas de usuariosprueba:');
     columnas.forEach(col => {
       console.log(`   ✅ ${col.Field} (${col.Type})`);
     });
 
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error verificando estructura:', error.message);
     return false;
   }
 }
 
 // 10. Guardar estado en MySQL local
-async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {}) {
+async function guardarEstadoMySQL(
+  userPhone: string, 
+  estado: string, 
+  metadata: EstadoMetadata = {}, 
+  userData: Partial<EstadoUsuario> = {}
+): Promise<boolean> {
   try {
     if (!conexionMySQL) {
       console.log('❌ No hay conexión a MySQL local');
@@ -815,14 +948,14 @@ async function guardarEstadoMySQL(userPhone, estado, metadata = {}, userData = {
     await conexionMySQL.execute(query, values);
     console.log(`✅ Estado guardado en MySQL para: ${userPhone}`);
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error guardando estado en MySQL:', error.message);
     return false;
   }
 }
 
 // 11. Obtener estado de MySQL
-async function obtenerEstadoMySQL(userPhone) {
+async function obtenerEstadoMySQL(userPhone: string): Promise<EstadoMySQL | null> {
   try {
     if (!userPhone) return null;
 
@@ -832,11 +965,11 @@ async function obtenerEstadoMySQL(userPhone) {
     }
 
     const query = `SELECT * FROM user_states WHERE user_phone = ?`;
-    const [rows] = await conexionMySQL.execute(query, [userPhone]);
+    const [rows] = await conexionMySQL.execute<RowDataPacket[]>(query, [userPhone]);
 
     if (rows.length > 0) {
       const estado = rows[0];
-      let estadoMetadata = {};
+      let estadoMetadata: EstadoMetadata = {};
 
       try {
         estadoMetadata = JSON.parse(estado.estado_metadata || '{}');
@@ -854,7 +987,7 @@ async function obtenerEstadoMySQL(userPhone) {
         identificacionSubida: estado.identificacion_subida
       };
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error obteniendo estado de MySQL:', error.message);
   }
 
@@ -862,7 +995,7 @@ async function obtenerEstadoMySQL(userPhone) {
 }
 
 // 12. Limpiar estado en MySQL
-async function limpiarEstadoMySQL(userPhone) {
+async function limpiarEstadoMySQL(userPhone: string): Promise<void> {
   try {
     if (!conexionMySQL) {
       console.log('❌ No hay conexión a MySQL local');
@@ -872,13 +1005,13 @@ async function limpiarEstadoMySQL(userPhone) {
     const query = `DELETE FROM user_states WHERE user_phone = ?`;
     await conexionMySQL.execute(query, [userPhone]);
     console.log(`✅ Estado limpiado en MySQL para: ${userPhone}`);
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error limpiando estado en MySQL:', error.message);
   }
 }
 
 // Función de diagnóstico para Dep_centro_de_computo
-async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
+async function diagnosticarDepCentroComputo(usuario: string, nuevaContrasena: string): Promise<boolean> {
   console.log('\n🔍 DIAGNÓSTICO PARA Dep_centro_de_computo\n');
 
   try {
@@ -888,7 +1021,7 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
     }
 
     console.log('1. 🔍 Verificando existencia del usuario...');
-    const [usuarios] = await conexionRemota.execute(
+    const [usuarios] = await conexionRemota.execute<RowDataPacket[]>(
       'SELECT id_usuario, usuario, password FROM usuariosprueba WHERE usuario = ?',
       [usuario]
     );
@@ -907,7 +1040,7 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
 
     console.log('\n3. 🔄 Probando actualización directa...');
     try {
-      const [resultado] = await conexionRemota.execute(
+      const [resultado] = await conexionRemota.execute<mysql.ResultSetHeader>(
         'UPDATE usuariosprueba SET password = ?, fecha_insert = NOW() WHERE usuario = ?',
         [contrasenaEncriptada, usuario]
       );
@@ -916,7 +1049,7 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
 
       if (resultado.affectedRows > 0) {
         console.log('\n4. 📋 Verificando cambio...');
-        const [verificacion] = await conexionRemota.execute(
+        const [verificacion] = await conexionRemota.execute<RowDataPacket[]>(
           'SELECT password FROM usuariosprueba WHERE usuario = ?',
           [usuario]
         );
@@ -931,20 +1064,20 @@ async function diagnosticarDepCentroComputo(usuario, nuevaContrasena) {
         return false;
       }
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error en actualización directa:', error.message);
       console.error('SQL Error Code:', error.code);
       return false;
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error en diagnóstico:', error.message);
     return false;
   }
 }
 
 // ==== FUNCIÓN PARA VERIFICAR COMPATIBILIDAD PHP-NODE ====
-async function verificarCompatibilidadEncriptacion() {
+async function verificarCompatibilidadEncriptacion(): Promise<string> {
   console.log('\n🔐 VERIFICANDO COMPATIBILIDAD DE ENCRIPTACIÓN PHP-NODE\n');
 
   const testPassword = '12345678901';
@@ -960,7 +1093,7 @@ async function verificarCompatibilidadEncriptacion() {
 }
 
 // ==== FUNCIONES DE UTILIDAD ====================
-function normalizarIdWhatsAppBusiness(id) {
+function normalizarIdWhatsAppBusiness(id: string): string {
   if (!id) return id;
 
   if (id.includes('@s.whatsapp.net') || id.includes('@g.us')) {
@@ -975,7 +1108,7 @@ function normalizarIdWhatsAppBusiness(id) {
 
   let numeroNormalizado = numeroLimpio;
   if (numeroNormalizado.startsWith('52') && numeroNormalizado.length === 12) {
-    numeroNormalizado = numeroNormalizado;
+    // No necesita reasignación, ya está correcto
   } else if (numeroNormalizado.length === 10) {
     numeroNormalizado = '52' + numeroNormalizado;
   }
@@ -983,42 +1116,42 @@ function normalizarIdWhatsAppBusiness(id) {
   return `${numeroNormalizado}@s.whatsapp.net`;
 }
 
-function isValidText(input) {
-  if (!input || typeof input !== 'string') return false
-  if (input.trim().length === 0) return false
-  if (input.includes('sticker') || input.includes('image') || input.includes('video')) return false
-  return true
+function isValidText(input: any): boolean {
+  if (!input || typeof input !== 'string') return false;
+  if (input.trim().length === 0) return false;
+  if (input.includes('sticker') || input.includes('image') || input.includes('video')) return false;
+  return true;
 }
 
-function validarNumeroControl(numeroControl) {
-  const letrasPermitidas = ['D', 'C', 'B', 'R', 'G', 'd', 'c', 'b', 'r', 'g']
-  const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6']
-  const posicion4Permitidas = ['0', '2', '5', '6', '9', '1', '5', '7', '3', '4']
+function validarNumeroControl(numeroControl: string): boolean {
+  const letrasPermitidas = ['D', 'C', 'B', 'R', 'G', 'd', 'c', 'b', 'r', 'g'];
+  const posicion3Permitidas = ['9', '0', '2', '4', '5', '1', '3', '6'];
+  const posicion4Permitidas = ['0', '2', '5', '6', '9', '1', '5', '7', '3', '4'];
 
   if (numeroControl.length === 8) {
-    const esSoloNumeros = /^\d+$/.test(numeroControl)
-    const posicion2Correcta = posicion3Permitidas.includes(numeroControl[2])
-    const posicion3Correcta = posicion4Permitidas.includes(numeroControl[3])
-    return esSoloNumeros && posicion2Correcta && posicion3Correcta
+    const esSoloNumeros = /^\d+$/.test(numeroControl);
+    const posicion2Correcta = posicion3Permitidas.includes(numeroControl[2]);
+    const posicion3Correcta = posicion4Permitidas.includes(numeroControl[3]);
+    return esSoloNumeros && posicion2Correcta && posicion3Correcta;
   }
 
   if (numeroControl.length === 9) {
-    const primeraLetraValida = letrasPermitidas.includes(numeroControl[0])
-    const restoEsNumeros = /^\d+$/.test(numeroControl.slice(1))
-    const posicion3Correcta = posicion3Permitidas.includes(numeroControl[3])
-    const posicion4Correcta = posicion4Permitidas.includes(numeroControl[4])
-    return primeraLetraValida && restoEsNumeros && posicion3Correcta && posicion4Correcta
+    const primeraLetraValida = letrasPermitidas.includes(numeroControl[0]);
+    const restoEsNumeros = /^\d+$/.test(numeroControl.slice(1));
+    const posicion3Correcta = posicion3Permitidas.includes(numeroControl[3]);
+    const posicion4Correcta = posicion4Permitidas.includes(numeroControl[4]);
+    return primeraLetraValida && restoEsNumeros && posicion3Correcta && posicion4Correcta;
   }
 
-  return false
+  return false;
 }
 
-function validarCorreoTrabajador(correo) {
+function validarCorreoTrabajador(correo: string): boolean {
   const regex = /^[a-zA-Z0-9._%+-]+@aguascalientes\.tecnm\.mx$/;
   return regex.test(correo) && correo.length > 0;
 }
 
-function esSaludoValido(texto) {
+function esSaludoValido(texto: string | undefined): boolean {
   if (!texto || typeof texto !== 'string') return false;
 
   const textoLimpio = texto.toLowerCase().trim();
@@ -1059,7 +1192,7 @@ function esSaludoValido(texto) {
   return contienePalabraClave;
 }
 
-function formatearNombreUsuario(departamento) {
+function formatearNombreUsuario(departamento: string): string {
   const departamentoLimpio = departamento
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-zA-Z0-9]/g, "_")
@@ -1067,7 +1200,7 @@ function formatearNombreUsuario(departamento) {
   return `Dep_${departamentoLimpio}`;
 }
 
-function generarContrasenaSegura() {
+function generarContrasenaSegura(): string {
   const mayusculas = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   const minusculas = 'abcdefghijklmnopqrstuvwxyz';
   const numeros = '0123456789';
@@ -1088,13 +1221,13 @@ function generarContrasenaSegura() {
 }
 
 // ==== FUNCIONES DE ESTADO ====================
-async function actualizarEstado(ctx, state, nuevoEstado, metadata = {}) {
+async function actualizarEstado(ctx: BotContext, state: any, nuevoEstado: string, metadata: EstadoMetadata = {}): Promise<void> {
   try {
     if (!ctx || !ctx.from) return;
 
     const userPhone = ctx.from;
 
-    const metadataLimpio = {};
+    const metadataLimpio: EstadoMetadata = {};
     Object.keys(metadata).forEach(key => {
       const valor = metadata[key];
       if (valor === null ||
@@ -1109,7 +1242,7 @@ async function actualizarEstado(ctx, state, nuevoEstado, metadata = {}) {
           metadataLimpio[key] = `[${typeof valor}]`;
         }
       } else if (typeof valor === 'object') {
-        const objLimpio = {};
+        const objLimpio: {[key: string]: any} = {};
         Object.keys(valor).forEach(subKey => {
           const subValor = valor[subKey];
           if (subValor === null ||
@@ -1132,14 +1265,14 @@ async function actualizarEstado(ctx, state, nuevoEstado, metadata = {}) {
 
     console.log(`✅ Estado actualizado a: ${nuevoEstado} para: ${userPhone}`);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error actualizando estado:', error);
   }
 }
 
-async function limpiarEstado(state) {
+async function limpiarEstado(state: any): Promise<void> {
   try {
-    const myState = await state.getMyState();
+    const myState: EstadoUsuario = await state.getMyState();
     const userPhone = state.id;
 
     if (userPhone) {
@@ -1159,14 +1292,14 @@ async function limpiarEstado(state) {
       ultimaInteraccion: Date.now()
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error limpiando estado:', error);
   }
 }
 
-async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
+async function redirigirAMenuConLimpieza(ctx: BotContext, state: any, gotoFlow: Function, flowDynamic: Function): Promise<any> {
   try {
-    const myState = await state.getMyState();
+    const myState: EstadoUsuario = await state.getMyState();
 
     if (myState?.redirigiendo || myState?.enRedireccion) {
       console.log('⚠️ Ya se está redirigiendo, evitando recursividad');
@@ -1189,7 +1322,7 @@ async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
     }, 1000);
 
     return gotoFlow(flowMenu);
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error en redirección al menú:', error);
 
     await state.update({
@@ -1203,11 +1336,14 @@ async function redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic) {
   }
 }
 
-async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
+async function verificarEstadoBloqueado(
+  ctx: BotContext, 
+  { state, flowDynamic, gotoFlow }: { state: any; flowDynamic: Function; gotoFlow: Function }
+): Promise<boolean> {
   if (ctx.from === CONTACTO_ADMIN) return false;
 
   try {
-    const myState = await state.getMyState();
+    const myState: EstadoUsuario = await state.getMyState();
 
     if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       console.log(`🔒 Bloqueando mensaje de ${ctx.from} - Proceso en curso`);
@@ -1249,7 +1385,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
 
       return true;
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error en verificación de estado bloqueado:', error);
   }
 
@@ -1257,7 +1393,7 @@ async function verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow }) {
 }
 
 // ==== FUNCIÓN PARA MOSTRAR OPCIONES DEL MENÚ ====
-async function mostrarOpcionesMenu(flowDynamic) {
+async function mostrarOpcionesMenu(flowDynamic: Function): Promise<void> {
   await flowDynamic([
     '📋 *MENÚ PRINCIPAL* 📋',
     '',
@@ -1277,7 +1413,7 @@ async function mostrarOpcionesMenu(flowDynamic) {
   ].join('\n'));
 }
 
-async function enviarAlAdmin(provider, mensaje, ctx = null) {
+async function enviarAlAdmin(provider: any, mensaje: string, ctx: BotContext | null = null): Promise<boolean> {
   try {
     const sock = provider.vendor;
     if (!sock) return false;
@@ -1287,14 +1423,14 @@ async function enviarAlAdmin(provider, mensaje, ctx = null) {
 
     console.log('✅ Información enviada al administrador');
     return true;
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error enviando información al administrador:', error.message);
     return false;
   }
 }
 
 // ==== FUNCIONES DE IMÁGENES/MEDIA ====================
-function esImagenValida(ctx) {
+function esImagenValida(ctx: BotContext): boolean {
   if (!ctx || typeof ctx !== 'object') return false;
 
   if (ctx.message) {
@@ -1332,7 +1468,12 @@ function esImagenValida(ctx) {
 }
 
 // ==== FUNCION PARA PROCESAR OPCIONES ====================
-async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
+async function procesarOpcionMenu(
+  opcion: string, 
+  flowDynamic: Function, 
+  gotoFlow: Function, 
+  state: any
+): Promise<any> {
   console.log('🎯 Procesando opción:', opcion);
 
   switch (opcion) {
@@ -1383,8 +1524,13 @@ async function procesarOpcionMenu(opcion, flowDynamic, gotoFlow, state) {
   }
 }
 
-// ==== FUNCION PARA MANEJAR INACTIVIDAD ====================
-async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
+// ==== FUNCIÓN PARA MANEJAR INACTIVIDAD ====================
+async function reiniciarInactividad(
+  ctx: BotContext, 
+  state: any, 
+  flowDynamic: Function, 
+  gotoFlow: Function
+): Promise<void> {
   if (ctx.from === CONTACTO_ADMIN) return;
 
   const userPhone = ctx.from;
@@ -1392,7 +1538,7 @@ async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
 
   timeoutManager.setTimeout(userPhone, async () => {
     try {
-      const myState = await state.getMyState();
+      const myState: EstadoUsuario = await state.getMyState();
 
       if (myState?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
         await flowDynamic([
@@ -1412,14 +1558,14 @@ async function reiniciarInactividad(ctx, state, flowDynamic, gotoFlow) {
           ultimaInteraccion: Date.now()
         });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error en manejo de inactividad:', error);
     }
   }, 2 * 60 * 1000);
 }
 
-// ==== FUNCION PARA MOSTRAR ESTADO BLOQUEADO ====================
-async function mostrarEstadoBloqueado(flowDynamic, myState) {
+// ==== FUNCIÓN PARA MOSTRAR ESTADO BLOQUEADO ====================
+async function mostrarEstadoBloqueado(flowDynamic: Function, myState: EstadoUsuario): Promise<void> {
   const metadata = myState.estadoMetadata || {};
   const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
   const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
@@ -1457,7 +1603,7 @@ const flowConexionBaseDatos = addKeyword(utils.setEvent('CONEXION_BASE_DATOS'))
     '2️⃣ 👨‍💼 Soy administrador\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1483,7 +1629,7 @@ const flowConexionBaseDatos = addKeyword(utils.setEvent('CONEXION_BASE_DATOS'))
   );
 
 const flowCapturaNumeroControlBaseDatos = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTROL_BASE_DATOS'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -1492,7 +1638,7 @@ const flowCapturaNumeroControlBaseDatos = addKeyword(utils.setEvent('CAPTURA_NUM
         await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -1500,7 +1646,7 @@ const flowCapturaNumeroControlBaseDatos = addKeyword(utils.setEvent('CAPTURA_NUM
   .addAnswer(
     '📝 Por favor escribe tu *número de control*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1565,7 +1711,7 @@ const flowCapturaNumeroControlBaseDatos = addKeyword(utils.setEvent('CAPTURA_NUM
   );
 
 const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -1574,7 +1720,7 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
         await flowDynamic('⏱️ No recibimos tu usuario. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -1582,7 +1728,7 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
   .addAnswer(
     '👤 Por favor escribe tu *nombre de usuario de administrador*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1626,7 +1772,7 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
             await flowDynamic([
               '🔐 *Contraseña actualizada exitosamente* 🔐',
               '',
-              `📋 **Tus nuevas credenciales:**`,
+              '📋 **Tus nuevas credenciales:**',
               `👤 Usuario: ${input}`,
               `🔐 Nueva contraseña: *${resultadoActualizacion}*`,
               `💾 Base de datos: actextita`,
@@ -1673,7 +1819,7 @@ const flowCapturaUsuarioAdmin = addKeyword(utils.setEvent('CAPTURA_USUARIO_ADMIN
             '🔙 Escribe *menú* para volver al menú principal.'
           ].join('\n'));
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en el proceso de administrador:', error);
         await flowDynamic([
           '❌ *Error en el proceso*',
@@ -1695,7 +1841,7 @@ const flowBuscarUsuarioEspecifico = addKeyword(utils.setEvent('BUSCAR_USUARIO_ES
   .addAnswer(
     '🔎 Escribe el *ID de usuario, nombre de usuario o ID de persona* a buscar:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       const input = ctx.body.trim();
 
@@ -1743,7 +1889,7 @@ const flowBuscarUsuarioEspecifico = addKeyword(utils.setEvent('BUSCAR_USUARIO_ES
   );
 
 const flowListarTodosUsuarios = addKeyword(utils.setEvent('LISTAR_TODOS_USUARIOS'))
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+  .addAction(async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     await flowDynamic('📋 Consultando todos los usuarios en usuariosprueba...');
 
@@ -1775,7 +1921,7 @@ const flowConsultaUsuario = addKeyword(EVENTS.ACTION)
   .addAnswer(
     '🔍 *CONSULTA DE USUARIOS - usuariosprueba* 🔍\n\nSelecciona una opción:\n\n1️⃣ 🔎 Buscar usuario específico\n2️⃣ 📋 Listar todos los usuarios\n\n🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state }: any) => {
       if (ctx.from === CONTACTO_ADMIN) return;
 
       const opcion = ctx.body.trim().toLowerCase();
@@ -1808,7 +1954,7 @@ const flowSubMenuContrasena = addKeyword(utils.setEvent('SUBMENU_CONTRASENA'))
     '2️⃣ ¿Eres un trabajador o docente?\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1836,7 +1982,7 @@ const flowSubMenuContrasena = addKeyword(utils.setEvent('SUBMENU_CONTRASENA'))
   );
 
 const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TRABAJADOR'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -1845,7 +1991,7 @@ const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TR
         await flowDynamic('⏱️ No recibimos tu correo. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -1858,7 +2004,7 @@ const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TR
   .addAnswer(
     '📝 Por favor escribe tu *correo institucional* (ejemplo: nombre.apellido@aguascalientes.tecnm.mx):',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1893,7 +2039,7 @@ const flowCapturaCorreoTrabajador = addKeyword(utils.setEvent('CAPTURA_CORREO_TR
   );
 
 const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTROL'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -1902,7 +2048,7 @@ const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTR
         await flowDynamic('⏱️ No recibimos tu número de control. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -1913,7 +2059,7 @@ const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTR
   .addAnswer(
     '📝 Por favor escribe tu *número de control*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1945,7 +2091,7 @@ const flowCapturaNumeroControl = addKeyword(utils.setEvent('CAPTURA_NUMERO_CONTR
   );
 
 const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -1954,7 +2100,7 @@ const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
         await flowDynamic('⏱️ No recibimos tu nombre completo. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -1965,7 +2111,7 @@ const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
   .addAnswer(
     '📝 Por favor escribe tu *nombre completo*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -1988,7 +2134,7 @@ const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
         return gotoFlow(flowCapturaNombre);
       }
 
-      const myState = (await state.getMyState()) || {};
+      const myState: EstadoUsuario = (await state.getMyState()) || {};
       const identificacion = myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl;
 
       await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu identificación: *${identificacion}*`);
@@ -2000,7 +2146,7 @@ const flowCapturaNombre = addKeyword(utils.setEvent('CAPTURA_NOMBRE'))
   );
 
 const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICACION'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -2009,7 +2155,7 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
         await flowDynamic('⏱️ No recibimos tu identificación en 4 minutos. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 4 * 60 * 1000);
@@ -2030,7 +2176,7 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
       '⏰ **Tienes 4 minutos** para enviar la fotografía'
     ].join('\n'),
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2061,7 +2207,7 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
 
       await flowDynamic('✅ *¡Perfecto! Foto tomada correctamente con la cámara*\n\n📋 Continuando con el proceso...');
 
-      const myState = await state.getMyState();
+      const myState: EstadoUsuario = await state.getMyState();
       const tipoProceso = myState.tipoProceso || 'CONTRASENA';
 
       if (tipoProceso === 'AUTENTICADOR') {
@@ -2073,11 +2219,11 @@ const flowCapturaIdentificacion = addKeyword(utils.setEvent('CAPTURA_IDENTIFICAC
   );
 
 const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
-  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, provider, gotoFlow }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    const myState = await state.getMyState();
+    const myState: EstadoUsuario = await state.getMyState();
     const nombreCompleto = myState.nombreCompleto;
     const esTrabajador = myState.esTrabajador || false;
     const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl;
@@ -2123,7 +2269,7 @@ const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
       if (minutosRestantes > 0) {
         try {
           await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`);
-        } catch (error) {
+        } catch (error: any) {
           console.error('❌ Error enviando notificación:', error.message);
         }
       }
@@ -2160,7 +2306,7 @@ const flowContrasena = addKeyword(utils.setEvent('FLOW_CONTRASENA'))
           '🔙 Escribe *menú* para volver al menú principal.'
         ].join('\n'));
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error enviando mensaje final:', error.message);
         await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.');
       }
@@ -2190,7 +2336,7 @@ const flowSubMenuAutenticador = addKeyword(utils.setEvent('SUBMENU_AUTENTICADOR'
     '2️⃣ ¿Eres un trabajador o docente?\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2218,11 +2364,11 @@ const flowSubMenuAutenticador = addKeyword(utils.setEvent('SUBMENU_AUTENTICADOR'
   );
 
 const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
-  .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, provider, gotoFlow }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    const myState = await state.getMyState();
+    const myState: EstadoUsuario = await state.getMyState();
     const nombreCompleto = myState.nombreCompleto;
     const esTrabajador = myState.esTrabajador || false;
     const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl;
@@ -2268,7 +2414,7 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
       if (minutosRestantes > 0) {
         try {
           await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar la configuración del autenticador...`);
-        } catch (error) {
+        } catch (error: any) {
           console.error('❌ Error enviando notificación:', error.message);
         }
       }
@@ -2309,7 +2455,7 @@ const flowAutenticador = addKeyword(utils.setEvent('FLOW_AUTENTICADOR'))
           '🔙 Escribe *menú* para volver al menú principal.'
         ].join('\n'));
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error enviando mensaje final:', error.message);
         await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.');
       }
@@ -2344,7 +2490,7 @@ const flowGestionServicios = addKeyword(EVENTS.ACTION)
       '🔙 Escribe *menú* para volver al menú principal.'
     ].join('\n'),
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state }: any) => {
       await debugFlujo(ctx, 'flowGestionServicios');
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2375,7 +2521,7 @@ const flowGestionServicios = addKeyword(EVENTS.ACTION)
   );
 
 const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_SISTEMA'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -2384,7 +2530,7 @@ const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_
         await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -2392,7 +2538,7 @@ const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_
   .addAnswer(
     '📝 Por favor escribe tu *nombre completo*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2424,7 +2570,7 @@ const flowRestablecimientoSistema = addKeyword(utils.setEvent('RESTABLECIMIENTO_
   );
 
 const flowCapturaDepartamento = addKeyword(utils.setEvent('CAPTURA_DEPARTAMENTO'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -2433,7 +2579,7 @@ const flowCapturaDepartamento = addKeyword(utils.setEvent('CAPTURA_DEPARTAMENTO'
         await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -2441,7 +2587,7 @@ const flowCapturaDepartamento = addKeyword(utils.setEvent('CAPTURA_DEPARTAMENTO'
   .addAnswer(
     '🏢 Por favor escribe el *departamento al que perteneces*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2473,7 +2619,7 @@ const flowCapturaDepartamento = addKeyword(utils.setEvent('CAPTURA_DEPARTAMENTO'
   );
 
 const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SISTEMA'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -2482,7 +2628,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -2490,7 +2636,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
   .addAnswer(
     '👤 Por favor escribe tu *nombre de usuario del sistema* (el que usas para iniciar sesión):',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2522,7 +2668,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         }
 
         const queryVerificar = `SELECT id_usuario, usuario, ubicacion FROM usuariosprueba WHERE usuario = ?`;
-        const [usuarios] = await conexionRemota.execute(queryVerificar, [input]);
+        const [usuarios] = await conexionRemota.execute<RowDataPacket[]>(queryVerificar, [input]);
 
         if (usuarios.length === 0) {
           await flowDynamic([
@@ -2549,7 +2695,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
           '🔄 Generando nueva contraseña segura...'
         ].join('\n'));
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error verificando usuario:', error.message);
         await flowDynamic('❌ Error al verificar el usuario. Intenta más tarde.');
         return gotoFlow(flowGestionServicios);
@@ -2620,7 +2766,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
         }
       }
 
-      const metadataProceso = {
+      const metadataProceso: EstadoMetadata = {
         tipo: "🔐 Restablecimiento de Contraseña de Sistema",
         inicio: Date.now(),
         esTrabajador: true,
@@ -2688,7 +2834,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
                 ultimaNotificacion: Date.now()
               });
 
-            } catch (error) {
+            } catch (error: any) {
               console.error('❌ Error enviando notificación:', error.message);
             }
           } else {
@@ -2724,7 +2870,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
               '🔙 Escribe *menú* para volver al menú principal.'
             ].join('\n'));
 
-          } catch (error) {
+          } catch (error: any) {
             console.error('❌ Error enviando mensaje final:', error.message);
           }
 
@@ -2754,7 +2900,7 @@ const flowCapturaUsuarioSistema = addKeyword(utils.setEvent('CAPTURA_USUARIO_SIS
   );
 
 const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -2763,7 +2909,7 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
         await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -2771,7 +2917,7 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
   .addAnswer(
     '📝 Por favor escribe tu *nombre completo*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2803,7 +2949,7 @@ const flowNuevoUsuario = addKeyword(utils.setEvent('NUEVO_USUARIO'))
   );
 
 const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow, provider }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow, provider }: any) => {
     const userPhone = ctx.from;
 
     timeoutManager.setTimeout(userPhone, async () => {
@@ -2812,7 +2958,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
         await flowDynamic('⏱️ Tiempo agotado. Serás redirigido al menú.');
         await limpiarEstado(state);
         return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error en timeout de captura:', error);
       }
     }, 2 * 60 * 1000);
@@ -2820,7 +2966,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
   .addAnswer(
     '🏢 Por favor escribe el *área a la que perteneces*:',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -2843,7 +2989,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
         return gotoFlow(flowCapturaArea);
       }
 
-      const myState = await state.getMyState();
+      const myState: EstadoUsuario = await state.getMyState();
       const nombreCompleto = myState.nombreCompleto;
       const userPhone = ctx.from;
 
@@ -2860,7 +3006,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
 
       const necesitaEncriptacionEspecial = nuevoUsuario.toLowerCase() === 'dep_centro_de_computo';
 
-      let insercionExitosa = { exito: false };
+      let insercionExitosa: InsertUsuarioResult = { exito: false };
 
       try {
         console.log(`📝 INSERTANDO DIRECTAMENTE en usuariosprueba: ${nuevoUsuario}`);
@@ -2879,12 +3025,12 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
           console.log('🎯 Usuario especial creado - La contraseña se almacenó encriptada');
         }
 
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error insertando DIRECTAMENTE en usuariosprueba:', error.message);
         insercionExitosa = { exito: false };
       }
 
-      const metadataProceso = {
+      const metadataProceso: EstadoMetadata = {
         tipo: "👤 Solicitud de Nuevo Usuario del Sistema",
         inicio: Date.now(),
         esTrabajador: true,
@@ -2955,7 +3101,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
                 ultimaNotificacion: Date.now()
               });
 
-            } catch (error) {
+            } catch (error: any) {
               console.error('❌ Error enviando notificación:', error.message);
             }
           } else {
@@ -2991,7 +3137,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
               '🔙 Escribe *menú* para volver al menú principal.'
             ].join('\n'));
 
-          } catch (error) {
+          } catch (error: any) {
             console.error('❌ Error enviando mensaje final:', error.message);
           }
 
@@ -3022,7 +3168,7 @@ const flowCapturaArea = addKeyword(utils.setEvent('CAPTURA_AREA'))
   );
 
 const flowDistancia = addKeyword(utils.setEvent('FLOW_DISTANCIA'))
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+  .addAction(async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -3035,7 +3181,7 @@ const flowDistancia = addKeyword(utils.setEvent('FLOW_DISTANCIA'))
         body: '😞 Por el momento no podemos apoyarte con el restablecimiento de contraseña de tu *Moodle*. \n👉 Te invitamos a asistir a *Coordinación de Educación a Distancia*. \n📍 Sus oficinas están en el edificio de *Idiomas* (planta baja), frente a la sala Isóptica, a un costado del elevador.',
         media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-10_a_las_13.53.25_7b1508b3-removebg-preview.png'
       }]);
-    } catch (error) {
+    } catch (error: any) {
       await flowDynamic('😞 Por el momento no podemos apoyarte con el restablecimiento de contraseña de tu *Moodle*. \n👉 Te invitamos a asistir a *Coordinación de Educación a Distancia*. \n📍 Sus oficinas están en el edificio de *Idiomas* (planta baja), frente a la sala Isóptica, a un costado del elevador.');
     }
 
@@ -3051,7 +3197,7 @@ const flowSIE = addKeyword(utils.setEvent('FLOW_SIE'))
     '2️⃣ No puedo ver mi horario o calificaciones\n\n' +
     '🔙 Escribe *menú* para volver al menú principal.',
     { capture: true },
-    async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+    async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
       ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
       const opcion = ctx.body.trim().toLowerCase();
 
@@ -3077,7 +3223,7 @@ const flowSIE = addKeyword(utils.setEvent('FLOW_SIE'))
   );
 
 const flowGracias = addKeyword(utils.setEvent('FLOW_GRACIAS'))
-  .addAction(async (ctx, { flowDynamic }) => {
+  .addAction(async (ctx: BotContext, { flowDynamic }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     await flowDynamic([
       '🙏 ¡Gracias por comunicarte con el Centro de Cómputo del ITA! 💙',
@@ -3095,7 +3241,7 @@ const flowGracias = addKeyword(utils.setEvent('FLOW_GRACIAS'))
   });
 
 const flowInfoCredenciales = addKeyword(utils.setEvent('FLOW_INFO_CREDENCIALES'))
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+  .addAction(async (ctx: BotContext, { flowDynamic, gotoFlow, state, provider }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
       return;
@@ -3131,11 +3277,11 @@ const flowInfoCredenciales = addKeyword(utils.setEvent('FLOW_INFO_CREDENCIALES')
   });
 
 const flowComandosEspeciales = addKeyword(['estado'])
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     await debugFlujo(ctx, 'flowComandosEspeciales');
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    const myState = await state.getMyState();
+    const myState: EstadoUsuario = await state.getMyState();
     const comando = ctx.body.toLowerCase();
 
     if (comando === 'estado') {
@@ -3170,11 +3316,11 @@ const flowComandosEspeciales = addKeyword(['estado'])
   });
 
 const flowBloqueoActivo = addKeyword(utils.setEvent('BLOQUEO_ACTIVO'))
-  .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { state, flowDynamic, gotoFlow }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     if (ctx.from === CONTACTO_ADMIN) return;
 
-    const myState = await state.getMyState();
+    const myState: EstadoUsuario = await state.getMyState();
 
     if (!myState?.estadoUsuario || myState.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
       console.log(`🔓 Usuario ${ctx.from} ya no está bloqueado, liberando...`);
@@ -3231,7 +3377,7 @@ const flowPrincipal = addKeyword([
   'inicio', 'Inicio', 'comenzar', 'Comenzar', 'empezar', 'Empezar',
   'ayuda', 'Ayuda', 'start', 'Start', 'hello', 'Hello', 'hi', 'Hi'
 ])
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow, provider }) => {
+  .addAction(async (ctx: BotContext, { flowDynamic, state, gotoFlow, provider }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
 
     console.log(`🎯 FLOW PRINCIPAL - ID Normalizado: ${ctx.from}`);
@@ -3263,7 +3409,7 @@ const flowPrincipal = addKeyword([
         body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
         media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
       }]);
-    } catch (error) {
+    } catch (error: any) {
       await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
     }
 
@@ -3271,7 +3417,7 @@ const flowPrincipal = addKeyword([
   });
 
 const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7', '8'])
-  .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+  .addAction(async (ctx: BotContext, { flowDynamic, gotoFlow, state }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
 
     console.log('📱 FLOW MENÚ - Mensaje recibido:', ctx.body, 'Usuario:', ctx.from);
@@ -3300,7 +3446,7 @@ const flowMenu = addKeyword(['menu', 'menú', '1', '2', '3', '4', '5', '6', '7',
   });
 
 const flowDefault = addKeyword([''])
-  .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
+  .addAction(async (ctx: BotContext, { flowDynamic, state, gotoFlow }: any) => {
     ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
     if (ctx.from === CONTACTO_ADMIN) return;
 
@@ -3349,7 +3495,7 @@ const flowDefault = addKeyword([''])
     ]);
   });
 
-async function verificarBaseDeDatos() {
+async function verificarBaseDeDatos(): Promise<boolean> {
   try {
     console.log('🔍 Verificando conexión a MySQL...');
 
@@ -3359,7 +3505,7 @@ async function verificarBaseDeDatos() {
     }
 
     try {
-      const [tablas] = await conexionMySQL.execute(`
+      const [tablas] = await conexionMySQL.execute<RowDataPacket[]>(`
         SELECT TABLE_NAME 
         FROM INFORMATION_SCHEMA.TABLES 
         WHERE TABLE_SCHEMA = 'bot_whatsapp' 
@@ -3394,7 +3540,7 @@ async function verificarBaseDeDatos() {
         ];
 
         for (const columna of columnasNecesarias) {
-          const [columnas] = await conexionMySQL.execute(`
+          const [columnas] = await conexionMySQL.execute<RowDataPacket[]>(`
             SELECT COLUMN_NAME 
             FROM INFORMATION_SCHEMA.COLUMNS 
             WHERE TABLE_SCHEMA = 'bot_whatsapp' 
@@ -3422,12 +3568,12 @@ async function verificarBaseDeDatos() {
 
       return true;
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Error en verificación de tabla:', error.message);
       return false;
     }
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('❌ Error verificando base de datos:', error.message);
     return false;
   }
@@ -3436,41 +3582,32 @@ async function verificarBaseDeDatos() {
 // ==== CONFIGURACIÓN DEL BOT - MAIN FUNCTION ====================
 const main = async () => {
   console.log('🚀 Iniciando bot ITA - Versión Completa con Bases de Datos\n');
-
+  
   try {
     // 1. INICIAR TODAS LAS CONEXIONES AL PRINCIPIO
     await iniciarTodasLasConexiones();
-
+    
     // 2. Verificar estructura de la base de datos local
     await verificarBaseDeDatos();
-
+    
     // 3. Probando sistema de encriptación
     console.log('🔐 Probando sistema de encriptación...');
     probarEncriptacion();
-
+    
     // 4. Configurar verificación periódica de conexiones (cada 5 minutos)
     setInterval(async () => {
       console.log('\n⏰ Verificación automática de conexiones...');
       await verificarEstadoConexiones();
     }, 5 * 60 * 1000);
-
+    
     // 5. Crear provider de WhatsApp
     const adapterProvider = createProvider(Provider, {
       name: 'ITA-Bot-WhatsApp',
       authPath: './auth',
       headless: true,
       qrTimeout: 60000,
-      browser: ['Windows', 'Chrome'],
-      // 🔥 CONFIGURACIÓN CRÍTICA PARA EVITAR ERROR 405:
-      disableAutoConnect: false,
-      markOnlineOnConnect: false,
-      syncFullHistory: false,
-      connectTimeoutMs: 30000,
-      keepAliveIntervalMs: 15000,
-      logger: {
-        level: 'debug'
-      },
-      printQRInTerminal: false,
+      printQRInTerminal: true,
+      browser: ['Windows', 'Chrome', '20.0.04'],
       puppeteerOptions: {
         args: [
           '--no-sandbox',
@@ -3480,87 +3617,10 @@ const main = async () => {
           '--no-first-run',
           '--no-zygote',
           '--disable-gpu',
-          '--single-process',
-          '--disable-software-rasterizer',
-          '--disable-web-security',
-          '--disable-features=site-per-process',
-          '--disable-setuid-sandbox',
-          '--window-size=1280,720'
+          '--window-size=1920,1080'
         ],
         headless: 'new',
-        ignoreHTTPSErrors: true,
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined
-      }
-    });
-
-    adapterProvider.on('connection.update', async (update) => {
-      const { connection, qr, lastDisconnect, isNewLogin } = update;
-
-      console.log('🔗 Estado de conexión:', {
-        connection,
-        qr: qr ? 'Presente' : 'Ausente',
-        lastDisconnect,
-        isNewLogin
-      });
-
-      if (qr) {
-        console.log('\n══════════════════════════════════════════════════');
-        console.log('📱 NUEVO CÓDIGO QR GENERADO - ESCANEA AHORA');
-        console.log('══════════════════════════════════════════════════\n');
-        QRCode.generate(qr, { small: true });
-        console.log('\n══════════════════════════════════════════════════');
-        console.log('📱 INSTRUCCIONES:');
-        console.log('1. Abre WhatsApp en tu CELULAR (no computadora)');
-        console.log('2. Toca los 3 puntos → Dispositivos vinculados');
-        console.log('3. Toca "Vincular un dispositivo"');
-        console.log('4. ESCANEA el código QR de arriba');
-        console.log('5. NO uses la misma sesión en otro lugar');
-        console.log('══════════════════════════════════════════════════\n');
-      }
-
-      if (connection === 'open') {
-        console.log('\n🎉🎉🎉 ¡CONEXIÓN EXITOSA! 🎉🎉🎉');
-        console.log('🤖 Bot listo para recibir mensajes');
-        console.log('💬 Envía "hola" al número de WhatsApp');
-        await verificarEstadoConexiones();
-      }
-
-      if (connection === 'close') {
-        console.log('\n🔌 CONEXIÓN CERRADA');
-
-        if (lastDisconnect?.error) {
-          console.error('❌ Error de desconexión:', lastDisconnect.error);
-          console.error('📊 Detalles:', JSON.stringify(lastDisconnect.error, null, 2));
-        }
-
-        const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== 401;
-
-        if (shouldReconnect) {
-          console.log('🔄 Reconectando en 3 segundos...');
-          setTimeout(async () => {
-            try {
-              await adapterProvider.vendor?.init();
-              console.log('🔄 Reconexión iniciada');
-            } catch (error) {
-              console.error('❌ Error en reconexión:', error.message);
-            }
-          }, 3000);
-        } else {
-          console.log('⚠️ Error 401 detectado - Limpiando sesión...');
-          try {
-            const fs = await import('fs');
-            if (fs.existsSync('./auth')) {
-              fs.rmSync('./auth', { recursive: true, force: true });
-              console.log('✅ Sesión eliminada. Reinicia el bot para nuevo QR.');
-            }
-          } catch (error) {
-            console.error('❌ Error limpiando sesión:', error.message);
-          }
-        }
-      }
-
-      if (connection === 'connecting') {
-        console.log('🔄 Conectando a WhatsApp...');
+        ignoreHTTPSErrors: true
       }
     });
 
@@ -3603,7 +3663,7 @@ const main = async () => {
       flow: adapterFlow,
       provider: adapterProvider,
       database: adapterDB,
-      port: PORT
+      port: parseInt(PORT)
     });
 
     console.log('══════════════════════════════════════════════════');
@@ -3611,22 +3671,54 @@ const main = async () => {
     console.log('📱 Esperando conexión de WhatsApp...');
     console.log('══════════════════════════════════════════════════\n');
 
-    adapterProvider.on('auth_failure', async (error) => {
+    adapterProvider.on('qr', (qr: string) => {
+      console.log('\n══════════════════════════════════════════════════');
+      console.log('📱 ESCANEA ESTE CÓDIGO QR CON WHATSAPP:');
+      console.log('══════════════════════════════════════════════════\n');
+      QRCode.generate(qr, { small: true });
+      console.log('\n══════════════════════════════════════════════════');
+      console.log('📱 INSTRUCCIONES PARA WINDOWS:');
+      console.log('1. Abre WhatsApp en tu teléfono');
+      console.log('2. Toca los 3 puntos → Dispositivos vinculados');
+      console.log('3. Toca "Vincular un dispositivo"');
+      console.log('4. Escanea el código QR mostrado arriba');
+      console.log('══════════════════════════════════════════════════\n');
+    });
+
+    adapterProvider.on('ready', () => {
+      console.log('\n🎉 ¡CONEXIÓN EXITOSA! Bot listo para recibir mensajes\n');
+      console.log('💬 Puedes enviar "hola" a este número de WhatsApp');
+      
+      // Mostrar estado final de conexiones
+      verificarEstadoConexiones();
+    });
+
+    adapterProvider.on('auth_failure', (error: any) => {
       console.error('\n❌ Error de autenticación:', error);
       console.log('🔄 Limpiando sesión y generando nuevo QR...');
 
       try {
-        const fs = await import('fs');
+        const fs = require('fs');
         if (fs.existsSync('./auth')) {
           fs.rmSync('./auth', { recursive: true, force: true });
           console.log('✅ Sesión corrupta eliminada');
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error('No se pudo limpiar la sesión:', e.message);
       }
     });
 
-    httpServer(+PORT);
+    adapterProvider.on('disconnected', (reason: string) => {
+      console.log('\n🔌 Desconectado de WhatsApp. Razón:', reason);
+      console.log('🔄 Reconectando en 5 segundos...');
+
+      setTimeout(() => {
+        console.log('🔄 Intentando reconexión...');
+        adapterProvider.vendor?.init()?.catch(console.error);
+      }, 5000);
+    });
+
+    httpServer(parseInt(PORT));
 
     const reiniciarConexion = () => {
       console.log('🔄 Reiniciando conexión WhatsApp...');
@@ -3637,31 +3729,17 @@ const main = async () => {
             adapterProvider.vendor?.init()?.catch(console.error);
           }, 3000);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error al reiniciar:', error.message);
       }
     };
 
+    // Verificación periódica simplificada
     setInterval(() => {
-      try {
-        if (adapterProvider.vendor?.ws) {
-          const estado = adapterProvider.vendor.ws.readyState;
-          if (estado !== 1) {
-            console.log(`⚠️ WebSocket no está abierto (estado: ${estado})`);
-            if (estado === 3) {
-              reiniciarConexion();
-            }
-          }
-        } else {
-          console.log('⚠️ WebSocket no disponible, intentando reconectar...');
-          reiniciarConexion();
-        }
-      } catch (error) {
-        console.error('❌ Error verificando WebSocket:', error.message);
-      }
+      console.log('✅ Sistema activo - ' + new Date().toLocaleTimeString());
     }, 30000);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('\n❌ ERROR CRÍTICO al iniciar el bot:');
     console.error('Mensaje:', error.message);
     console.error('Stack:', error.stack ? error.stack.split('\n').slice(0, 5).join('\n') : 'No stack');
@@ -3673,17 +3751,17 @@ const main = async () => {
         fs.rmSync('./auth', { recursive: true, force: true });
         console.log('✅ Sesión limpia. Reinicia el bot.');
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error('No se pudo limpiar la sesión');
     }
   }
 };
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', (error: Error) => {
   console.error('\n❌ ERROR NO CAPTURADO:', error.message);
 });
 
-process.on('unhandledRejection', (reason) => {
+process.on('unhandledRejection', (reason: any) => {
   console.error('\n❌ PROMESA RECHAZADA:', reason);
 });
 
