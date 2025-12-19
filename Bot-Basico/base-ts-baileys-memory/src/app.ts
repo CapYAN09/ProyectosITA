@@ -848,8 +848,8 @@ async function mostrarOpcionesMenu(flowDynamic: any) {
         //'4️⃣ 📊 Sistema SIE',
         '5️⃣ 🙏 Información adicional',
         '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
-        '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-        '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+        //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+        //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
         '',
         '💡 *Escribe solo el número (1-8)*'
     ].join('\n'))
@@ -1031,10 +1031,10 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
             '2️⃣ Configurar autenticador',
             '3️⃣ Educación a Distancia',
             //'4️⃣ Sistema SIE',
-            //'5️⃣ Información adicional',
+            '5️⃣ Información adicional',
             '6️⃣ No conozco mis credenciales',
-            '7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
-            '8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+            //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+            //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
             '',
             '🔙 Escribe *hola* para comenzar.'
         ].join('\n'))
