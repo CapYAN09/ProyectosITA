@@ -1042,36 +1042,44 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
 
 // ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA ====
 const flowSubMenuContrasena = addKeyword<Provider, Database>(utils.setEvent('SUBMENU_CONTRASENA'))
-    .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
-        // Verificar si está bloqueado primero
-        if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+    .addAnswer(
+        '🔑 *RESTABLECIMIENTO DE CONTRASEÑA*\n\n' +
+        'Una vez comenzado este proceso no podrá ser detenido hasta completarse.\n\n' +
+        '👥 *Selecciona tu tipo de usuario:*\n\n' +
+        '1️⃣ ¿Eres un estudiante?\n' +
+        '2️⃣ ¿Eres un trabajador o docente?\n\n' +
+        '🔙 Escribe *menú* para volver al menú principal.',
+        { capture: true },
+        async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
+            ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+            if (ctx.from === CONTACTO_ADMIN) return
+
+            const opcion = ctx.body.trim().toLowerCase()
+
+            if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
             return // No continuar si está bloqueado
+            }  
+
+            if (opcion === 'menu' || opcion === 'menú') {
+                return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
+            }
+
+            if (opcion === '1') {
+                await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...')
+                await state.update({ esTrabajador: false, tipoProceso: 'AUTENTICADOR' })
+                return gotoFlow(flowCapturaNumeroControl)
+            }
+
+            if (opcion === '2') {
+                await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...')
+                await state.update({ esTrabajador: true, tipoProceso: 'AUTENTICADOR' })
+                return gotoFlow(flowCapturaCorreoTrabajador)
+            }
+
+            await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.')
+            return gotoFlow(flowSubMenuContrasena)
         }
-
-        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
-        if (ctx.from === CONTACTO_ADMIN) return
-
-        const opcion = ctx.body.trim().toLowerCase()
-
-        if (opcion === 'menu' || opcion === 'menú') {
-            return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
-        }
-
-        if (opcion === '1') {
-            await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...')
-            await state.update({ esTrabajador: false, tipoProceso: 'CONTRASENA' })
-            return gotoFlow(flowCapturaNumeroControl)
-        }
-
-        if (opcion === '2') {
-            await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...')
-            await state.update({ esTrabajador: true, tipoProceso: 'CONTRASENA' })
-            return gotoFlow(flowCapturaCorreoTrabajador)
-        }
-
-        await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.')
-        return gotoFlow(flowSubMenuContrasena)
-    })
+    )
 
 // ==== FLUJO DE CAPTURA DE CORREO PARA TRABAJADOR ====
 const flowCapturaCorreoTrabajador = addKeyword<Provider, Database>(utils.setEvent('CAPTURA_CORREO_TRABAJADOR'))
