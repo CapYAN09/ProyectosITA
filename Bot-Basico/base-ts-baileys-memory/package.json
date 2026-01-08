@@ -8,7 +8,21 @@
     "start": "node ./dist/app.js",
     "lint": "eslint . --no-ignore",
     "dev": "npm run lint && nodemon --signal SIGKILL  ./src/app.ts",
-    "build": "npx rollup -c"
+    "build": "npx rollup -c",
+    "dev:watch": "nodemon --exec ts-node src/app.ts",
+
+    "supervise": "node supervisor-simple.js",
+    "supervise:ts": "ts-node supervisor.ts",
+    "prod": "npm run build && npm run supervise",
+
+    "supervisor": "ts-node supervisor.ts",
+    "supervisor:build": "tsc && node dist/supervisor.js",
+    "supervisor:prod": "npm run build && node supervisor.js",
+    
+    "win:supervise": "npm run build && npm run supervisor",
+    "win:start": "node supervisor.js",
+    
+    "build:supervisor": "tsc supervisor.ts --outDir . --module commonjs --target es2020"
   },
   "keywords": [],
   "dependencies": {
