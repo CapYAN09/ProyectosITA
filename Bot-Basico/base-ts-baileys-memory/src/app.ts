@@ -1923,7 +1923,7 @@ const flowCiaPagos = addKeyword<Provider, Database>(utils.setEvent('FLOW_CIAPAGO
                     '',
                     '🔙 Escribe *menú* para volver al menú principal.'
                 ].join('\n'));
-                return;
+                return; // AÑADIR ESTE RETURN
             }
 
             if (opcion === '2') {
@@ -1943,7 +1943,7 @@ const flowCiaPagos = addKeyword<Provider, Database>(utils.setEvent('FLOW_CIAPAGO
                     '',
                     '🔙 Escribe *menú* para volver al menú principal.'
                 ].join('\n'));
-                return;
+                return; // AÑADIR ESTE RETURN
             }
 
             if (opcion === 'menu' || opcion === 'menú') {
@@ -2557,6 +2557,9 @@ const main = async () => {
         // 2. Flujo del menú (solo para eventos internos)
         flowMenu,
 
+
+        flowCiaPagos,
+
         // 3. Flujos de restablecimiento de contraseña
         flowSubMenuContrasena,
         flowCapturaCorreoTrabajador,
@@ -2584,7 +2587,6 @@ const main = async () => {
         flowInfoCredenciales,
         flowGestionServicios,
         flowConexionBaseDatos,
-        flowCiaPagos,
         //flowCiaPagosConfirmacion,
 
         // 7. Flujos existentes
