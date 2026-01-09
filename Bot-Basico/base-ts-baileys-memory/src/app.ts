@@ -231,12 +231,12 @@ async function consultarAlumnoEnBaseDatos(numeroControl) {
 
     } catch (error) {
         console.error('❌ Error consultando alumno:', error.message);
-        
+
         // Intentar reconectar si hay error de conexión
         if (error.code === 'PROTOCOL_CONNECTION_LOST' || error.code === 'ECONNRESET') {
             await reconectarConexion('actextita');
         }
-        
+
         return { encontrado: false, error: error.message };
     }
 }
@@ -265,12 +265,12 @@ async function verificarAdministradorEnBaseDatos(usuario) {
 
     } catch (error) {
         console.error('❌ Error verificando administrador:', error.message);
-        
+
         // Intentar reconectar si hay error de conexión
         if (error.code === 'PROTOCOL_CONNECTION_LOST' || error.code === 'ECONNRESET') {
             await reconectarConexion('actextita');
         }
-        
+
         return false;
     }
 }
@@ -299,12 +299,12 @@ async function actualizarContrasenaAdmin(usuario, nuevaContrasena) {
 
     } catch (error) {
         console.error('❌ Error actualizando contraseña de admin:', error.message);
-        
+
         // Intentar reconectar si hay error de conexión
         if (error.code === 'PROTOCOL_CONNECTION_LOST' || error.code === 'ECONNRESET') {
             await reconectarConexion('actextita');
         }
-        
+
         return false;
     }
 }
@@ -329,12 +329,12 @@ async function consultarSistematickets(query, params = []) {
 
     } catch (error) {
         console.error('❌ Error consultando sistematickets:', error.message);
-        
+
         // Intentar reconectar si hay error de conexión
         if (error.code === 'PROTOCOL_CONNECTION_LOST' || error.code === 'ECONNRESET') {
             await reconectarConexion('sistematickets');
         }
-        
+
         throw error;
     }
 }
@@ -359,12 +359,12 @@ async function consultarBotWhatsapp(query, params = []) {
 
     } catch (error) {
         console.error('❌ Error consultando bot_whatsapp:', error.message);
-        
+
         // Intentar reconectar si hay error de conexión
         if (error.code === 'PROTOCOL_CONNECTION_LOST' || error.code === 'ECONNRESET') {
             await reconectarConexion('MySQL');
         }
-        
+
         throw error;
     }
 }
@@ -392,14 +392,14 @@ function obtenerEstadoConexiones() {
 // ==== INICIALIZAR TODAS LAS CONEXIONES AL INICIAR LA APLICACIÓN ====================
 async function inicializarTodasLasConexiones() {
     console.log('🚀 Inicializando todas las conexiones a bases de datos...');
-    
+
     try {
         await Promise.allSettled([
             inicializarMySQL(),
             inicializarActextita(),
             inicializarSistematickets()
         ]);
-        
+
         console.log('✅ Todas las conexiones inicializadas');
     } catch (error) {
         console.error('❌ Error inicializando conexiones:', error.message);
@@ -409,13 +409,13 @@ async function inicializarTodasLasConexiones() {
 // ==== CERRAR CONEXIONES ====================
 async function cerrarTodasLasConexiones() {
     console.log('🔴 Cerrando todas las conexiones a bases de datos...');
-    
+
     const conexiones = [
         { nombre: 'MySQL', conexion: conexionMySQL },
         { nombre: 'actextita', conexion: conexionActextita },
         { nombre: 'sistematickets', conexion: conexionSistematickets }
     ];
-    
+
     for (const { nombre, conexion } of conexiones) {
         if (conexion) {
             try {
@@ -732,7 +732,7 @@ async function verificarEstadoBloqueado(ctx: any, { state, flowDynamic, gotoFlow
 
 async function guardarEstadoMySQL(userPhone: string, estado: string, metadata = {}, userData = {}) {
     console.log(`💾 Guardando estado para: ${userPhone} - ${estado}`)
-    
+
     try {
         // Guardar en base de datos local
         await consultarBotWhatsapp(
@@ -757,7 +757,7 @@ async function guardarEstadoMySQL(userPhone: string, estado: string, metadata = 
 
 async function limpiarEstadoMySQL(userPhone: string) {
     console.log(`🧹 Limpiando estado MySQL para: ${userPhone}`)
-    
+
     try {
         await consultarBotWhatsapp(
             'DELETE FROM estados_usuarios WHERE user_phone = ?',
@@ -823,6 +823,13 @@ function esSaludoValido(texto: string): boolean {
         'hola.', 'hola!', 'hola?', 'ayuda', 'Hola', '.', 'Holi', 'holi', 'holis', 'Holis', 'holaa', 'Holaa', 'holaaa', 'Holaaa',
         'holaaaa', 'Holaaaa', 'holaaaaa', 'Holaaaaa', 'holaaaaaa', 'Holaaaaaa',
         'holaaaaaaa', 'Holaaaaaaa', 'holaaaaaaaa', 'Holaaaaaaaa', 'Holi!', 'Holi.', 'Holi?', 'holi!', 'holi.', 'holi?',
+        'ciapagos', 'cía pagos', 'cía-pagos', 'cía/pagos',
+        'problema con cia pagos', 'no puedo acceder a cia pagos',
+        'error en cia pagos', 'portal de pagos', 'pagos en línea',
+        'problema con el portal de pagos', 'cía pagos no funciona',
+        'Hola buenas tardes, tengo un problema con cia pagos',
+        'Hola buenos días, no puedo acceder a cia pagos',
+        'Hola buenas noches, el portal de cia pagos no me deja entrar',
         'buenos días, tengo un problema', 'buenas tardes, tengo un problema',
         'buenas noches, tengo un problema', 'buenos días tengo un problema',
         'buenas tardes tengo un problema', 'buenas noches tengo un problema',
@@ -868,7 +875,7 @@ function esSaludoValido(texto: string): boolean {
         'no conozco mis credenciales', 'no sé mis credenciales', 'no recuerdo mis credenciales',
         'cuál es mi correo', 'cual es mi correo', 'dime mi correo',
         'cuál es mi contraseña', 'cual es mi contraseña', 'dime mi contraseña',
-        'cuáles son mis credenciales', 'cuales son mis credenciales', 'dime mis credenciales', 'Hola!, tengo un problema', 
+        'cuáles son mis credenciales', 'cuales son mis credenciales', 'dime mis credenciales', 'Hola!, tengo un problema',
         'Hola!, tengo un problema. ¿Me pueden ayudar por favor?'
     ]
 
@@ -883,9 +890,9 @@ function esSaludoValido(texto: string): boolean {
     }
 
     const palabrasClave = [
-        'hola', 'problema', 'ayuda', 'cuenta', 'acceso',
+        'hola', 'Hola', 'problema', 'ayuda', 'cuenta', 'acceso',
         'contraseña', 'autenticador', 'disculpa', 'restablecer',
-        'configurar', 'soporte', 'ayudar', 'asistencia'
+        'configurar', 'soporte', 'ayudar', 'asistencia', 'ciapagos', 'pagos'
     ]
 
     // Verificar si contiene palabras clave
@@ -903,13 +910,14 @@ async function mostrarOpcionesMenu(flowDynamic: any) {
         '1️⃣ 🔐 Restablecer contraseña del correo institucional',
         '2️⃣ 🔑 Restablecer autenticador del correo institucional',
         '3️⃣ 🎓 Educación a Distancia (Moodle)',
-        //'4️⃣ 📊 Sistema SIE',
+        '4️⃣ 📊 Sistema SIE',
         '5️⃣ 🙏 Información adicional',
         '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
         //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
         //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+        '9️⃣ 🏦 Problema para acceder al portal de CIAPAGOS',
         '',
-        '💡 *Escribe solo el número (1-8)*'
+        '💡 *Escribe solo el número (1-9)*'
     ].join('\n'))
 }
 
@@ -960,8 +968,13 @@ async function procesarOpcionMenu(opcion: string, flowDynamic: any, gotoFlow: an
             console.log('🚀 Redirigiendo a flowConexionBaseDatos')
             return gotoFlow(flowConexionBaseDatos)
 
+        case '9':
+            await flowDynamic('🏦 Redirigiendo a problemas con CIAPAGOS...')
+            console.log('🚀 Redirigiendo a flowCiaPagos')
+            return gotoFlow(flowCiaPagos)
+
         default:
-            await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4*, *5*, *6*, *7* o *8*.')
+            await flowDynamic('❌ Opción no válida. Por favor escribe *1*, *2*, *3*, *4*, *5*, *6*, *7*, *8* o *9*.')
             return gotoFlow(flowMenu)
     }
 }
@@ -1088,13 +1101,14 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
             '1️⃣ Restablecer contraseña',
             '2️⃣ Configurar autenticador',
             '3️⃣ Educación a Distancia',
-            //'4️⃣ Sistema SIE',
+            '4️⃣ Sistema SIE',
             '5️⃣ Información adicional',
             '6️⃣ No conozco mis credenciales',
             //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
             //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
+            '9️⃣ Problema para acceder al portal de CIAPAGOS',
             '',
-            '💡 *Escribe solo el número (1-8)*',
+            '💡 *Escribe solo el número (1-9)*',
             '',
             '🔙 Escribe *hola* para comenzar.'
         ].join('\n'))
@@ -1117,8 +1131,8 @@ const flowSubMenuContrasena = addKeyword<Provider, Database>(utils.setEvent('SUB
             const opcion = ctx.body.trim().toLowerCase()
 
             if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-            return // No continuar si está bloqueado
-            }  
+                return // No continuar si está bloqueado
+            }
 
             if (opcion === 'menu' || opcion === 'menú') {
                 return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
@@ -1288,11 +1302,20 @@ const flowCapturaNombre = addKeyword<Provider, Database>(utils.setEvent('CAPTURA
 
             const myState = (await state.getMyState()) || {}
             const identificacion = myState.esTrabajador ? myState.correoInstitucional : myState.numeroControl
+            const tipoProceso = myState.tipoProceso || ''
 
             await flowDynamic(`🙌 Gracias, *${input}*.\n✅ Registramos tu identificación: *${identificacion}*`)
             await state.update({ nombreCompleto: input })
 
             timeoutManager.clearTimeout(ctx.from)
+
+            // Verificar si es proceso SIE (no requiere identificación)
+            if (tipoProceso === 'SIE') {
+                console.log('🚀 Proceso SIE detectado, redirigiendo a flowFinSIE')
+                return gotoFlow(flowFinSIE)
+            }
+
+            // Para otros procesos (CONTRASENA, AUTENTICADOR), ir a identificación
             return gotoFlow(flowCapturaIdentificacion)
         }
     )
@@ -1362,28 +1385,23 @@ const flowCapturaIdentificacion = addKeyword<Provider, Database>(utils.setEvent(
 
             // Obtener el estado actualizado
             const myState = await state.getMyState()
-            
-            // DEBUG: Verificar qué tipo de proceso tenemos
-            console.log('🔍 Estado actual:', myState)
-            console.log('🔍 Tipo proceso en estado:', myState.tipoProceso)
-            
-            // Determinar a dónde redirigir basado en el flujo anterior
-            // Si venimos del flowSubMenuContrasena -> flowContrasena
-            // Si venimos del flowSubMenuAutenticador -> flowAutenticador
-            
-            const ultimoFlujo = myState.ultimoFlujo || ''
+
+            // Determinar a dónde redirigir basado en el tipo de proceso
             const tipoProceso = myState.tipoProceso || ''
-            
-            console.log('🔍 Último flujo:', ultimoFlujo)
-            console.log('🔍 Tipo proceso variable:', tipoProceso)
-            
+
+            console.log('🔍 Tipo proceso detectado:', tipoProceso)
+
             // REGLA CLARA DE REDIRECCIÓN:
             if (tipoProceso === 'AUTENTICADOR') {
-                console.log('🚀 Redirigiendo a flowAutenticador')
+                console.log('🚀 Redirigiendo a flowAutenticador (tipo: AUTENTICADOR)')
                 return gotoFlow(flowAutenticador)
+            } else if (tipoProceso === 'SIE') {
+                console.log('🚀 Redirigiendo a flowFinSIE (tipo: SIE)')
+                // Para SIE, vamos directamente al flujo final sin necesitar identificación
+                return gotoFlow(flowFinSIE)
             } else {
-                // Por defecto, ir al flow de contraseña
-                console.log('🚀 Redirigiendo a flowContrasena (por defecto)')
+                // Por defecto, ir al flow de contraseña (CONTRASENA o cualquier otro)
+                console.log('🚀 Redirigiendo a flowContrasena (tipo por defecto)')
                 return gotoFlow(flowContrasena)
             }
         }
@@ -1393,7 +1411,7 @@ const flowCapturaIdentificacion = addKeyword<Provider, Database>(utils.setEvent(
 
 
 const flowContrasena = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONTRASENA'))
-.addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+    .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
         if (ctx.from === CONTACTO_ADMIN) return
 
@@ -1845,6 +1863,299 @@ const flowSubMenuAutenticador = addKeyword<Provider, Database>(utils.setEvent('S
         }
     )
 
+// ==== FLUJO PARA PROBLEMAS CON CIAPAGOS ====
+const flowCiaPagos = addKeyword<Provider, Database>(utils.setEvent('FLOW_CIAPAGOS'))
+    .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+
+        // Verificar si es el administrador
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        // Verificar si está bloqueado
+        if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+            return
+        }
+
+        await flowDynamic([
+            '🏦 *PROBLEMAS PARA ACCEDER AL PORTAL DE CIAPAGOS* 🏦',
+            '',
+            '🔍 **Si no puedes acceder a CIAPAGOS, verifica lo siguiente:**',
+            '',
+            '1️⃣ **Credenciales incorrectas:**',
+            '• En el campo de "#No. de control" Solamente ingresa tú numero de control:',
+            '• En el campo de "Contraseña" ingresa la misma contraseña que usas para el portal del SIE',
+            '',
+            '2️⃣ **Problemas técnicos del sistema:**',
+            '• CIAPAGOS puede presentar mantenimiento programado, si el portal no carga, intenta más tarde',
+            '• Verifica tú conexión a internet',
+            '• Intenta desde otro navegador (Chrome, Firefox, Edge)',
+            '',
+            '3️⃣ **Bloqueo por múltiples intentos fallidos:**',
+            '• Si ingresaste mal tu contraseña varias veces, tu cuenta puede bloquearse temporalmente',
+            '• Espera 30 minutos e intenta nuevamente',
+            '',
+            '4️⃣ **Error en la página web:**',
+            '• Verifica que la URL sea correcta: https://ciapagos.aguascalientes.tecnm.mx/',
+            '• Limpia el caché y cookies de tu navegador',
+            '• Intenta en modo incógnito',
+            '',
+        ].join('\n'))
+
+        // Redirigir al submenú de confirmación
+        return gotoFlow(flowCiaPagosConfirmacion)
+    })
+
+// ==== SUBMENÚ DE CONFIRMACIÓN PARA CIAPAGOS ====
+const flowCiaPagosConfirmacion = addKeyword<Provider, Database>(utils.setEvent('FLOW_CIAPAGOS_CONFIRMACION'))
+    .addAnswer(
+        [
+            '',
+            '---',
+            '',
+            '❓ **¿Se resolvió tu duda con esta información?**',
+            '',
+            '1️⃣ ✅ Sí, ya puedo acceder',
+            '2️⃣ ❌ No, necesito más ayuda',
+            '',
+            '💡 *Escribe solo el número (1 o 2)*',
+            '🔙 O escribe *menú* para volver al menú principal'
+        ].join('\n'),
+        { capture: true },
+        async (ctx, { flowDynamic, gotoFlow, state }) => {
+            const opcion = ctx.body.trim().toLowerCase();
+
+            if (opcion === '1') {
+                await flowDynamic([
+                    '✅ ¡Excelente! Nos alegra que hayas podido resolver tu problema.',
+                    '',
+                    '💡 **Recuerda que para futuros problemas puedes:**',
+                    '• Escribir *menú* para ver todas las opciones disponibles',
+                    '• Contactar directamente a las áreas correspondientes',
+                    '',
+                    '🔙 Escribe *menú* para volver al menú principal.'
+                ].join('\n'));
+                return;
+            }
+
+            if (opcion === '2') {
+                await flowDynamic([
+                    '❌ Lamentamos que no hayas podido resolver tu problema con CIAPAGOS.',
+                    '',
+                    '📧 **Para recibir atención personalizada, por favor envía un correo a:**',
+                    '📩 *ccentrocomputo@aguascalientes.tecnm.mx*',
+                    '',
+                    '📋 **En tu correo incluye la siguiente información:**',
+                    '• 🔢 Número de control completo',
+                    '• 👤 Nombre completo',
+                    '• 📝 Descripción detallada del problema',
+                    '',
+                    '⏰ **Tiempo de respuesta estimado:**',
+                    '• 1-24 horas hábiles',
+                    '',
+                    '🔙 Escribe *menú* para volver al menú principal.'
+                ].join('\n'));
+                return;
+            }
+
+            if (opcion === 'menu' || opcion === 'menú') {
+                await limpiarEstado(state);
+                return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+            }
+
+            // Si la opción no es válida
+            await flowDynamic([
+                '❌ Opción no válida. Por favor escribe:',
+                '',
+                '1️⃣ - Si ya resolviste tu problema',
+                '2️⃣ - Si necesitas más ayuda',
+                '',
+                '🔙 O escribe *menú* para volver al menú principal.'
+            ].join('\n'));
+
+            // Volver a mostrar la pregunta
+            return gotoFlow(flowCiaPagosConfirmacion);
+        }
+    )
+
+// ==== FLUJO DE RESTABLECIMIENTO DE SIE ====
+const flowrestablecerSIE = addKeyword<Provider, Database>(utils.setEvent('RESTABLECER_SIE'))
+    .addAnswer(
+        [
+            '📄 *SINCRONIZACIÓN DE DATOS SIE*',
+            '',
+            'Vamos a comenzar el proceso de sincronización de tus datos en el *SIE*.',
+            '',
+            '🚨 Necesitamos tu número de control para continuar.',
+            '',
+            '⚠️ **IMPORTANTE:**',
+            '• Este proceso es solo para sincronización de datos',
+            '• No requiere envío de identificación',
+            '• El tiempo estimado es de 30 minutos',
+            '',
+            '🔙 Escribe *menú* para volver al menú principal.'
+        ].join('\n'),
+        null,
+        async (ctx, { gotoFlow, state }) => {
+            ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+            if (ctx.from === CONTACTO_ADMIN) return
+
+            // Limpiar estado específico de SIE y marcar tipo de proceso
+            await state.update({
+                esTrabajador: false,
+                tipoProceso: 'SIE',
+                identificacionSubida: false,
+                requiereIdentificacion: false // Marcar que SIE no requiere identificación
+            })
+
+            return gotoFlow(flowCapturaNumeroControl)
+        }
+    )
+
+// ==== FLUJO FINAL DE SIE ====
+const flowFinSIE = addKeyword<Provider, Database>(utils.setEvent('FIN_SIE'))
+    .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        const myState = await state.getMyState()
+        const nombreCompleto = myState.nombreCompleto
+        const numeroControl = myState.numeroControl
+
+        if (!nombreCompleto || !numeroControl) {
+            console.log('❌ Datos incompletos para SIE, redirigiendo a captura...')
+            await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.')
+            return gotoFlow(flowCapturaNumeroControl)
+        }
+
+        // Verificar conexión remota antes de continuar
+        const conexionRemota = await verificarConexionRemota();
+        const estadoConexiones = obtenerEstadoConexiones();
+
+        await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "📊 Sincronización de Datos SIE",
+            inicio: Date.now()
+        })
+
+        await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "Sincronización de Datos SIE",
+            inicio: Date.now()
+        }, {
+            numeroControl: numeroControl,
+            nombreCompleto: nombreCompleto
+        })
+
+        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE SINCRONIZACIÓN DE DATOS*\nNo le aparece el horario ni las materias en el SIE 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Reacciona para validar que está listo`
+
+        // Usar la función singleton corregida
+        const enviado = await enviarAlAdmin(mensajeAdmin)
+
+        if (!enviado) {
+            console.error('⚠️ No se pudo notificar al admin sobre SIE, continuando proceso...')
+            console.log(`📝 Pendiente de notificar SIE: ${ctx.from} - ${nombreCompleto}`)
+        }
+
+        // Configurar el timeout para completar el proceso (30 minutos)
+        const timeoutId = setTimeout(async () => {
+            try {
+                await flowDynamic([
+                    '✅ *Sincronización de datos SIE completada* ✅',
+                    '',
+                    '📋 **Se sincronizaron los datos correctamente en tu portal del SIE**',
+                    '',
+                    '💡 **Pasos a seguir:**',
+                    '1. Cierra la sesión actual del SIE si la tienes abierta',
+                    '2. Accede nuevamente a: https://sie.ita.mx',
+                    '3. Ingresa con tu número de control y contraseña',
+                    '4. Verifica que ahora aparezcan:',
+                    '   • Tu horario completo',
+                    '   • Todas tus materias',
+                    '   • Calificaciones actualizadas',
+                    '',
+                    '🔍 **Si aún no ves la información:**',
+                    '• Espera 5-10 minutos y refresca la página',
+                    '• Limpia el caché de tu navegador',
+                    '• Intenta en otro navegador',
+                    '',
+                    '📞 **Si el problema persiste:**',
+                    '• Contacta a tu coordinador de carrera',
+                    '• Centro de cómputo: 449 910 50 02 EXT. 145',
+                    '',
+                    '🔙 Escribe *menú* para volver al menú principal.'
+                ].join('\n'))
+
+            } catch (error: any) {
+                console.error('❌ Error enviando mensaje final de SIE:', error.message)
+                await flowDynamic('✅ Se ha completado la sincronización. Por favor verifica tu portal del SIE.')
+            }
+
+            await limpiarEstado(state)
+            await limpiarEstadoMySQL(ctx.from)
+
+        }, 30 * 60 * 1000) // 30 minutos
+
+        // Guardar el timeoutId en el estado
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                timeoutId: timeoutId,
+                timeoutExpira: Date.now() + (30 * 60 * 1000),
+                tipoProceso: 'SIE'
+            }
+        })
+
+        // Enviar mensaje inicial de bloqueo
+        await flowDynamic([
+            '⏳ *Proceso de sincronización SIE iniciado* ⏳',
+            '',
+            '📋 Tu solicitud de sincronización de datos en el SIE ha sido recibida y está siendo procesada.',
+            '',
+            '⏰ **Tiempo estimado:** 30 minutos',
+            '',
+            '🔄 **Durante este tiempo:**',
+            '• No es necesario que escribas nada',
+            '• El proceso continuará automáticamente',
+            '• Recibirás notificaciones periódicas',
+            '',
+            '💡 **Para consultar el estado:**',
+            'Escribe *estado* en cualquier momento',
+            '',
+            '¡Gracias por tu paciencia! 🙏'
+        ].join('\n'))
+
+        // Configurar intervalo para notificaciones periódicas
+        const intervalId = setInterval(async () => {
+            try {
+                const estadoActual = await state.getMyState()
+                if (estadoActual?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+                    clearInterval(intervalId)
+                    return
+                }
+
+                const metadata = estadoActual.estadoMetadata || {}
+                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now())
+                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
+
+                if (minutosRestantes > 0) {
+                    await flowDynamic(`⏳ *Actualización SIE:* Han pasado ${minutosTranscurridos} minutos. Faltan ${minutosRestantes} minutos.`)
+                }
+            } catch (error) {
+                console.error('❌ Error en notificación periódica de SIE:', error)
+            }
+        }, 5 * 60 * 1000) // Cada 5 minutos
+
+        // Guardar el intervalId también
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                intervalId: intervalId
+            }
+        })
+
+        // **NO HACER gotoFlow aquí** - Quedarse en este mismo flujo
+        // El flujo principal verificará el estado y mostrará mensajes apropiados
+    })
+
 // ==== FLUJO DE EDUCACIÓN A DISTANCIA ====
 const flowDistancia = addKeyword<Provider, Database>(utils.setEvent('FLOW_DISTANCIA'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
@@ -1869,6 +2180,24 @@ const flowDistancia = addKeyword<Provider, Database>(utils.setEvent('FLOW_DISTAN
         return
     })
 
+// ==== FLUJO DE ESPERA PARA MENÚ SIE ====
+const flowEsperaMenuSIE = addKeyword<Provider, Database>(utils.setEvent('ESPERA_MENU_SIE'))
+    .addAnswer(
+        '🔙 Escribe *menú* para volver al menú principal.',
+        { capture: true },
+        async (ctx, { flowDynamic, gotoFlow, state }) => {
+            const input = ctx.body.trim().toLowerCase()
+            
+            if (input === 'menu' || input === 'menú') {
+                await limpiarEstado(state)
+                return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
+            }
+            
+            await flowDynamic('🔙 Solo escribe *menú* para volver al menú principal.')
+            return gotoFlow(flowEsperaMenuSIE)
+        }
+    )
+
 const flowSIE = addKeyword<Provider, Database>('sie')
     .addAnswer('📊 Este es el flujo para Sistema SIE (en desarrollo)')
     .addAnswer('🔙 Escribe *menú* para volver al menú principal.')
@@ -1877,10 +2206,10 @@ const flowSIE = addKeyword<Provider, Database>('sie')
 const flowInfoAdicional = addKeyword<Provider, Database>(utils.setEvent('FLOW_INFO_ADICIONAL'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
-        
+
         // Verificar si es el administrador
         if (ctx.from === CONTACTO_ADMIN) return
-        
+
         // Opcional: Verificar si está bloqueado (aunque este flujo es informativo)
         if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
             return
@@ -1904,10 +2233,10 @@ const flowInfoAdicional = addKeyword<Provider, Database>(utils.setEvent('FLOW_IN
 const flowInfoCredenciales = addKeyword<Provider, Database>(utils.setEvent('FLOW_INFO_CREDENCIALES'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
-        
+
         // Verificar si es el administrador (no mostrar esta información al admin)
         if (ctx.from === CONTACTO_ADMIN) return
-        
+
         // Verificar si está bloqueado
         if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
             return
@@ -1946,10 +2275,10 @@ const flowInfoCredenciales = addKeyword<Provider, Database>(utils.setEvent('FLOW
 const flowGestionServicios = addKeyword<Provider, Database>(utils.setEvent('FLOW_GESTION_SERVICIOS'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
-        
+
         // Verificar si es el administrador
         if (ctx.from === CONTACTO_ADMIN) return
-        
+
         // Verificar si está bloqueado
         if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
             return
@@ -1997,10 +2326,10 @@ const flowGestionServicios = addKeyword<Provider, Database>(utils.setEvent('FLOW
 const flowConexionBaseDatos = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONEXION_BASE_DATOS'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
-        
+
         // Verificar si es el administrador
         if (ctx.from === CONTACTO_ADMIN) return
-        
+
         // Verificar si está bloqueado
         if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
             return
@@ -2219,6 +2548,12 @@ const main = async () => {
         // 5. Flujo de bloqueo activo
         flowBloqueoActivo,
 
+        // 6. FLUJOS DE SIE (AHORA REUTILIZAMOS LOS EXISTENTES)
+        flowSIE,
+        flowrestablecerSIE,
+        flowFinSIE,
+        //flowEsperaMenuSIE,            // Opcional: para volver al menú
+
         // 6. Otros flujos del sistema
         flowDistancia,
         flowSIE,
@@ -2226,6 +2561,8 @@ const main = async () => {
         flowInfoCredenciales,
         flowGestionServicios,
         flowConexionBaseDatos,
+        flowCiaPagos,
+        flowCiaPagosConfirmacion,
 
         // 7. Flujos existentes
         discordFlow,
@@ -2262,7 +2599,7 @@ const main = async () => {
         handleCtx(async (bot, req, res) => {
             try {
                 const { number, message } = req.body;
-                
+
                 // Verificar si es el admin
                 if (number === CONTACTO_ADMIN) {
                     await bot.provider.sendText(number, message);
@@ -2274,9 +2611,9 @@ const main = async () => {
                 }
             } catch (error) {
                 res.writeHead(500, { 'Content-Type': 'application/json' });
-                return res.end(JSON.stringify({ 
-                    status: 'error', 
-                    error: error.message 
+                return res.end(JSON.stringify({
+                    status: 'error',
+                    error: error.message
                 }));
             }
         })
