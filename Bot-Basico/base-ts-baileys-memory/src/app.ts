@@ -1865,18 +1865,8 @@ const flowSubMenuAutenticador = addKeyword<Provider, Database>(utils.setEvent('S
 
 // ==== FLUJO PARA PROBLEMAS CON CIAPAGOS ====
 const flowCiaPagos = addKeyword<Provider, Database>(utils.setEvent('FLOW_CIAPAGOS'))
-    .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
-        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
-
-        // Verificar si es el administrador
-        if (ctx.from === CONTACTO_ADMIN) return
-
-        // Verificar si está bloqueado
-        if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
-            return
-        }
-
-        await flowDynamic([
+    .addAnswer(
+        [
             '🏦 *PROBLEMAS PARA ACCEDER AL PORTAL DE CIAPAGOS* 🏦',
             '',
             '🔍 **Si no puedes acceder a CIAPAGOS, verifica lo siguiente:**',
@@ -1899,17 +1889,6 @@ const flowCiaPagos = addKeyword<Provider, Database>(utils.setEvent('FLOW_CIAPAGO
             '• Limpia el caché y cookies de tu navegador',
             '• Intenta en modo incógnito',
             '',
-        ].join('\n'))
-
-        // Redirigir al submenú de confirmación
-        return gotoFlow(flowCiaPagosConfirmacion)
-    })
-
-// ==== SUBMENÚ DE CONFIRMACIÓN PARA CIAPAGOS ====
-const flowCiaPagosConfirmacion = addKeyword<Provider, Database>(utils.setEvent('FLOW_CIAPAGOS_CONFIRMACION'))
-    .addAnswer(
-        [
-            '',
             '---',
             '',
             '❓ **¿Se resolvió tu duda con esta información?**',
@@ -1922,6 +1901,16 @@ const flowCiaPagosConfirmacion = addKeyword<Provider, Database>(utils.setEvent('
         ].join('\n'),
         { capture: true },
         async (ctx, { flowDynamic, gotoFlow, state }) => {
+            ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
+            
+            // Verificar si es el administrador
+            if (ctx.from === CONTACTO_ADMIN) return;
+
+            // Verificar si está bloqueado
+            if (await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow })) {
+                return;
+            }
+
             const opcion = ctx.body.trim().toLowerCase();
 
             if (opcion === '1') {
@@ -1973,7 +1962,7 @@ const flowCiaPagosConfirmacion = addKeyword<Provider, Database>(utils.setEvent('
             ].join('\n'));
 
             // Volver a mostrar la pregunta
-            return gotoFlow(flowCiaPagosConfirmacion);
+            return gotoFlow(flowCiaPagos);
         }
     )
 
@@ -2180,6 +2169,7 @@ const flowDistancia = addKeyword<Provider, Database>(utils.setEvent('FLOW_DISTAN
         return
     })
 
+    /*
 // ==== FLUJO DE ESPERA PARA MENÚ SIE ====
 const flowEsperaMenuSIE = addKeyword<Provider, Database>(utils.setEvent('ESPERA_MENU_SIE'))
     .addAnswer(
@@ -2196,7 +2186,7 @@ const flowEsperaMenuSIE = addKeyword<Provider, Database>(utils.setEvent('ESPERA_
             await flowDynamic('🔙 Solo escribe *menú* para volver al menú principal.')
             return gotoFlow(flowEsperaMenuSIE)
         }
-    )
+    )*/
 
 const flowSIE = addKeyword<Provider, Database>(['sie', utils.setEvent('FLOW_SIE')])
     .addAnswer(
@@ -2223,7 +2213,7 @@ const flowSIE = addKeyword<Provider, Database>(['sie', utils.setEvent('FLOW_SIE'
                     'Ellos podrán asistirte directamente con el restablecimiento.\n\n' +
                     '🔙 Escribe *menú* para volver al menú principal.'
                 )
-                return gotoFlow(flowEsperaMenuSIE)
+                //return gotoFlow(flowEsperaMenuSIE)
             }
 
             if (opcion === '2') {
@@ -2586,7 +2576,7 @@ const main = async () => {
         flowSIE,                    // ← ESTE ES EL FLUJO PRINCIPAL DE SIE
         flowrestablecerSIE,         // ← FLUJO DE SINCRONIZACIÓN
         flowFinSIE,                 // ← FLUJO FINAL DE SIE
-        flowEsperaMenuSIE,          // ← FLUJO DE ESPERA
+        //flowEsperaMenuSIE,          // ← FLUJO DE ESPERA
 
         // 6. Otros flujos del sistema
         flowDistancia,
@@ -2595,7 +2585,7 @@ const main = async () => {
         flowGestionServicios,
         flowConexionBaseDatos,
         flowCiaPagos,
-        flowCiaPagosConfirmacion,
+        //flowCiaPagosConfirmacion,
 
         // 7. Flujos existentes
         discordFlow,
