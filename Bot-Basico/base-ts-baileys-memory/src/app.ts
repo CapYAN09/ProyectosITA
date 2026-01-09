@@ -5,10 +5,25 @@ import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
 import { CoreClass } from '@builderbot/bot'
 import mysql from 'mysql2/promise'
 
-const PORT = process.env.PORT ?? 3008
-
 // ==== VARIABLES GLOBALES Y CONFIGURACIONES ====
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
+const PORT = process.env.PORT ?? 3008
+
+// Al inicio de tu app.ts, después de las importaciones
+process.on('uncaughtException', (error) => {
+    console.error('💥 Error no capturado:', error);
+    // NO salgas, deja que el supervisor te reinicie
+    // process.exit(1); // ← NO uses esto
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('💥 Promise rechazada no manejada:', reason);
+});
+
+// Heartbeat periódico para demostrar que está vivo
+setInterval(() => {
+    console.log('💓 Bot activo -', new Date().toLocaleTimeString('es-MX'));
+}, 300000); // Cada 5 minutos
 
 // ==== CONFIGURACIÓN DE BASES DE DATOS ====================
 const DB_CONFIG = {
@@ -1036,6 +1051,8 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
             //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
             //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
             '',
+            '💡 *Escribe solo el número (1-8)*',
+            '',
             '🔙 Escribe *hola* para comenzar.'
         ].join('\n'))
     })
@@ -1066,13 +1083,13 @@ const flowSubMenuContrasena = addKeyword<Provider, Database>(utils.setEvent('SUB
 
             if (opcion === '1') {
                 await flowDynamic('🎓 Perfecto, eres alumno. Vamos a comenzar con el proceso...')
-                await state.update({ esTrabajador: false, tipoProceso: 'AUTENTICADOR' })
+                await state.update({ esTrabajador: false, tipoProceso: 'CONTRASENA' })
                 return gotoFlow(flowCapturaNumeroControl)
             }
 
             if (opcion === '2') {
                 await flowDynamic('👨‍💼 Perfecto, eres trabajador. Vamos a comenzar con el proceso...')
-                await state.update({ esTrabajador: true, tipoProceso: 'AUTENTICADOR' })
+                await state.update({ esTrabajador: true, tipoProceso: 'CONTRASENA' })
                 return gotoFlow(flowCapturaCorreoTrabajador)
             }
 
@@ -1300,18 +1317,189 @@ const flowCapturaIdentificacion = addKeyword<Provider, Database>(utils.setEvent(
 
             await flowDynamic('✅ *¡Perfecto! Foto tomada correctamente con la cámara*\n\n📋 Continuando con el proceso...')
 
+            // Obtener el estado actualizado
             const myState = await state.getMyState()
-            const tipoProceso = myState.tipoProceso || 'CONTRASENA'
-
-            // CORREGIDO: Redirigir al flujo correcto según el tipo de proceso
+            
+            // DEBUG: Verificar qué tipo de proceso tenemos
+            console.log('🔍 Estado actual:', myState)
+            console.log('🔍 Tipo proceso en estado:', myState.tipoProceso)
+            
+            // Determinar a dónde redirigir basado en el flujo anterior
+            // Si venimos del flowSubMenuContrasena -> flowContrasena
+            // Si venimos del flowSubMenuAutenticador -> flowAutenticador
+            
+            const ultimoFlujo = myState.ultimoFlujo || ''
+            const tipoProceso = myState.tipoProceso || ''
+            
+            console.log('🔍 Último flujo:', ultimoFlujo)
+            console.log('🔍 Tipo proceso variable:', tipoProceso)
+            
+            // REGLA CLARA DE REDIRECCIÓN:
             if (tipoProceso === 'AUTENTICADOR') {
-                return gotoFlow(flowAutenticador)  // ← Nuevo flujo de autenticador
+                console.log('🚀 Redirigiendo a flowAutenticador')
+                return gotoFlow(flowAutenticador)
             } else {
-                return gotoFlow(flowContrasena)    // ← Flujo existente de contraseña
+                // Por defecto, ir al flow de contraseña
+                console.log('🚀 Redirigiendo a flowContrasena (por defecto)')
+                return gotoFlow(flowContrasena)
             }
         }
     )
 
+//===============================================================================================================================================
+
+
+const flowContrasena = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONTRASENA'))
+.addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        const myState = await state.getMyState()
+        const nombreCompleto = myState.nombreCompleto
+        const esTrabajador = myState.esTrabajador || false
+        const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl
+
+        if (!nombreCompleto || !identificacion) {
+            await flowDynamic('❌ Información incompleta. Volviendo al inicio.')
+            return gotoFlow(flowMenu)
+        }
+
+        // Verificar conexión remota antes de continuar
+        const conexionRemota = await verificarConexionRemota();
+        const estadoConexiones = obtenerEstadoConexiones();
+
+        await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "🔐 Restablecimiento de Contraseña",
+            inicio: Date.now(),
+            esTrabajador: esTrabajador
+        })
+
+        await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "Restablecimiento de Contraseña",
+            inicio: Date.now()
+        }, {
+            numeroControl: myState.numeroControl,
+            nombreCompleto: myState.nombreCompleto,
+            identificacionSubida: myState.identificacionSubida,
+            timestampIdentificacion: myState.timestampIdentificacion
+        })
+
+        const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno"
+        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Reacciona para validar que está listo`
+
+        // Usar la función singleton corregida
+        const enviado = await enviarAlAdmin(mensajeAdmin)
+
+        if (!enviado) {
+            console.error('⚠️ No se pudo notificar al admin sobre restablecimiento de contraseña, continuando proceso...')
+            console.log(`📝 Pendiente de notificar contraseña: ${ctx.from} - ${nombreCompleto}`)
+        }
+
+        // Configurar el timeout para completar el proceso (30 minutos)
+        const timeoutId = setTimeout(async () => {
+            try {
+                const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`
+
+                await flowDynamic([
+                    '✅ *¡Contraseña restablecida exitosamente!* ✅',
+                    '',
+                    '📋 **Tu nueva contraseña temporal:**',
+                    '🔐 *SoporteCC1234$*',
+                    '',
+                    '💡 **Instrucciones para acceder:**',
+                    '*Te recomendamos que este primer inicio de sesión lo realices desde tu computadora*',
+                    '',
+                    '1. Cierra la pestaña actual donde intentabas acceder al correo',
+                    '2. Ingresa a: https://office.com o https://login.microsoftonline.com/?whr=tecnm.mx',
+                    '3. Ingresa tu correo institucional: ' + correoUsuario,
+                    '4. Usa la contraseña temporal: *SoporteCC1234$*',
+                    '5. Te solicitará cambiar la contraseña:',
+                    '   - Contraseña actual: *SoporteCC1234$*',
+                    '   - Nueva contraseña: (crea una personalizada)',
+                    '',
+                    '🔒 **Recomendaciones de seguridad:**',
+                    '• Mínimo 11 caracteres',
+                    '• Incluye mayúsculas, minúsculas, números y símbolos (%$#!&/-_.*+)',
+                    '• No compartas tu contraseña',
+                    '',
+                    '🔙 Escribe *menú* para volver al menú principal.'
+                ].join('\n'))
+
+            } catch (error: any) {
+                console.error('❌ Error enviando mensaje final de contraseña:', error.message)
+                await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.')
+            }
+
+            await limpiarEstado(state)
+            await limpiarEstadoMySQL(ctx.from)
+
+        }, 30 * 60 * 1000) // 30 minutos
+
+        // Guardar el timeoutId en el estado
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                timeoutId: timeoutId,
+                timeoutExpira: Date.now() + (30 * 60 * 1000),
+                tipoProceso: 'CONTRASENA'
+            }
+        })
+
+        // Enviar mensaje inicial de bloqueo
+        await flowDynamic([
+            '⏳ *Proceso de restablecimiento de contraseña iniciado* ⏳',
+            '',
+            '📋 Tu solicitud de restablecimiento de contraseña ha sido recibida y está siendo procesada.',
+            '',
+            '⏰ **Tiempo estimado:** 30 minutos',
+            '',
+            '🔄 **Durante este tiempo:**',
+            '• No es necesario que escribas nada',
+            '• El proceso continuará automáticamente',
+            '• Recibirás notificaciones periódicas',
+            '',
+            '💡 **Para consultar el estado:**',
+            'Escribe *estado* en cualquier momento',
+            '',
+            '¡Gracias por tu paciencia! 🙏'
+        ].join('\n'))
+
+        // Configurar intervalo para notificaciones periódicas
+        const intervalId = setInterval(async () => {
+            try {
+                const estadoActual = await state.getMyState()
+                if (estadoActual?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+                    clearInterval(intervalId)
+                    return
+                }
+
+                const metadata = estadoActual.estadoMetadata || {}
+                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now())
+                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
+
+                if (minutosRestantes > 0) {
+                    await flowDynamic(`⏳ *Actualización restablecimiento de contraseña:* Han pasado ${minutosTranscurridos} minutos. Faltan ${minutosRestantes} minutos.`)
+                }
+            } catch (error) {
+                console.error('❌ Error en notificación periódica de contraseña:', error)
+            }
+        }, 5 * 60 * 1000) // Cada 5 minutos
+
+        // Guardar el intervalId también
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                intervalId: intervalId
+            }
+        })
+
+        // **NO HACER gotoFlow aquí** - Quedarse en este mismo flujo
+        // El flujo principal verificará el estado y mostrará mensajes apropiados
+    })
+
+//===============================================================================================================================================
+/*
 // ==== FLUJO FINAL DE CONTRASEÑA CON RETRY ====
 const flowContrasena = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONTRASENA'))
     .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
@@ -1427,6 +1615,8 @@ const flowContrasena = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONTR
 
         return gotoFlow(flowBloqueoActivo)
     })
+
+    */
 
 // ==== FLUJO FINAL DE AUTENTICADOR ====
 const flowAutenticador = addKeyword<Provider, Database>(utils.setEvent('FLOW_AUTENTICADOR'))
@@ -2023,44 +2213,32 @@ const main = async () => {
     // 3. Obtener handleCtx y httpServer del bot
     const { handleCtx, httpServer } = bot
 
-    // 4. Esperar a que el provider esté listo
-    console.log('⏳ Esperando que el provider esté listo...')
-
-    // Función para verificar si el provider está listo
-    const waitForProvider = async (maxWaitTime: number = 10000): Promise<boolean> => {
-        const startTime = Date.now()
-
-        while (Date.now() - startTime < maxWaitTime) {
-            const botInstance = BotSingleton.getInstance()
-            if (botInstance?.provider?.sendText) {
-                console.log('✅ Provider listo y funcionando')
-                return true
+    // 4. Configurar endpoints HTTP - AHORA SI adapterProvider está definido
+    adapterProvider.server.post(
+        '/v1/messages/admin',
+        handleCtx(async (bot, req, res) => {
+            try {
+                const { number, message } = req.body;
+                
+                // Verificar si es el admin
+                if (number === CONTACTO_ADMIN) {
+                    await bot.provider.sendText(number, message);
+                    res.writeHead(200, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ status: 'sent' }));
+                } else {
+                    res.writeHead(403, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ status: 'unauthorized' }));
+                }
+            } catch (error) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ 
+                    status: 'error', 
+                    error: error.message 
+                }));
             }
-            console.log('⏳ Esperando provider...')
-            await new Promise(resolve => setTimeout(resolve, 1000))
-        }
+        })
+    )
 
-        console.error('❌ Timeout esperando por provider')
-        return false
-    }
-
-    // 5. Esperar que el provider esté listo
-    const providerReady = await waitForProvider(15000)
-
-    if (providerReady) {
-        // 6. Enviar mensaje de prueba con estado de conexiones
-        try {
-            const estadoConexiones = obtenerEstadoConexiones();
-            console.log('🧪 Enviando mensaje de prueba al admin...')
-            await enviarAlAdmin(`🤖 Bot iniciado correctamente\n⏰ Sesión: ${new Date().toLocaleString()}\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n✅ Bot listo para recibir solicitudes`)
-        } catch (error) {
-            console.error('❌ Error enviando mensaje de prueba:', error)
-        }
-    } else {
-        console.error('⚠️ No se pudo enviar mensaje de prueba - provider no disponible')
-    }
-
-    // 7. Configurar endpoints HTTP
     adapterProvider.server.post(
         '/v1/messages',
         handleCtx(async (bot, req, res) => {
@@ -2108,6 +2286,43 @@ const main = async () => {
             return res.end(JSON.stringify({ status: 'ok', blacklist }))
         })
     )
+
+    // 5. Esperar a que el provider esté listo
+    console.log('⏳ Esperando que el provider esté listo...')
+
+    // Función para verificar si el provider está listo
+    const waitForProvider = async (maxWaitTime: number = 10000): Promise<boolean> => {
+        const startTime = Date.now()
+
+        while (Date.now() - startTime < maxWaitTime) {
+            const botInstance = BotSingleton.getInstance()
+            if (botInstance?.provider?.sendText) {
+                console.log('✅ Provider listo y funcionando')
+                return true
+            }
+            console.log('⏳ Esperando provider...')
+            await new Promise(resolve => setTimeout(resolve, 1000))
+        }
+
+        console.error('❌ Timeout esperando por provider')
+        return false
+    }
+
+    // 6. Esperar que el provider esté listo
+    const providerReady = await waitForProvider(15000)
+
+    if (providerReady) {
+        // 7. Enviar mensaje de prueba con estado de conexiones
+        try {
+            const estadoConexiones = obtenerEstadoConexiones();
+            console.log('🧪 Enviando mensaje de prueba al admin...')
+            await enviarAlAdmin(`🤖 Bot iniciado correctamente\n⏰ Sesión: ${new Date().toLocaleString()}\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n✅ Bot listo para recibir solicitudes`)
+        } catch (error) {
+            console.error('❌ Error enviando mensaje de prueba:', error)
+        }
+    } else {
+        console.error('⚠️ No se pudo enviar mensaje de prueba - provider no disponible')
+    }
 
     // 8. Iniciar servidor
     console.log(`🌐 Servidor iniciando en puerto ${PORT}...`)
