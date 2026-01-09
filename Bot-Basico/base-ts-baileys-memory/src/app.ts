@@ -1068,8 +1068,8 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
             return
         }
 
-        // Si no es un saludo, verificar si es una opción del menú (1-8)
-        if (/^[1-8]$/.test(input)) {
+        // Si no es un saludo, verificar si es una opción del menú (1-9)
+        if (/^[1-9]$/.test(input)) {
             console.log(`🎯 Opción del menú detectada: "${input}"`)
             await procesarOpcionMenu(input, flowDynamic, gotoFlow, state)
             return
