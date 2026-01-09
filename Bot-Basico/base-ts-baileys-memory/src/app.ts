@@ -2187,20 +2187,54 @@ const flowEsperaMenuSIE = addKeyword<Provider, Database>(utils.setEvent('ESPERA_
         { capture: true },
         async (ctx, { flowDynamic, gotoFlow, state }) => {
             const input = ctx.body.trim().toLowerCase()
-            
+
             if (input === 'menu' || input === 'menú') {
                 await limpiarEstado(state)
                 return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
             }
-            
+
             await flowDynamic('🔙 Solo escribe *menú* para volver al menú principal.')
             return gotoFlow(flowEsperaMenuSIE)
         }
     )
 
-const flowSIE = addKeyword<Provider, Database>('sie')
-    .addAnswer('📊 Este es el flujo para Sistema SIE (en desarrollo)')
-    .addAnswer('🔙 Escribe *menú* para volver al menú principal.')
+const flowSIE = addKeyword<Provider, Database>(['sie', utils.setEvent('FLOW_SIE')])
+    .addAnswer(
+        '📚 *ACCESO AL SISTEMA SIE*\n\n' +
+        'Por favor selecciona una opción:\n\n' +
+        '1️⃣ Restablecer contraseña de acceso\n' +
+        '2️⃣ No puedo ver mi horario o calificaciones\n\n' +
+        '🔙 Escribe *menú* para volver al menú principal.',
+        { capture: true },
+        async (ctx, { flowDynamic, gotoFlow, state }) => {
+            ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+            if (ctx.from === CONTACTO_ADMIN) return
+
+            const opcion = ctx.body.trim().toLowerCase()
+
+            if (opcion === 'menu' || opcion === 'menú') {
+                return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
+            }
+
+            if (opcion === '1') {
+                await flowDynamic(
+                    '🔐 *RESTABLECIMIENTO DE CONTRASEÑA SIE*\n\n' +
+                    'Para restablecer tu contraseña de acceso al SIE, por favor comunícate con tu *Coordinador de Carrera*. ' +
+                    'Ellos podrán asistirte directamente con el restablecimiento.\n\n' +
+                    '🔙 Escribe *menú* para volver al menú principal.'
+                )
+                return gotoFlow(flowEsperaMenuSIE)
+            }
+
+            if (opcion === '2') {
+                await flowDynamic('📊 Vamos a sincronizar tus datos en el SIE...')
+                return gotoFlow(flowrestablecerSIE)
+            }
+
+            await flowDynamic('❌ Opción no válida. Escribe *1* o *2*.')
+            return gotoFlow(flowSIE)
+        }
+    )
 
 // ==== FLUJO DE INFORMACIÓN ADICIONAL ====
 const flowInfoAdicional = addKeyword<Provider, Database>(utils.setEvent('FLOW_INFO_ADICIONAL'))
@@ -2548,15 +2582,14 @@ const main = async () => {
         // 5. Flujo de bloqueo activo
         flowBloqueoActivo,
 
-        // 6. FLUJOS DE SIE (AHORA REUTILIZAMOS LOS EXISTENTES)
-        flowSIE,
-        flowrestablecerSIE,
-        flowFinSIE,
-        //flowEsperaMenuSIE,            // Opcional: para volver al menú
+        // 6. FLUJOS DE SIE
+        flowSIE,                    // ← ESTE ES EL FLUJO PRINCIPAL DE SIE
+        flowrestablecerSIE,         // ← FLUJO DE SINCRONIZACIÓN
+        flowFinSIE,                 // ← FLUJO FINAL DE SIE
+        flowEsperaMenuSIE,          // ← FLUJO DE ESPERA
 
         // 6. Otros flujos del sistema
         flowDistancia,
-        flowSIE,
         flowInfoAdicional,
         flowInfoCredenciales,
         flowGestionServicios,
