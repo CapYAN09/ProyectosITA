@@ -23,7 +23,12 @@
     "prod:notify": "npm run build && npm run supervise:notify",
     "win:notify": "node supervisor-notifications.cjs",
     "notify:install": "npm install axios",
-    "start:notify": "npm run notify:install && npm run supervise:notify"
+    "start:notify": "npm run notify:install && npm run supervise:notify",
+    "start:enhanced": "npm run build && node enhanced-supervisor.cjs",
+    "monitor": "node bot-monitor.cjs",
+    "health:check": "node health-check.js",
+    "prod:monitor": "npm run build && npm run monitor",
+    "restart:bot": "npm run build && pkill -f \"node dist/app.js\" && sleep 2 && npm run start"
   },
   "keywords": [],
   "dependencies": {

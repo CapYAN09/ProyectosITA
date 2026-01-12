@@ -4,6 +4,10 @@ import { MemoryDB as Database } from '@builderbot/bot'
 import { BaileysProvider as Provider } from '@builderbot/provider-baileys'
 import { CoreClass } from '@builderbot/bot'
 import mysql from 'mysql2/promise'
+import express from 'express';
+
+const healthApp = express();
+const HEALTH_PORT = 3010;
 
 // ==== VARIABLES GLOBALES Y CONFIGURACIONES ====
 const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
@@ -585,6 +589,39 @@ function esImagenValida(ctx: any): boolean {
     }
 
     return false
+}
+
+// ==== MANTENER CONEXIONES ACTIVAS =============
+function mantenerConexionesActivas() {
+    setInterval(async () => {
+        try {
+            console.log('🔄 Manteniendo conexiones a BD activas...');
+            
+            if (conexionMySQL) {
+                await conexionMySQL.execute('SELECT 1').catch(() => {
+                    console.log('🔄 Reconectando MySQL...');
+                    reconectarConexion('MySQL');
+                });
+            }
+            
+            if (conexionActextita) {
+                await conexionActextita.execute('SELECT 1').catch(() => {
+                    console.log('🔄 Reconectando Actextita...');
+                    reconectarConexion('actextita');
+                });
+            }
+            
+            if (conexionSistematickets) {
+                await conexionSistematickets.execute('SELECT 1').catch(() => {
+                    console.log('🔄 Reconectando Sistematickets...');
+                    reconectarConexion('sistematickets');
+                });
+            }
+            
+        } catch (error) {
+            console.error('❌ Error manteniendo conexiones:', error.message);
+        }
+    }, 60 * 1000); // Cada minuto
 }
 
 // ==== FUNCIONES DE ESTADO ====================
@@ -2543,6 +2580,37 @@ const flowDefault = addKeyword<Provider, Database>('')
         // Si llega aquí, redirigir al flowPrincipal para manejar el mensaje
         return gotoFlow(flowPrincipal)
     })
+
+healthApp.get('/health', (req, res) => {
+    const estadoConexiones = obtenerEstadoConexiones();
+    
+    res.status(200).json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        connections: estadoConexiones,
+        memory: {
+            used: process.memoryUsage().heapUsed / 1024 / 1024,
+            total: process.memoryUsage().heapTotal / 1024 / 1024
+        },
+        uptime: process.uptime()
+    });
+});
+
+healthApp.listen(HEALTH_PORT, () => {
+    console.log(`✅ Health endpoint en puerto ${HEALTH_PORT}`);
+});
+
+// Modificar el heartbeat para incluir más información
+setInterval(() => {
+    const estadoConexiones = obtenerEstadoConexiones();
+    const memoryUsage = process.memoryUsage();
+    const heapUsed = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+    const heapTotal = Math.round(memoryUsage.heapTotal / 1024 / 1024);
+    
+    console.log(`💓 Bot activo - ${new Date().toLocaleTimeString('es-MX')}`);
+    console.log(`🧠 Memoria: ${heapUsed}MB / ${heapTotal}MB`);
+    console.log(`🔗 Conexiones:`, estadoConexiones);
+}, 5 * 60 * 1000); // Cada 5 minutos
 
 const main = async () => {
     // Inicializar todas las conexiones a bases de datos

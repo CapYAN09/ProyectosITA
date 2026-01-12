@@ -1,151 +1,62 @@
-const { exec } = require('child_process');
-const { existsSync, appendFileSync, mkdirSync, readFileSync } = require('fs');
-const { join } = require('path');
-const axios = require('axios'); // Para notificaciones HTTP si las necesitas
+const { spawn, exec } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+const axios = require('axios');
 
 // ============= CONFIGURACIÓN =============
-const ADMIN_NUMBER = '5214494877990@s.whatsapp.net'; // Tu número de admin
-const MAX_RESTARTS = 20;
-const LOGS_DIR = join(__dirname, 'logs');
-const ERROR_LOG = join(LOGS_DIR, 'supervisor-error.log');
-const BOT_LOG = join(LOGS_DIR, 'bot-output.log');
-const NOTIFICATIONS_LOG = join(LOGS_DIR, 'notifications.log');
+const BOT_PORT = 3008;
+const HEALTH_PORT = 3010; // Cambiado para evitar conflicto
+const ADMIN_NUMBER = '5214494877990@s.whatsapp.net';
+const MAX_RESTARTS = 12;
+const HEALTH_CHECK_INTERVAL = 45000; // 45 segundos (más que 30s del bot)
+const MAX_INACTIVITY = 4 * 60 * 1000; // 4 minutos
+const LOGS_DIR = path.join(__dirname, 'logs');
+
+// Archivos de log
+const LOG_FILE = path.join(LOGS_DIR, 'supervisor.log');
+const ERROR_LOG = path.join(LOGS_DIR, 'supervisor-errors.log');
+const BOT_OUTPUT = path.join(LOGS_DIR, 'bot-output.log');
+const NOTIFICATIONS_LOG = path.join(LOGS_DIR, 'notifications.log');
 
 let botProcess = null;
-let isShuttingDown = false;
 let restartCount = 0;
-let lastNotificationTime = 0;
-const NOTIFICATION_COOLDOWN = 5 * 60 * 1000; // 5 minutos entre notificaciones
+let lastHealthCheck = Date.now();
+let botStartTime = null;
+let isShuttingDown = false;
+let healthCheckTimer = null;
+let inactivityTimer = null;
 
 // ============= INICIALIZACIÓN =============
 function initLogs() {
     try {
-        if (!existsSync(LOGS_DIR)) {
-            mkdirSync(LOGS_DIR, { recursive: true });
+        if (!fs.existsSync(LOGS_DIR)) {
+            fs.mkdirSync(LOGS_DIR, { recursive: true });
+            console.log('✅ Directorio de logs creado');
         }
+        
+        // Crear archivos si no existen
+        [LOG_FILE, ERROR_LOG, BOT_OUTPUT, NOTIFICATIONS_LOG].forEach(file => {
+            if (!fs.existsSync(file)) {
+                fs.writeFileSync(file, `=== ${path.basename(file)} iniciado ${new Date().toISOString()} ===\n`);
+            }
+        });
     } catch (error) {
         console.error('❌ Error creando logs:', error.message);
     }
 }
 
-// ============= SISTEMA DE NOTIFICACIONES =============
-
-/**
- * Envía notificación al administrador por WhatsApp
- */
-async function notifyAdmin(message, type = 'info') {
-    const now = Date.now();
-    
-    // Evitar notificaciones demasiado frecuentes
-    if (now - lastNotificationTime < NOTIFICATION_COOLDOWN && type !== 'critical') {
-        log(`⏳ Notificación omitida (cooldown): ${message}`, 'info');
-        return false;
-    }
-    
-    lastNotificationTime = now;
-    
-    try {
-        // Log de la notificación
-        log(`📤 Enviando notificación: ${message}`, 'info');
-        
-        // Guardar en archivo de notificaciones
-        appendFileSync(NOTIFICATIONS_LOG, 
-            `[${new Date().toISOString()}] [${type.toUpperCase()}] ${message}\n`, 'utf8');
-        
-        // Intentar enviar al bot si está disponible
-        await sendWhatsAppNotification(message, type);
-        
-        log('✅ Notificación enviada', 'success');
-        return true;
-        
-    } catch (error) {
-        log(`❌ Error enviando notificación: ${error.message}`, 'error');
-        return false;
-    }
-}
-
-/**
- * Envía mensaje de WhatsApp usando el bot (si está activo)
- */
-async function sendWhatsAppNotification(message, type) {
-    // Emojis según el tipo
-    const emojis = {
-        'critical': '🚨',
-        'error': '❌',
-        'warn': '⚠️',
-        'info': 'ℹ️',
-        'success': '✅',
-        'start': '🚀',
-        'restart': '🔄'
-    };
-    
-    const emoji = emojis[type] || '📢';
-    const fullMessage = `${emoji} *SUPERVISOR BOT ITA*\n\n${message}\n\n🕐 ${new Date().toLocaleString('es-MX')}`;
-    
-    // Intentar enviar usando el endpoint HTTP del bot
-    try {
-        // Si tu bot tiene un endpoint HTTP para recibir mensajes
-        const response = await axios.post('http://localhost:3008/v1/messages', {
-            number: ADMIN_NUMBER,
-            message: fullMessage
-        }, { timeout: 10000 });
-        
-        return response.status === 200;
-        
-    } catch (error) {
-        // Si falla, intentar método alternativo
-        log(`⚠️ No se pudo enviar por HTTP: ${error.message}`, 'warn');
-        return await tryAlternativeNotification(fullMessage);
-    }
-}
-
-/**
- * Método alternativo de notificación
- */
-async function tryAlternativeNotification(message) {
-    try {
-        // Opción 1: Guardar en archivo para que otro proceso lo envíe
-        const pendingFile = join(LOGS_DIR, 'pending-notifications.json');
-        let pending = [];
-        
-        if (existsSync(pendingFile)) {
-            pending = JSON.parse(readFileSync(pendingFile, 'utf8'));
-        }
-        
-        pending.push({
-            timestamp: new Date().toISOString(),
-            message: message,
-            to: ADMIN_NUMBER
-        });
-        
-        // Mantener solo las últimas 10 notificaciones pendientes
-        if (pending.length > 10) {
-            pending = pending.slice(-10);
-        }
-        
-        appendFileSync(pendingFile, JSON.stringify(pending, null, 2), 'utf8');
-        log('💾 Notificación guardada para envío posterior', 'info');
-        
-        return true;
-        
-    } catch (error) {
-        log(`❌ Método alternativo falló: ${error.message}`, 'error');
-        return false;
-    }
-}
-
 // ============= LOGGING MEJORADO =============
-function log(message, type = 'info') {
-    const timestamp = new Date().toISOString();
-    const logMessage = `[${timestamp}] [${type.toUpperCase()}] ${message}`;
+function log(message, type = 'INFO') {
+    const timestamp = new Date().toLocaleString('es-MX');
+    const logMessage = `[${timestamp}] [${type}] ${message}`;
     
-    // Colores en consola
+    // Colores para consola
     const colors = {
-        'error': '\x1b[31m', // Rojo
-        'warn': '\x1b[33m',  // Amarillo
-        'success': '\x1b[32m', // Verde
-        'info': '\x1b[36m',   // Cyan
-        'critical': '\x1b[41m\x1b[37m' // Fondo rojo, texto blanco
+        'ERROR': '\x1b[31m',    // Rojo
+        'WARN': '\x1b[33m',     // Amarillo
+        'SUCCESS': '\x1b[32m',  // Verde
+        'INFO': '\x1b[36m',     // Cyan
+        'CRITICAL': '\x1b[41m\x1b[37m' // Fondo rojo, texto blanco
     };
     
     const color = colors[type] || '';
@@ -155,42 +66,203 @@ function log(message, type = 'info') {
     
     // Guardar en archivo
     try {
-        const logFile = type === 'error' || type === 'critical' ? ERROR_LOG : BOT_LOG;
-        appendFileSync(logFile, logMessage + '\n', 'utf8');
+        fs.appendFileSync(LOG_FILE, logMessage + '\n', 'utf8');
+        
+        if (type === 'ERROR' || type === 'CRITICAL') {
+            fs.appendFileSync(ERROR_LOG, logMessage + '\n', 'utf8');
+        }
+        
+        // También guardar en output del bot si es relevante
+        if (message.includes('[BOT]') || message.includes('💓') || message.includes('✅ Bot')) {
+            fs.appendFileSync(BOT_OUTPUT, logMessage + '\n', 'utf8');
+        }
     } catch (error) {
-        // Silencioso
+        // Fallback a consola si no se puede escribir en archivo
+        console.error('❌ Error escribiendo log:', error.message);
     }
+}
+
+// ============= VERIFICACIÓN DE SALUD =============
+
+/**
+ * Verifica si el bot está respondiendo
+ */
+async function checkBotHealth() {
+    try {
+        // Intentar primero con el puerto de health dedicado
+        const response = await axios.get(`http://localhost:${HEALTH_PORT}/health`, {
+            timeout: 15000
+        });
+        
+        if (response.status === 200) {
+            lastHealthCheck = Date.now();
+            const data = response.data;
+            const uptime = data.uptime || 0;
+            const status = data.status || 'unknown';
+            
+            log(`✅ Health OK: ${status}, uptime: ${Math.floor(uptime)}s, mem: ${data.memory?.used || 0}MB`, 'SUCCESS');
+            return true;
+        }
+        
+        log(`⚠️ Health responded ${response.status}`, 'WARN');
+        return false;
+        
+    } catch (error) {
+        // Si falla health, intentar con el endpoint del bot
+        try {
+            const botResponse = await axios.get(`http://localhost:${BOT_PORT}/health`, {
+                timeout: 10000
+            });
+            
+            if (botResponse.status === 200) {
+                lastHealthCheck = Date.now();
+                log('✅ Bot responding on main port', 'SUCCESS');
+                return true;
+            }
+        } catch (botError) {
+            // Ambos fallaron
+            log(`❌ Health check failed: ${error.code || error.message}`, 'ERROR');
+            
+            // Verificar si es error de conexión o timeout
+            if (error.code === 'ECONNREFUSED') {
+                log('🔌 Conexión rechazada - Bot no está escuchando', 'ERROR');
+            } else if (error.code === 'ETIMEDOUT') {
+                log('⏱️ Timeout - Bot no responde', 'WARN');
+            }
+        }
+        
+        return false;
+    }
+}
+
+/**
+ * Verifica inactividad del bot
+ */
+function checkInactivity() {
+    if (!botStartTime || !botProcess || botProcess.exitCode !== null) {
+        return false;
+    }
+    
+    const timeSinceLastCheck = Date.now() - lastHealthCheck;
+    const minutesInactive = Math.floor(timeSinceLastCheck / 60000);
+    
+    if (timeSinceLastCheck > MAX_INACTIVITY) {
+        const totalUptime = Math.floor((Date.now() - botStartTime) / 1000);
+        log(`⚠️ Bot inactivo ${minutesInactive}min, uptime total: ${totalUptime}s`, 'WARN');
+        return true;
+    }
+    
+    return false;
+}
+
+// ============= NOTIFICACIONES =============
+
+/**
+ * Envía notificación al administrador
+ */
+async function notifyAdmin(message, type = 'info') {
+    const timestamp = new Date().toLocaleString('es-MX');
+    const emojis = {
+        'critical': '🚨',
+        'error': '❌',
+        'warn': '⚠️',
+        'info': 'ℹ️',
+        'success': '✅',
+        'start': '🚀',
+        'restart': '🔄',
+        'health': '💓'
+    };
+    
+    const emoji = emojis[type] || '📢';
+    const fullMessage = `${emoji} *SUPERVISOR BOT ITA*\n\n${message}\n\n🕐 ${timestamp}`;
+    
+    try {
+        // Guardar en log de notificaciones
+        fs.appendFileSync(NOTIFICATIONS_LOG, 
+            `[${new Date().toISOString()}] [${type.toUpperCase()}] ${message}\n`, 'utf8');
+        
+        log(`📤 Notificando admin: ${type}`, 'INFO');
+        
+        // Intentar enviar al bot si está activo
+        if (botProcess && botProcess.exitCode === null) {
+            try {
+                // Usar el endpoint del bot para enviar mensajes
+                const response = await axios.post(`http://localhost:${BOT_PORT}/v1/messages`, {
+                    number: ADMIN_NUMBER,
+                    message: fullMessage
+                }, { 
+                    timeout: 15000,
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                if (response.status === 200) {
+                    log('✅ Notificación enviada', 'SUCCESS');
+                    return true;
+                }
+            } catch (error) {
+                log(`⚠️ Error enviando notificación: ${error.message}`, 'WARN');
+                
+                // Guardar notificación pendiente
+                const pendingFile = path.join(LOGS_DIR, 'pending-notifications.txt');
+                fs.appendFileSync(pendingFile, 
+                    `[${timestamp}] ${type.toUpperCase()}: ${message.substring(0, 100)}...\n`, 'utf8');
+            }
+        }
+    } catch (error) {
+        log(`❌ Error en notificación: ${error.message}`, 'ERROR');
+    }
+    
+    return false;
 }
 
 // ============= FUNCIONES PRINCIPALES =============
 
 async function compileBot() {
     return new Promise((resolve) => {
-        log('🔨 Compilando TypeScript con Rollup...', 'info');
+        log('🔨 Compilando bot...', 'INFO');
         
-        const buildProcess = exec('npm run build', (error, stdout, stderr) => {
-            if (error) {
-                log(`❌ Error compilando: ${error.message}`, 'error');
-                if (stderr) {
-                    log(`📝 Detalles: ${stderr}`, 'error');
-                }
-                
-                // Notificar al admin
-                notifyAdmin(`❌ Error de compilación\n📝 ${error.message.substring(0, 100)}...`, 'error');
-                
-                resolve(false);
-            } else {
-                log('✅ Compilación exitosa', 'success');
-                resolve(true);
+        const buildProcess = spawn('npm', ['run', 'build'], {
+            cwd: __dirname,
+            stdio: 'pipe',
+            shell: true
+        });
+        
+        let output = '';
+        let hasError = false;
+        
+        buildProcess.stdout.on('data', (data) => {
+            const text = data.toString().trim();
+            if (text) {
+                log(`[BUILD] ${text}`, 'INFO');
+                output += text + '\n';
             }
         });
         
-        buildProcess.stdout.on('data', (data) => {
-            log(`[BUILD] ${data.toString().trim()}`, 'info');
+        buildProcess.stderr.on('data', (data) => {
+            const text = data.toString().trim();
+            if (text && !text.includes('warning')) {
+                log(`[BUILD-ERR] ${text}`, 'ERROR');
+                output += `ERROR: ${text}\n`;
+                hasError = true;
+            }
         });
         
-        buildProcess.stderr.on('data', (data) => {
-            log(`[BUILD-ERR] ${data.toString().trim()}`, 'error');
+        buildProcess.on('close', (code) => {
+            if (code === 0 && !hasError) {
+                log('✅ Compilación exitosa', 'SUCCESS');
+                resolve(true);
+            } else {
+                log(`❌ Compilación falló (código ${code})`, 'ERROR');
+                if (output.length > 0) {
+                    log(`📝 Últimos 200 caracteres: ${output.slice(-200)}`, 'ERROR');
+                }
+                resolve(false);
+            }
+        });
+        
+        buildProcess.on('error', (error) => {
+            log(`❌ Error ejecutando build: ${error.message}`, 'ERROR');
+            resolve(false);
         });
     });
 }
@@ -199,154 +271,176 @@ async function startBot() {
     if (isShuttingDown) return;
     
     restartCount++;
+    botStartTime = Date.now();
+    lastHealthCheck = Date.now();
     
-    // Notificar inicio/reinicio
+    log(`\n══════════════════════════════════════════════════`, 'INFO');
+    log(`🔄 REINICIO #${restartCount} - ${new Date().toLocaleString('es-MX')}`, 'INFO');
+    log(`══════════════════════════════════════════════════`, 'INFO');
+    
+    // Notificar inicio
     if (restartCount === 1) {
         await notifyAdmin(
-            `🚀 *Supervisor iniciado*\n📁 ${process.cwd()}\n👤 ${process.env.USERNAME || 'Desconocido'}\n🖥️ ${process.platform} ${process.arch}`,
+            `🚀 *Supervisor iniciado*\n📁 ${path.basename(__dirname)}\n🖥️ ${process.platform} ${process.arch}\n👤 ${process.env.USERNAME || 'system'}`,
             'start'
         );
-    } else {
+    } else if (restartCount > 1) {
         await notifyAdmin(
-            `🔄 *Reinicio #${restartCount}*\nEl bot se detuvo y está reiniciándose...\n⏳ Próximo intento automático`,
+            `🔄 *Reinicio automático #${restartCount}*\nEl bot se reinició por seguridad\n⏰ ${new Date().toLocaleString('es-MX')}`,
             'restart'
         );
     }
     
-    log(`\n🔄 Intento #${restartCount}`, 'info');
-    
-    // 1. Compilar
+    // 1. Compilar (opcional, comentar si ya está compilado)
     const compiled = await compileBot();
     if (!compiled) {
-        log('❌ Falló la compilación, reintentando...', 'error');
-        scheduleRestart();
-        return;
+        log('⚠️ Continuando con versión precompilada', 'WARN');
     }
     
     // 2. Verificar archivo compilado
-    const appPath = join(__dirname, 'dist', 'app.js');
-    if (!existsSync(appPath)) {
-        log(`❌ Archivo no encontrado: ${appPath}`, 'error');
-        await notifyAdmin(`❌ Archivo compilado no encontrado\n📂 ${appPath}`, 'error');
+    const appPath = path.join(__dirname, 'dist', 'app.js');
+    if (!fs.existsSync(appPath)) {
+        log(`❌ Archivo no encontrado: ${appPath}`, 'ERROR');
+        await notifyAdmin('❌ Error: Archivo del bot no encontrado', 'error');
         scheduleRestart();
         return;
     }
     
-    log(`🚀 Ejecutando: ${appPath}`, 'info');
-    
     // 3. Detener proceso anterior si existe
-    if (botProcess) {
-        log('⚠️ Terminando proceso anterior...', 'warn');
+    if (botProcess && botProcess.exitCode === null) {
+        log('🛑 Terminando proceso anterior...', 'WARN');
         try {
             botProcess.kill('SIGTERM');
+            
+            // Esperar 2 segundos
             await new Promise(resolve => setTimeout(resolve, 2000));
             
             if (botProcess.exitCode === null) {
+                log('⚠️ Proceso no responde, forzando terminación...', 'WARN');
                 botProcess.kill('SIGKILL');
             }
         } catch (error) {
-            // Ignorar
+            log(`⚠️ Error terminando proceso: ${error.message}`, 'WARN');
         }
+        botProcess = null;
     }
     
-    // 4. Ejecutar el bot
-    const command = `node "${appPath}"`;
-    log(`📝 Comando: ${command}`, 'info');
+    // 4. Iniciar nuevo proceso
+    log(`🚀 Iniciando bot: node "${appPath}"`, 'INFO');
     
-    botProcess = exec(command, {
+    botProcess = spawn('node', [appPath], {
         cwd: __dirname,
         env: {
             ...process.env,
             NODE_ENV: 'production',
             SUPERVISOR: 'true',
             RESTART_COUNT: restartCount.toString(),
-            WINDOWS_USER: process.env.USERNAME || 'unknown'
+            PORT: BOT_PORT.toString(),
+            HEALTH_PORT: HEALTH_PORT.toString()
         },
-        maxBuffer: 10 * 1024 * 1024
+        stdio: ['pipe', 'pipe', 'pipe']
     });
     
-    // Capturar salida
+    // Capturar salida del bot
     botProcess.stdout.on('data', (data) => {
         const output = data.toString().trim();
         if (output) {
-            log(`[BOT] ${output}`, 'info');
+            log(`[BOT] ${output}`, 'INFO');
+            
+            // Actualizar timestamp si vemos actividad
+            if (output.includes('💓 Bot activo') || 
+                output.includes('✅') || 
+                output.includes('🚀') ||
+                output.includes('🌐 Servidor iniciando')) {
+                lastHealthCheck = Date.now();
+            }
         }
     });
     
     botProcess.stderr.on('data', (data) => {
         const error = data.toString().trim();
-        if (error) {
-            log(`[BOT-ERR] ${error}`, 'error');
+        if (error && !error.includes('DeprecationWarning') && !error.includes('ExperimentalWarning')) {
+            log(`[BOT-ERROR] ${error}`, 'ERROR');
         }
     });
     
-    // Manejar cierre
-    botProcess.on('close', async (code, signal) => {
-        if (isShuttingDown) return;
+    // Manejar cierre del proceso
+    botProcess.on('close', (code, signal) => {
+        const uptime = botStartTime ? Math.floor((Date.now() - botStartTime) / 1000) : 0;
         
         if (code === 0) {
-            log(`✅ Bot cerrado normalmente (código: ${code})`, 'success');
-            await notifyAdmin(
-                `✅ Bot cerrado correctamente\n📊 Código: ${code}\n🔁 Se reiniciará automáticamente`,
-                'info'
-            );
+            log(`✅ Bot cerrado normalmente después de ${uptime}s`, 'SUCCESS');
         } else {
-            log(`❌ Bot terminó con código: ${code}, señal: ${signal || 'N/A'}`, 'error');
+            log(`❌ Bot falló después de ${uptime}s: código ${code}, señal ${signal || 'N/A'}`, 'ERROR');
             
-            let errorType = 'error';
-            let errorMessage = `❌ Bot falló\n📊 Código: ${code}`;
-            
-            if (code === 1) {
-                errorType = 'critical';
-                errorMessage += '\n🚨 Error crítico - Revisar logs';
-            } else if (code === null && signal) {
-                errorMessage += `\n⚠️ Señal: ${signal}`;
+            // Verificar si alcanzamos el máximo de reinicios
+            if (restartCount >= MAX_RESTARTS) {
+                const criticalMsg = `🛑 MÁXIMO DE REINICIOS ALCANZADO (${MAX_RESTARTS})\n🚨 INTERVENCIÓN MANUAL REQUERIDA\n📊 Total fallos: ${restartCount}`;
+                
+                log(criticalMsg, 'CRITICAL');
+                notifyAdmin(criticalMsg, 'critical').then(() => {
+                    log('🛑 Supervisor detenido por demasiados reinicios', 'CRITICAL');
+                    process.exit(1);
+                });
+                return;
             }
-            
-            await notifyAdmin(errorMessage, errorType);
         }
         
-        if (restartCount >= MAX_RESTARTS) {
-            const criticalMsg = `🛑 MÁXIMO DE REINICIOS ALCANZADO\n🚨 Se requieren ${restartCount} intervención manual\n📝 Revisa logs en: ${LOGS_DIR}`;
-            
-            log(criticalMsg, 'critical');
-            await notifyAdmin(criticalMsg, 'critical');
-            
-            process.exit(1);
-        }
-        
+        botProcess = null;
         scheduleRestart();
     });
     
-    botProcess.on('error', async (error) => {
-        log(`❌ Error ejecutando bot: ${error.message}`, 'error');
-        await notifyAdmin(`❌ Error ejecutando bot\n📝 ${error.message}`, 'error');
+    botProcess.on('error', (error) => {
+        log(`❌ Error ejecutando bot: ${error.message}`, 'ERROR');
+        botProcess = null;
         scheduleRestart();
     });
     
-    // Verificar inicio exitoso
+    // Verificar que el bot inició correctamente
     setTimeout(async () => {
         if (botProcess && botProcess.exitCode === null) {
-            log('✅ Bot iniciado y funcionando correctamente', 'success');
+            log('✅ Proceso del bot iniciado', 'SUCCESS');
             
-            await notifyAdmin(
-                `✅ Bot iniciado exitosamente\n🔄 Reinicio #${restartCount}\n📊 Estado: Activo y monitoreado\n⏰ ${new Date().toLocaleString('es-MX')}`,
-                'success'
-            );
-            
-            log('📊 Monitoreo activo - El bot se reiniciará automáticamente si falla', 'info');
+            // Esperar más tiempo para que el bot se inicialice completamente
+            setTimeout(async () => {
+                if (botProcess && botProcess.exitCode === null) {
+                    const isHealthy = await checkBotHealth();
+                    
+                    if (isHealthy) {
+                        const uptime = Math.floor((Date.now() - botStartTime) / 1000);
+                        await notifyAdmin(
+                            `✅ Bot iniciado exitosamente\n🔄 Reinicio #${restartCount}\n⏰ Uptime: ${uptime}s\n📈 Estado: Activo y respondiendo`,
+                            'success'
+                        );
+                        log('🎉 Bot completamente inicializado y respondiendo', 'SUCCESS');
+                    } else {
+                        log('⚠️ Bot iniciado pero no responde a health check', 'WARN');
+                        // Esperar un poco más y volver a intentar
+                        setTimeout(async () => {
+                            if (botProcess && botProcess.exitCode === null) {
+                                const retryHealthy = await checkBotHealth();
+                                if (!retryHealthy) {
+                                    log('❌ Bot sigue sin responder, será reiniciado', 'ERROR');
+                                    botProcess.kill('SIGTERM');
+                                }
+                            }
+                        }, 30000);
+                    }
+                }
+            }, 20000); // Esperar 20 segundos para inicialización completa
         }
-    }, 8000); // Más tiempo para que el bot inicialice completamente
+    }, 5000);
 }
 
 function scheduleRestart() {
     if (isShuttingDown) return;
     
-    const baseDelay = 5000;
-    const maxDelay = 60000;
-    const delay = Math.min(baseDelay * Math.pow(1.5, restartCount - 1), maxDelay);
+    const baseDelay = 10000; // 10 segundos base
+    const maxDelay = 120000; // 2 minutos máximo
+    const delay = Math.min(baseDelay * Math.pow(1.3, restartCount - 1), maxDelay);
+    const seconds = Math.round(delay / 1000);
     
-    log(`⏳ Próximo intento en ${Math.round(delay / 1000)} segundos...`, 'info');
+    log(`⏳ Próximo intento en ${seconds} segundos... (${new Date(Date.now() + delay).toLocaleTimeString('es-MX')})`, 'INFO');
     
     setTimeout(() => {
         if (!isShuttingDown) {
@@ -355,29 +449,89 @@ function scheduleRestart() {
     }, delay);
 }
 
+// ============= MONITOREO CONTINUO =============
+
+function startHealthMonitoring() {
+    // Health check periódico
+    healthCheckTimer = setInterval(async () => {
+        if (botProcess && botProcess.exitCode === null) {
+            const isHealthy = await checkBotHealth();
+            
+            if (!isHealthy) {
+                log('⚠️ Health check falló', 'WARN');
+                
+                // Verificar inactividad
+                if (checkInactivity()) {
+                    log('🔴 Bot inactivo, reiniciando...', 'ERROR');
+                    
+                    await notifyAdmin(
+                        `⚠️ Bot inactivo detectado\n🔄 Reiniciando automáticamente\n📊 Uptime: ${Math.floor((Date.now() - botStartTime) / 1000)}s`,
+                        'warn'
+                    );
+                    
+                    if (botProcess) {
+                        botProcess.kill('SIGTERM');
+                    }
+                }
+            }
+        } else if (!botProcess && restartCount === 0) {
+            // Si no hay proceso y es el primer intento
+            log('⚠️ No hay proceso del bot activo, iniciando...', 'WARN');
+            startBot();
+        }
+    }, HEALTH_CHECK_INTERVAL);
+    
+    // Reporte de estado periódico
+    setInterval(() => {
+        if (botProcess && botProcess.exitCode === null) {
+            const uptime = botStartTime ? Math.floor((Date.now() - botStartTime) / 1000) : 0;
+            const hours = Math.floor(uptime / 3600);
+            const minutes = Math.floor((uptime % 3600) / 60);
+            const seconds = uptime % 60;
+            
+            log(`📊 Estado: Activo ${hours}h ${minutes}m ${seconds}s | Reinicios: ${restartCount} | Mem: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`, 'INFO');
+            
+            // Reporte cada 4 horas
+            if (hours > 0 && hours % 4 === 0 && minutes < 5) {
+                notifyAdmin(
+                    `📊 Reporte de estado cada 4h\n⏰ Uptime: ${hours}h ${minutes}m\n🔄 Reinicios: ${restartCount}\n✅ Estado: Activo\n🧠 Memoria: ${Math.round(process.memoryUsage().heapUsed / 1024 / 1024)}MB`,
+                    'health'
+                );
+            }
+        }
+    }, 5 * 60 * 1000); // Cada 5 minutos
+}
+
 async function gracefulShutdown() {
     if (isShuttingDown) return;
     
     isShuttingDown = true;
-    log('\n🛑 Iniciando apagado controlado...', 'warn');
+    log('\n══════════════════════════════════════════════════', 'WARN');
+    log('🛑 INICIANDO APAGADO CONTROLADO', 'WARN');
+    log('══════════════════════════════════════════════════', 'WARN');
     
-    // Notificar apagado
+    // Limpiar timers
+    if (healthCheckTimer) clearInterval(healthCheckTimer);
+    if (inactivityTimer) clearInterval(inactivityTimer);
+    
     await notifyAdmin(
-        `🛑 Supervisor deteniéndose\n👤 Usuario: ${process.env.USERNAME || 'Desconocido'}\n📊 Reinicios realizados: ${restartCount}\n⏰ ${new Date().toLocaleString('es-MX')}`,
+        `🛑 Supervisor deteniéndose\n📊 Reinicios realizados: ${restartCount}\n⏰ ${new Date().toLocaleString('es-MX')}`,
         'warn'
     );
     
-    // 1. Detener el bot
+    // Detener el bot si está activo
     if (botProcess && botProcess.exitCode === null) {
-        log('🛑 Enviando señal de terminación al bot...', 'warn');
+        log('🛑 Terminando bot...', 'WARN');
         botProcess.kill('SIGTERM');
         
         await new Promise((resolve) => {
             const timeout = setTimeout(() => {
-                log('⚠️ Forzando terminación del bot...', 'warn');
-                if (botProcess) botProcess.kill('SIGKILL');
+                if (botProcess) {
+                    log('⚠️ Forzando terminación del bot...', 'WARN');
+                    botProcess.kill('SIGKILL');
+                }
                 resolve();
-            }, 10000);
+            }, 8000);
             
             botProcess.on('close', () => {
                 clearTimeout(timeout);
@@ -386,116 +540,70 @@ async function gracefulShutdown() {
         });
     }
     
-    // 2. Mensaje final
-    log('✅ Supervisor detenido correctamente', 'success');
-    log(`📊 Estadísticas: ${restartCount} reinicios realizados`, 'info');
-    log('👋 Hasta luego!', 'info');
+    log('✅ Supervisor detenido correctamente', 'SUCCESS');
+    log(`📊 Estadísticas finales: ${restartCount} reinicios realizados`, 'INFO');
+    log('👋 Hasta luego!', 'INFO');
     
     process.exit(0);
 }
 
 function setupSignalHandlers() {
     process.on('SIGINT', () => {
-        log('\n🛑 Señal SIGINT recibida (Ctrl+C)', 'warn');
+        log('\n🛑 Señal SIGINT recibida (Ctrl+C)', 'WARN');
         gracefulShutdown();
     });
     
     process.on('SIGTERM', () => {
-        log('\n🛑 Señal SIGTERM recibida', 'warn');
+        log('\n🛑 Señal SIGTERM recibida', 'WARN');
         gracefulShutdown();
     });
     
     process.on('SIGHUP', () => {
-        log('\n🛑 Señal SIGHUP recibida (cierre de ventana)', 'warn');
+        log('\n🛑 Señal SIGHUP recibida (terminal cerrado)', 'WARN');
         gracefulShutdown();
     });
     
     process.on('uncaughtException', async (error) => {
-        log(`💥 Error no capturado: ${error.message}`, 'critical');
-        log(error.stack, 'error');
+        log(`💥 ERROR NO CAPTURADO: ${error.message}`, 'CRITICAL');
+        log(error.stack, 'ERROR');
         
         await notifyAdmin(
-            `💥 ERROR CRÍTICO EN SUPERVISOR\n📝 ${error.message.substring(0, 150)}...\n🚨 El supervisor se detendrá`,
+            `💥 ERROR CRÍTICO EN SUPERVISOR\n📝 ${error.message.substring(0, 100)}...`,
             'critical'
         );
         
-        setTimeout(() => process.exit(1), 1000);
+        setTimeout(() => process.exit(1), 2000);
     });
     
-    process.on('unhandledRejection', async (reason) => {
-        log(`💥 Promise rechazada no manejada: ${reason}`, 'error');
-        
-        await notifyAdmin(
-            `⚠️ Promise rechazada en supervisor\n📝 ${String(reason).substring(0, 100)}...`,
-            'warn'
-        );
+    process.on('unhandledRejection', (reason, promise) => {
+        log(`💥 PROMISE RECHAZADA NO MANEJADA: ${reason}`, 'ERROR');
     });
-}
-
-function startMonitoring() {
-    // Monitoreo cada hora para reporte de estado
-    setInterval(async () => {
-        if (botProcess && botProcess.exitCode === null) {
-            const now = new Date();
-            const uptime = process.uptime();
-            const hours = Math.floor(uptime / 3600);
-            const minutes = Math.floor((uptime % 3600) / 60);
-            
-            log(`📊 Estado: Bot activo por ${hours}h ${minutes}m, Reinicios: ${restartCount}`, 'info');
-            log(`🕐 Hora actual: ${now.toLocaleTimeString('es-MX')}`, 'info');
-            
-            // Reporte de estado cada 6 horas
-            if (hours % 6 === 0 && minutes === 0) {
-                await notifyAdmin(
-                    `📊 Reporte de estado cada 6h\n⏰ Uptime: ${hours}h ${minutes}m\n🔄 Reinicios: ${restartCount}\n✅ Estado: Activo y estable\n🕐 ${now.toLocaleString('es-MX')}`,
-                    'info'
-                );
-            }
-            
-            if (restartCount > 5) {
-                log('⚠️ Muchos reinicios, revisar posibles problemas', 'warn');
-            }
-        }
-    }, 60 * 60 * 1000); // Cada hora
-    
-    // Verificación de salud cada 30 minutos
-    setInterval(() => {
-        if (botProcess && botProcess.exitCode !== null) {
-            log('⚠️ Proceso del bot no está activo pero debería', 'warn');
-        }
-    }, 30 * 60 * 1000);
 }
 
 // ============= INICIO =============
 async function main() {
     console.clear();
-    console.log('\x1b[36m%s\x1b[0m', '╔══════════════════════════════════════════════════╗');
-    console.log('\x1b[36m%s\x1b[0m', '║     SUPERVISOR WHATSAPP BOT ITA - NOTIFICACIONES║');
-    console.log('\x1b[36m%s\x1b[0m', '║     Windows Edition - Centro de Cómputo         ║');
-    console.log('\x1b[36m%s\x1b[0m', '╚══════════════════════════════════════════════════╝');
+    console.log('\x1b[36m%s\x1b[0m', '╔══════════════════════════════════════════════════════╗');
+    console.log('\x1b[36m%s\x1b[0m', '║       SUPERVISOR BOT ITA - NOTIFICACIONES v2.1      ║');
+    console.log('\x1b[36m%s\x1b[0m', '║       Monitoreo 24/7 con reinicio automático       ║');
+    console.log('\x1b[36m%s\x1b[0m', '╚══════════════════════════════════════════════════════╝');
     console.log('');
     
-    log('🚀 Iniciando supervisor con notificaciones...', 'info');
-    log(`📁 Directorio: ${__dirname}`, 'info');
-    log(`👤 Usuario: ${process.env.USERNAME || 'Desconocido'}`, 'info');
-    log(`📞 Admin: ${ADMIN_NUMBER}`, 'info');
-    log(`🖥️  Sistema: ${process.platform} ${process.arch}`, 'info');
-    log(`⚙️  Node.js: ${process.version}`, 'info');
+    log('🚀 Iniciando supervisor de notificaciones...', 'INFO');
+    log(`📁 Directorio: ${__dirname}`, 'INFO');
+    log(`🌐 Puerto bot: ${BOT_PORT}`, 'INFO');
+    log(`🏥 Puerto health: ${HEALTH_PORT}`, 'INFO');
+    log(`📞 Admin: ${ADMIN_NUMBER}`, 'INFO');
+    log(`🔍 Health checks: cada ${HEALTH_CHECK_INTERVAL / 1000}s`, 'INFO');
+    log(`⏱️  Inactividad máxima: ${MAX_INACTIVITY / 60000} minutos`, 'INFO');
+    log(`🔄 Máximo de reinicios: ${MAX_RESTARTS}`, 'INFO');
     
-    // Instalar axios si no está
-    try {
-        require('axios');
-    } catch {
-        log('📦 Instalando axios para notificaciones...', 'info');
-        exec('npm install axios', { silent: true });
-    }
-    
-    // Inicializar
     initLogs();
     setupSignalHandlers();
-    startMonitoring();
+    startHealthMonitoring();
     
-    // Iniciar bot después de 3 segundos
+    // Iniciar el bot después de 3 segundos
+    log('⏳ Iniciando bot en 3 segundos...', 'INFO');
     setTimeout(() => {
         startBot();
     }, 3000);
@@ -503,20 +611,16 @@ async function main() {
 
 // ============= EJECUCIÓN =============
 if (require.main === module) {
-    main().catch(async (error) => {
-        log(`💥 Error fatal en main: ${error.message}`, 'critical');
-        log(error.stack, 'error');
-        
-        // Intentar notificar el error fatal
-        try {
-            await notifyAdmin(
-                `💥 ERROR FATAL EN SUPERVISOR\n📝 ${error.message}\n🚨 El supervisor no pudo iniciar`,
-                'critical'
-            );
-        } catch {
-            // Si falla, al menos mostrar en consola
-        }
-        
+    main().catch((error) => {
+        console.error('💥 ERROR FATAL INICIANDO SUPERVISOR:', error);
         process.exit(1);
     });
 }
+
+// Exportar funciones para testing
+module.exports = {
+    checkBotHealth,
+    startBot,
+    gracefulShutdown,
+    notifyAdmin
+};
