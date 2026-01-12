@@ -655,11 +655,7 @@ async function actualizarEstado(ctx: any, state: any, nuevoEstado: string, metad
 
         const userPhone = ctx.from
 
-        const metadataLimpio: any = {
-            ultimaActualizacion: Date.now()
-        }
-
-        // Copiar metadata correctamente
+        const metadataLimpio: any = {}
         Object.keys(metadata).forEach(key => {
             const valor = metadata[key]
             if (valor === null ||
@@ -688,10 +684,7 @@ async function actualizarEstado(ctx: any, state: any, nuevoEstado: string, metad
             }
         })
 
-        // IMPORTANTE: Si es proceso largo, asegurar que tenga 'inicio'
-        if (nuevoEstado === ESTADOS_USUARIO.EN_PROCESO_LARGO && !metadataLimpio.inicio) {
-            metadataLimpio.inicio = Date.now();
-        }
+        metadataLimpio.ultimaActualizacion = Date.now()
 
         await state.update({
             estadoUsuario: nuevoEstado,
@@ -735,18 +728,6 @@ async function limpiarEstado(state: any) {
 async function redirigirAMenuConLimpieza(ctx: any, state: any, gotoFlow: any, flowDynamic: any) {
     try {
         await limpiarEstado(state)
-
-        // IMPORTANTE: Limpiar específicamente el tipoProceso de CIAPAGOS
-        await state.update({
-            estadoUsuario: ESTADOS_USUARIO.LIBRE,
-            tipoProceso: null, // Limpiar el tipoProceso
-            esTrabajador: null,
-            numeroControl: null,
-            nombreCompleto: null,
-            correoInstitucional: null,
-            identificacionSubida: false
-        })
-
         return gotoFlow(flowMenu)
     } catch (error) {
         console.error('❌ Error en redirección al menú:', error)
@@ -755,140 +736,60 @@ async function redirigirAMenuConLimpieza(ctx: any, state: any, gotoFlow: any, fl
     }
 }
 
-// =====================================================================================
-// FUNCIÓN MEJORADA PARA VERIFICAR ESTADO BLOQUEADO - VERSIÓN CORREGIDA
-// =====================================================================================
+// ==== FUNCIÓN MEJORADA PARA VERIFICAR ESTADO BLOQUEADO ====
 async function verificarEstadoBloqueado(ctx: any, { state, flowDynamic, gotoFlow }: any): Promise<boolean> {
-    if (ctx.from === CONTACTO_ADMIN) return false;
+    if (ctx.from === CONTACTO_ADMIN) return false
 
     try {
-        const myState = await state.getMyState();
-        
+        const myState = await state.getMyState()
+
         if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-            console.log(`🔒 Usuario ${ctx.from} está BLOQUEADO - Mensaje: "${ctx.body}"`);
-            
-            const input = ctx.body?.toLowerCase().trim();
-            
-            // CORRECCIÓN: Manejar específicamente "menu" y "menú"
-            if (input === 'menu' || input === 'menú') {
-                const metadata = myState.estadoMetadata || {};
-                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now());
-                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-                
-                await flowDynamic([
-                    '🚫 *ACCESO BLOQUEADO* 🚫',
-                    '',
-                    '⏳ Tu sesión está bloqueada mientras procesamos tu solicitud.',
-                    '',
-                    '📋 **Proceso activo:**',
-                    `• ${metadata.tipo || 'Restablecimiento en curso'}`,
-                    `• ⏰ Tiempo transcurrido: ${minutosTranscurridos} minutos`,
-                    `• ⏳ Tiempo restante: ${minutosRestantes} minutos`,
-                    '',
-                    '🚫 **No puedes acceder al menú durante este proceso**',
-                    '',
-                    '✅ **Solo puedes escribir:**',
-                    '*estado* - Para ver el progreso actual',
-                    '',
-                    '🔄 El proceso continuará automáticamente.',
-                    '¡Gracias por tu paciencia! 🙏'
-                ].join('\n'));
-                
-                return true; // Bloquear el mensaje
-            }
-            
-            // Manejar "estado"
+            console.log(`🔒 Bloqueando mensaje de ${ctx.from} - Proceso en curso`)
+
+            const input = ctx.body?.toLowerCase().trim()
+
             if (input === 'estado') {
-                const metadata = myState.estadoMetadata || {};
-                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now());
-                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-                
+                const metadata = myState.estadoMetadata || {}
+                const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now())
+                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
+
                 await flowDynamic([
                     '📊 **Estado del Proceso**',
                     '',
                     `📋 ${metadata.tipo || 'Proceso en curso'}`,
-                    `⏰ Tiempo transcurrido: ${minutosTranscurridos} minutos`,
-                    `⏳ Tiempo restante: ${minutosRestantes} minutos`,
+                    `⏰ Tiempo transcurrido: ${minutosTranscurridos} min`,
+                    `⏳ Tiempo restante: ${minutosRestantes} min`,
                     '',
                     '🔄 El proceso continúa en segundo plano...',
+                    '',
                     '⏰ Se completará automáticamente.'
-                ].join('\n'));
-                
-                return true; // Bloquear el mensaje
-            }
-            
-            // Cualquier otro mensaje durante el bloqueo
-            if (input && input !== 'estado' && input !== 'menu' && input !== 'menú') {
+                ].join('\n'))
+            } else if (input) {
                 await flowDynamic([
                     '⏳ *Proceso en curso* ⏳',
                     '',
-                    '📋 Tu solicitud está siendo procesada...',
+                    '📋 Tu solicitud está siendo procesada activamente...',
                     '',
-                    '🚫 **No es necesario que escribas nada**',
+                    '🔄 **No es necesario que escribas nada**',
                     '⏰ El proceso continuará automáticamente',
                     '',
-                    '💡 **Solo puedes escribir:**',
+                    '💡 **Solo escribe:**',
                     '*estado* - Para ver el progreso actual',
                     '',
                     '¡Gracias por tu paciencia! 🙏'
-                ].join('\n'));
-                
-                return true; // Bloquear el mensaje
+                ].join('\n'))
             }
-            
-            return true; // Por defecto, bloquear
+
+            // Retornar true para indicar que el mensaje fue bloqueado
+            return true
         }
     } catch (error) {
-        console.error('❌ Error en verificación de estado bloqueado:', error);
+        console.error('❌ Error en verificación de estado bloqueado:', error)
     }
-    
-    return false;
+
+    return false
 }
-
-// Middleware global que intercepta TODOS los mensajes
-function crearMiddlewareGlobal(bot: CoreClass<Provider, Database>) {
-    const provider = bot.provider;
-    
-    // Interceptar eventos de mensajes
-    provider.on('message', async (ctx: any) => {
-        try {
-            // Solo procesar si es un mensaje de texto
-            if (!ctx.body || ctx.body.trim() === '') return;
-            
-            const userPhone = normalizarIdWhatsAppBusiness(ctx.from);
-            
-            // Obtener el estado del usuario
-            const state = bot.database;
-            // Necesitarías adaptar esta parte según tu estructura
-            // La idea es verificar el estado ANTES de que el flujo lo procese
-            
-        } catch (error) {
-            console.error('❌ Error en middleware global:', error);
-        }
-    });
-}
-
-// =====================================================================================
-// MIDDLEWARE GLOBAL DE BLOQUEO - AGREGAR AL INICIO DE CADA FLUJO IMPORTANTE
-// =====================================================================================
-const bloqueoMiddleware = async (ctx: any, { state, flowDynamic, gotoFlow }: any, next: () => Promise<any>) => {
-    if (ctx.from === CONTACTO_ADMIN) {
-        return next();
-    }
-
-    // Verificar si el usuario está en proceso largo
-    const bloqueado = await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow });
-    
-    if (bloqueado) {
-        // Si está bloqueado, no continuar con el flujo normal
-        return;
-    }
-    
-    // Si no está bloqueado, continuar con el flujo
-    return next();
-};
 
 async function guardarEstadoMySQL(userPhone: string, estado: string, metadata = {}, userData = {}) {
     console.log(`💾 Guardando estado para: ${userPhone} - ${estado}`)
@@ -1142,11 +1043,10 @@ async function procesarOpcionMenu(opcion: string, flowDynamic: any, gotoFlow: an
         case '9':
             await flowDynamic('🏦 Redirigiendo a problemas con CIAPAGOS...')
             console.log('🚀 Redirigiendo a flowCiaPagos')
-            // IMPORTANTE: Limpiar estado completamente antes de ir a CIAPAGOS
             await limpiarEstado(state)
             await state.update({
                 estadoUsuario: ESTADOS_USUARIO.LIBRE,
-                tipoProceso: 'CIAPAGOS'
+                tipoProceso: 'CIAPAGOS' // Añadir un tipo de proceso específico
             })
             return gotoFlow(flowCiaPagos)
 
@@ -1156,39 +1056,30 @@ async function procesarOpcionMenu(opcion: string, flowDynamic: any, gotoFlow: an
     }
 }
 
-// =====================================================================================
-// FLUJO PRINCIPAL ÚNICO (MEJORADO)
-// =====================================================================================
+// ==== FLUJO PRINCIPAL ÚNICO ====
 const flowPrincipal = addKeyword<Provider, Database>([''])
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
-        const input = ctx.body?.toLowerCase().trim();
+        const input = ctx.body?.toLowerCase().trim()
+        console.log(`📥 Mensaje recibido: "${input}"`)
+
         console.log(`📥 Mensaje recibido: "${input}" de ${ctx.from}`);
+        console.log(`🔍 Estado actual:`, await state.getMyState());
+        console.log(`🎯 ¿Es opción 1-9?:`, /^[1-9]$/.test(input));
 
-        // PRIMERO: Verificar si el usuario está en proceso largo
-        const myState = await state.getMyState();
-        
-        if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-            console.log(`🔒 Usuario ${ctx.from} en proceso largo, redirigiendo a flowBloqueoActivo`);
-            return gotoFlow(flowBloqueoActivo);
-        }
 
-        // PRIMERO Y MÁS IMPORTANTE: Manejar el comando "menu" desde CUALQUIER lugar
-        if (input === 'menu' || input === 'menú') {
-            console.log(`📋 Comando de menú detectado GLOBALMENTE: "${input}"`);
-            await limpiarEstado(state);
-            await mostrarOpcionesMenu(flowDynamic);
-            return;
-        }
+        // PRIMERO: Verificar si el usuario está en proceso largo - CORREGIDO
+        const myState = await state.getMyState()
 
         if (myState?.estadoUsuario === ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-            console.log(`🔒 Usuario ${ctx.from} en proceso largo`);
+            console.log(`🔒 Usuario ${ctx.from} en proceso largo, redirigiendo a bloqueo...`)
+
+            // Si el usuario está en proceso, redirigir directamente al flujo de bloqueo
+            const metadata = myState.estadoMetadata || {}
+            const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now())
+            const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+            const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
 
             if (input === 'estado') {
-                const metadata = myState.estadoMetadata || {};
-                const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now());
-                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
                 await flowDynamic([
                     '📊 **Estado del Proceso**',
                     '',
@@ -1199,7 +1090,7 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
                     '🔄 El proceso continúa en segundo plano...',
                     '',
                     '⏰ Se completará automáticamente.'
-                ].join('\n'));
+                ].join('\n'))
             } else if (input) {
                 await flowDynamic([
                     '⏳ *Proceso en curso* ⏳',
@@ -1213,66 +1104,77 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
                     '*estado* - Para ver el progreso actual',
                     '',
                     '¡Gracias por tu paciencia! 🙏'
-                ].join('\n'));
+                ].join('\n'))
+            } else {
+                // Si no hay input (puede ser por notificación u otro evento)
+                await flowDynamic([
+                    '⏳ *Proceso en curso* ⏳',
+                    '',
+                    '📋 Tu solicitud está siendo procesada...',
+                    '',
+                    '🔄 **Para ver el estado escribe:**',
+                    '*estado*',
+                    '',
+                    '¡Gracias por tu paciencia! 🙏'
+                ].join('\n'))
             }
-            return;
+
+            // No procesar más mensajes, quedarse en este estado
+            return
         }
 
-        // TERCERO: Verificar si es un saludo válido
-        if (esSaludoValido(input)) {
-            console.log(`✅ Saludo detectado: "${input}"`);
-            await limpiarEstado(state);
+        // Verificar si está en CIAPAGOS
+        if (myState?.tipoProceso === 'CIAPAGOS') {
+            console.log(`🔍 Usuario en proceso CIAPAGOS, redirigiendo a flowCiaPagos`)
+            return gotoFlow(flowCiaPagos)
+        }
 
+        // Si no está en proceso largo, continuar con el flujo normal...
+        // Verificar si es un saludo válido
+        if (esSaludoValido(input)) {
+            console.log(`✅ Saludo detectado: "${input}"`)
+
+            // LIMPIAR ESTADO
+            await limpiarEstado(state)
+
+            // ENVIAR BIENVENIDA CON IMAGEN
             try {
                 await flowDynamic([{
                     body: '🎉 ¡Bienvenido al bot de Centro de Cómputo del ITA!',
                     media: 'https://raw.githubusercontent.com/CapYAN09/ProyectosITA/main/img/Imagen_de_WhatsApp_2025-09-05_a_las_11.03.34_cdb84c7c-removebg-preview.png'
-                }]);
+                }])
             } catch (error) {
-                await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!');
+                console.error('❌ Error enviando imagen:', error)
+                await flowDynamic('🎉 ¡Bienvenido al *AguiBot* del ITA!')
             }
 
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            await mostrarOpcionesMenu(flowDynamic);
-            return;
+            // Esperar un momento y mostrar el menú
+            await new Promise(resolve => setTimeout(resolve, 1000))
+            await mostrarOpcionesMenu(flowDynamic)
+
+            // NO redirigir a flowMenu, quedarnos aquí para procesar opciones
+            return
         }
 
-        // CUARTO: Verificar si es una opción del menú (1-9)
+        // Si no es un saludo, verificar si es una opción del menú (1-9)
         if (/^[1-9]$/.test(input)) {
-            console.log(`🎯 Opción del menú detectada: "${input}"`);
-            await procesarOpcionMenu(input, flowDynamic, gotoFlow, state);
-            return;
+            console.log(`🎯 Opción del menú detectada: "${input}"`)
+            await procesarOpcionMenu(input, flowDynamic, gotoFlow, state)
+            return; // Asegúrate de que haya un return aquí
         }
 
-        // QUINTO: Verificar si es "doc"
+        // Si es "menu" o "menú", mostrar el menú
+        if (input === 'menu' || input === 'menú') {
+            console.log(`📋 Comando de menú detectado: "${input}"`)
+            await limpiarEstado(state)
+            await mostrarOpcionesMenu(flowDynamic)
+            return
+        }
+
+        // Si es "doc", redirigir al flujo de documentación
         if (input === 'doc') {
-            return gotoFlow(discordFlow);
-        }
-
-        // SEXTO: Si el usuario ya estaba en CIAPAGOS pero no seleccionó una opción válida
-        // o si está "perdido" después de CIAPAGOS
-        if (myState?.tipoProceso === 'CIAPAGOS') {
-            console.log(`🔍 Usuario estaba en CIAPAGOS pero envió: "${input}"`);
-
-            if (input === '1' || input === '2') {
-                // Si envía 1 o 2 de nuevo, procesarlo
-                if (input === '1') {
-                    await flowDynamic([
-                        '✅ ¡Excelente! Nos alegra que hayas podido resolver tu problema.',
-                        '',
-                        '🔙 Escribe *menú* para volver al menú principal.'
-                    ].join('\n'));
-                } else if (input === '2') {
-                    await flowDynamic([
-                        '❌ Lamentamos que no hayas podido resolver tu problema.',
-                        '',
-                        '📧 **Envía un correo a:** ccentrocomputo@aguascalientes.tecnm.mx',
-                        '',
-                        '🔙 Escribe *menú* para volver al menú principal.'
-                    ].join('\n'));
-                }
-                return;
-            }
+            console.log(`📄 Comando doc detectado: "${input}"`)
+            return gotoFlow(discordFlow)
         }
 
         // Si no se entiende el mensaje, mostrar ayuda
@@ -1291,17 +1193,17 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
             '4️⃣ Sistema SIE',
             '5️⃣ Información adicional',
             '6️⃣ No conozco mis credenciales',
+            //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
+            //'8️⃣ 🗃️ Acceso a Base de Datos Actextita',
             '9️⃣ Problema para acceder al portal de CIAPAGOS',
             '',
             '💡 *Escribe solo el número (1-9)*',
             '',
             '🔙 Escribe *hola* para comenzar.'
-        ].join('\n'));
-    });
+        ].join('\n'))
+    })
 
-// =====================================================================================
-// SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA
-// =====================================================================================
+// ==== SUBMENÚ PARA OPCIÓN 1 - RESTABLECER CONTRASEÑA ====
 const flowSubMenuContrasena = addKeyword<Provider, Database>(utils.setEvent('SUBMENU_CONTRASENA'))
     .addAnswer(
         '🔑 *RESTABLECIMIENTO DE CONTRASEÑA*\n\n' +
@@ -1342,9 +1244,7 @@ const flowSubMenuContrasena = addKeyword<Provider, Database>(utils.setEvent('SUB
         }
     )
 
-// =====================================================================================
-// FLUJO DE CAPTURA DE CORREO PARA TRABAJADOR
-// =====================================================================================
+// ==== FLUJO DE CAPTURA DE CORREO PARA TRABAJADOR ====
 const flowCapturaCorreoTrabajador = addKeyword<Provider, Database>(utils.setEvent('CAPTURA_CORREO_TRABAJADOR'))
     .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
         const userPhone = ctx.from
@@ -1397,9 +1297,7 @@ const flowCapturaCorreoTrabajador = addKeyword<Provider, Database>(utils.setEven
         }
     )
 
-// =====================================================================================
-// FLUJO DE CAPTURA DE NÚMERO DE CONTROL
-// =====================================================================================
+// ==== FLUJO DE CAPTURA DE NÚMERO DE CONTROL ====
 const flowCapturaNumeroControl = addKeyword<Provider, Database>(utils.setEvent('CAPTURA_NUMERO_CONTROL'))
     .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
         const userPhone = ctx.from
@@ -1449,9 +1347,7 @@ const flowCapturaNumeroControl = addKeyword<Provider, Database>(utils.setEvent('
         }
     )
 
-// =====================================================================================
-// FLUJO DE CAPTURA DE NOMBRE
-// =====================================================================================
+// ==== FLUJO DE CAPTURA DE NOMBRE ====
 const flowCapturaNombre = addKeyword<Provider, Database>(utils.setEvent('CAPTURA_NOMBRE'))
     .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
         const userPhone = ctx.from
@@ -1513,9 +1409,7 @@ const flowCapturaNombre = addKeyword<Provider, Database>(utils.setEvent('CAPTURA
         }
     )
 
-// =====================================================================================
-// FLUJO DE CAPTURA DE IDENTIFICACIÓN (FOTO)
-// =====================================================================================
+// ==== FLUJO DE CAPTURA DE IDENTIFICACIÓN (FOTO) ====
 const flowCapturaIdentificacion = addKeyword<Provider, Database>(utils.setEvent('CAPTURA_IDENTIFICACION'))
     .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
         const userPhone = ctx.from
@@ -1602,96 +1496,59 @@ const flowCapturaIdentificacion = addKeyword<Provider, Database>(utils.setEvent(
         }
     )
 
-// =====================================================================================
-// FLUJO FINAL DE CONTRASEÑA (VERSIÓN CORREGIDA)
-// =====================================================================================
+//===============================================================================================================================================
+
+
 const flowContrasena = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONTRASENA'))
     .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-        ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-        
-        // 1. VERIFICAR SI ES ADMIN
-        if (ctx.from === CONTACTO_ADMIN) return;
-        
-        // 2. VERIFICAR SI YA ESTÁ BLOQUEADO (IMPORTANTE: Esto debe ir PRIMERO)
-        const bloqueado = await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow });
-        if (bloqueado) {
-            console.log(`🚫 Usuario ${ctx.from} ya está bloqueado, no iniciar nuevo proceso`);
-            return; // No continuar si ya está bloqueado
-        }
-        
-        // 3. VERIFICAR DATOS COMPLETOS
-        const myState = await state.getMyState();
-        const nombreCompleto = myState.nombreCompleto;
-        const esTrabajador = myState.esTrabajador || false;
-        const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl;
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        const myState = await state.getMyState()
+        const nombreCompleto = myState.nombreCompleto
+        const esTrabajador = myState.esTrabajador || false
+        const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl
 
         if (!nombreCompleto || !identificacion) {
-            console.log(`❌ Datos incompletos para ${ctx.from}: nombre=${nombreCompleto}, identificación=${identificacion}`);
-            await flowDynamic('❌ Información incompleta. Volviendo al inicio.');
-            return gotoFlow(flowMenu);
+            await flowDynamic('❌ Información incompleta. Volviendo al inicio.')
+            return gotoFlow(flowMenu)
         }
 
-        console.log(`🚀 Iniciando proceso de contraseña para ${ctx.from}: ${nombreCompleto}`);
-
-        // 4. VERIFICAR CONEXIONES ANTES DE BLOQUEAR
-        const estadoConexiones = obtenerEstadoConexiones();
+        // Verificar conexión remota antes de continuar
         const conexionRemota = await verificarConexionRemota();
-        
-        if (!conexionRemota) {
-            await flowDynamic([
-                '❌ *Error de conexión*',
-                '',
-                'No se pudo establecer conexión con el sistema remoto.',
-                '',
-                '🔄 Por favor intenta nuevamente en unos minutos.',
-                '🔙 Escribe *menú* para volver al menú principal.'
-            ].join('\n'));
-            return;
-        }
+        const estadoConexiones = obtenerEstadoConexiones();
 
-        // 5. **BLOQUEAR AL USUARIO INMEDIATAMENTE** (esto es lo más importante)
         await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
             tipo: "🔐 Restablecimiento de Contraseña",
-            inicio: Date.now(),  // Guardar tiempo exacto de inicio
-            esTrabajador: esTrabajador,
-            identificacion: identificacion,
-            timestampBloqueo: Date.now()
-        });
+            inicio: Date.now(),
+            esTrabajador: esTrabajador
+        })
 
-        // 6. Guardar en base de datos
         await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
             tipo: "Restablecimiento de Contraseña",
-            inicio: Date.now(),
-            identificacion: identificacion
+            inicio: Date.now()
         }, {
             numeroControl: myState.numeroControl,
             nombreCompleto: myState.nombreCompleto,
             identificacionSubida: myState.identificacionSubida,
             timestampIdentificacion: myState.timestampIdentificacion
-        });
+        })
 
-        // 7. NOTIFICAR AL ADMINISTRADOR
-        const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
-        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA* 🔔\n\n📋 *Información:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal: *SoporteCC1234$*\n\n💾 *Estados de conexión:*\n• MySQL: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Usuario BLOQUEADO por 30 minutos`;
+        const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno"
+        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Reacciona para validar que está listo`
 
-        const enviado = await enviarAlAdmin(mensajeAdmin);
+        // Usar la función singleton corregida
+        const enviado = await enviarAlAdmin(mensajeAdmin)
+
         if (!enviado) {
-            console.error(`⚠️ No se pudo notificar al admin sobre: ${ctx.from} - ${nombreCompleto}`);
+            console.error('⚠️ No se pudo notificar al admin sobre restablecimiento de contraseña, continuando proceso...')
+            console.log(`📝 Pendiente de notificar contraseña: ${ctx.from} - ${nombreCompleto}`)
         }
 
-        // 8. CONFIGURAR TIMEOUT DE 30 MINUTOS
-        const userPhone = ctx.from;
-        
-        // Limpiar timeouts previos (por seguridad)
-        timeoutManager.clearTimeout(userPhone);
-        timeoutManager.clearInterval(userPhone);
-
-        // Timeout para finalizar el proceso
-        const timeoutId = timeoutManager.setTimeout(userPhone, async () => {
+        // Configurar el timeout para completar el proceso (30 minutos)
+        const timeoutId = setTimeout(async () => {
             try {
-                console.log(`⏰ Timeout completado para ${userPhone}, enviando mensaje final...`);
-                
-                const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`;
+                const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`
 
                 await flowDynamic([
                     '✅ *¡Contraseña restablecida exitosamente!* ✅',
@@ -1700,102 +1557,365 @@ const flowContrasena = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONTR
                     '🔐 *SoporteCC1234$*',
                     '',
                     '💡 **Instrucciones para acceder:**',
-                    '1. Cierra sesiones anteriores del correo',
-                    '2. Ingresa a: https://office.com',
-                    '3. Usa tu correo: ' + correoUsuario,
-                    '4. Contraseña temporal: *SoporteCC1234$*',
-                    '5. Te pedirá cambiar la contraseña inmediatamente',
+                    '*Te recomendamos que este primer inicio de sesión lo realices desde tu computadora*',
+                    '',
+                    '1. Cierra la pestaña actual donde intentabas acceder al correo',
+                    '2. Ingresa a: https://office.com o https://login.microsoftonline.com/?whr=tecnm.mx',
+                    '3. Ingresa tu correo institucional: ' + correoUsuario,
+                    '4. Usa la contraseña temporal: *SoporteCC1234$*',
+                    '5. Te solicitará cambiar la contraseña:',
+                    '   - Contraseña actual: *SoporteCC1234$*',
+                    '   - Nueva contraseña: (crea una personalizada)',
                     '',
                     '🔒 **Recomendaciones de seguridad:**',
                     '• Mínimo 11 caracteres',
-                    '• Usa mayúsculas, minúsculas, números y símbolos',
-                    '• No la compartas con nadie',
+                    '• Incluye mayúsculas, minúsculas, números y símbolos (%$#!&/-_.*+)',
+                    '• No compartas tu contraseña',
                     '',
                     '🔙 Escribe *menú* para volver al menú principal.'
-                ].join('\n'));
+                ].join('\n'))
 
             } catch (error: any) {
-                console.error('❌ Error en finalización de contraseña:', error.message);
-                await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.');
+                console.error('❌ Error enviando mensaje final de contraseña:', error.message)
+                await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.')
             }
 
-            // LIMPIAR TODO AL TERMINAR
-            await limpiarEstado(state);
-            await limpiarEstadoMySQL(userPhone);
-            timeoutManager.clearAll(userPhone);
+            await limpiarEstado(state)
+            await limpiarEstadoMySQL(ctx.from)
 
-        }, 30 * 60 * 1000); // 30 minutos exactos
+        }, 30 * 60 * 1000) // 30 minutos
 
-        // 9. CONFIGURAR INTERVALO PARA NOTIFICACIONES (cada 5 minutos)
-        const intervalId = timeoutManager.setInterval(userPhone, async () => {
-            try {
-                const estadoActual = await state.getMyState();
-                if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-                    timeoutManager.clearInterval(userPhone);
-                    return;
-                }
-
-                const metadata = estadoActual.estadoMetadata || {};
-                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now());
-                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
-                // Solo enviar notificación cada 5 minutos
-                if (minutosTranscurridos > 0 && minutosTranscurridos % 5 === 0) {
-                    await flowDynamic(`⏳ *Actualización:* ${minutosTranscurridos} min transcurridos, ${minutosRestantes} min restantes.`);
-                }
-
-                // Si ya pasaron 30 minutos, limpiar
-                if (minutosTranscurridos >= 30) {
-                    timeoutManager.clearInterval(userPhone);
-                }
-            } catch (error) {
-                console.error('❌ Error en notificación periódica:', error);
-            }
-        }, 60 * 1000); // Verificar cada minuto
-
-        // 10. GUARDAR IDs EN EL ESTADO
+        // Guardar el timeoutId en el estado
         await state.update({
             estadoMetadata: {
                 ...(await state.getMyState())?.estadoMetadata,
                 timeoutId: timeoutId,
-                intervalId: intervalId,
                 timeoutExpira: Date.now() + (30 * 60 * 1000),
-                tipoProceso: 'CONTRASENA',
-                userPhone: userPhone
+                tipoProceso: 'CONTRASENA'
             }
-        });
+        })
 
-        // 11. MENSAJE INICIAL DE BLOQUEO (MUY IMPORTANTE)
+        // Enviar mensaje inicial de bloqueo
         await flowDynamic([
-            '⏳ *¡PROCESO INICIADO - BLOQUEADO POR 30 MINUTOS!* ⏳',
+            '⏳ *Proceso de restablecimiento de contraseña iniciado* ⏳',
             '',
-            '🔒 **TU SESIÓN HA SIDO BLOQUEADA**',
+            '📋 Tu solicitud de restablecimiento de contraseña ha sido recibida y está siendo procesada.',
             '',
-            '📋 Tu solicitud está siendo procesada.',
             '⏰ **Tiempo estimado:** 30 minutos',
             '',
-            '🚫 **NO PUEDES:**',
-            '• Acceder al menú',
-            '• Iniciar otro proceso',
-            '• Cancelar esta solicitud',
+            '🔄 **Durante este tiempo:**',
+            '• No es necesario que escribas nada',
+            '• El proceso continuará automáticamente',
+            '• Recibirás notificaciones periódicas',
             '',
-            '✅ **PUEDES:**',
-            '• Escribir *estado* para ver progreso',
-            '',
-            '🔄 El proceso es automático y continuará en segundo plano.',
+            '💡 **Para consultar el estado:**',
+            'Escribe *estado* en cualquier momento',
             '',
             '¡Gracias por tu paciencia! 🙏'
-        ].join('\n'));
+        ].join('\n'))
 
-        // 12. **NO HACER gotoFlow** - El usuario queda bloqueado aquí
-        // El flujo principal manejará cualquier mensaje que envíe
-        console.log(`✅ Usuario ${ctx.from} BLOQUEADO por 30 minutos para restablecimiento de contraseña`);
-    });
+        // Configurar intervalo para notificaciones periódicas
+        const intervalId = setInterval(async () => {
+            try {
+                const estadoActual = await state.getMyState()
+                if (estadoActual?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+                    clearInterval(intervalId)
+                    return
+                }
 
-// =====================================================================================
-// SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR
-// =====================================================================================
+                const metadata = estadoActual.estadoMetadata || {}
+                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now())
+                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
+
+                if (minutosRestantes > 0) {
+                    await flowDynamic(`⏳ *Actualización restablecimiento de contraseña:* Han pasado ${minutosTranscurridos} minutos. Faltan ${minutosRestantes} minutos.`)
+                }
+            } catch (error) {
+                console.error('❌ Error en notificación periódica de contraseña:', error)
+            }
+        }, 5 * 60 * 1000) // Cada 5 minutos
+
+        // Guardar el intervalId también
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                intervalId: intervalId
+            }
+        })
+
+        // **NO HACER gotoFlow aquí** - Quedarse en este mismo flujo
+        // El flujo principal verificará el estado y mostrará mensajes apropiados
+    })
+
+//===============================================================================================================================================
+/*
+// ==== FLUJO FINAL DE CONTRASEÑA CON RETRY ====
+const flowContrasena = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONTRASENA'))
+    .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        const myState = await state.getMyState()
+        const nombreCompleto = myState.nombreCompleto
+        const esTrabajador = myState.esTrabajador || false
+        const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl
+
+        if (!nombreCompleto || !identificacion) {
+            await flowDynamic('❌ Información incompleta. Volviendo al inicio.')
+            return gotoFlow(flowMenu)
+        }
+
+        // Verificar conexión remota antes de continuar
+        const conexionRemota = await verificarConexionRemota();
+        const estadoConexiones = obtenerEstadoConexiones();
+
+        await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "🔐 Restablecimiento de Contraseña",
+            inicio: Date.now(),
+            esTrabajador: esTrabajador
+        })
+
+        await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "Restablecimiento de Contraseña",
+            inicio: Date.now()
+        }, {
+            numeroControl: myState.numeroControl,
+            nombreCompleto: myState.nombreCompleto,
+            identificacionSubida: myState.identificacionSubida,
+            timestampIdentificacion: myState.timestampIdentificacion
+        })
+
+        const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno"
+
+        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE RESTABLECIMIENTO DE CONTRASEÑA DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n🔐 Contraseña temporal asignada: *SoporteCC1234$*\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Reacciona para validar que está listo`
+
+        // CORREGIDO: Usar la función singleton
+        const enviado = await enviarAlAdmin(mensajeAdmin)
+
+        if (!enviado) {
+            console.error('⚠️ No se pudo notificar al admin, continuando proceso...')
+            // Guardar en un log para notificación posterior
+            console.log(`📝 Pendiente de notificar: ${ctx.from} - ${nombreCompleto}`)
+        }
+
+        await flowDynamic('⏳ Permítenos un momento, vamos a restablecer tu contraseña... \n\n *Te solicitamos no enviar mensajes en lo que realizamos este proceso, este proceso durará aproximadamente 30 minutos.*')
+
+        let minutosRestantes = 30
+
+        const intervalId = setInterval(async () => {
+            minutosRestantes -= 10
+            if (minutosRestantes > 0) {
+                try {
+                    await flowDynamic(`⏳ Hola *${nombreCompleto}*, faltan *${minutosRestantes} minutos* para completar el proceso...`)
+                } catch (error: any) {
+                    console.error('❌ Error enviando notificación:', error.message)
+                }
+            }
+        }, 10 * 60 * 1000)
+
+        const timeoutId = setTimeout(async () => {
+            clearInterval(intervalId)
+
+            try {
+                const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`
+
+                await flowDynamic([
+                    '✅ *¡Contraseña restablecida exitosamente!* ✅',
+                    '',
+                    '📋 **Tu nueva contraseña temporal:**',
+                    '🔐 *SoporteCC1234$*',
+                    '',
+                    '💡 **Instrucciones para acceder:**',
+                    '*Te recomendamos que este primer inicio de sesión lo realices desde tu computadora*',
+                    '',
+                    '1. Cierra la pestaña actual donde intentabas acceder al correo',
+                    '2. Ingresa a: https://office.com o https://login.microsoftonline.com/?whr=tecnm.mx',
+                    '3. Ingresa tu correo institucional: ' + correoUsuario,
+                    '4. Usa la contraseña temporal: *SoporteCC1234$*',
+                    '5. Te solicitará cambiar la contraseña:',
+                    '   - Contraseña actual: *SoporteCC1234$*',
+                    '   - Nueva contraseña: (crea una personalizada)',
+                    '',
+                    '🔒 **Recomendaciones de seguridad:**',
+                    '• Mínimo 11 caracteres',
+                    '• Incluye mayúsculas, minúsculas, números y símbolos (%$#!&/-_.*+)',
+                    '• No compartas tu contraseña',
+                    '',
+                    '🔙 Escribe *menú* para volver al menú principal.'
+                ].join('\n'))
+
+            } catch (error: any) {
+                console.error('❌ Error enviando mensaje final:', error.message)
+                await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.')
+            }
+
+            await limpiarEstado(state)
+            await limpiarEstadoMySQL(ctx.from)
+
+        }, 30 * 60 * 1000)
+
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                timeoutId: timeoutId,
+                intervalId: intervalId
+            }
+        })
+
+        return gotoFlow(flowBloqueoActivo)
+    })
+
+    */
+
+// ==== FLUJO FINAL DE AUTENTICADOR ====
+const flowAutenticador = addKeyword<Provider, Database>(utils.setEvent('FLOW_AUTENTICADOR'))
+    .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        const myState = await state.getMyState()
+        const nombreCompleto = myState.nombreCompleto
+        const esTrabajador = myState.esTrabajador || false
+        const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl
+
+        if (!nombreCompleto || !identificacion) {
+            await flowDynamic('❌ Información incompleta. Volviendo al inicio.')
+            return gotoFlow(flowMenu)
+        }
+
+        // Verificar conexión remota antes de continuar
+        const conexionRemota = await verificarConexionRemota();
+        const estadoConexiones = obtenerEstadoConexiones();
+
+        await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "🔑 Configuración de Autenticador",
+            inicio: Date.now(),
+            esTrabajador: esTrabajador
+        })
+
+        await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "Configuración de Autenticador",
+            inicio: Date.now()
+        }, {
+            numeroControl: myState.numeroControl,
+            nombreCompleto: myState.nombreCompleto,
+            identificacionSubida: myState.identificacionSubida,
+            timestampIdentificacion: myState.timestampIdentificacion
+        })
+
+        const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno"
+        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR DEL CORREO INSTITUCIONAL.* 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n🆔 Identificación: ${myState.identificacionSubida ? '✅ SUBIDA' : '❌ PENDIENTE'}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ *Proceso en curso...*`
+
+        // Usar la función singleton corregida
+        const enviado = await enviarAlAdmin(mensajeAdmin)
+
+        if (!enviado) {
+            console.error('⚠️ No se pudo notificar al admin sobre autenticador, continuando proceso...')
+            console.log(`📝 Pendiente de notificar autenticador: ${ctx.from} - ${nombreCompleto}`)
+        }
+
+        // Configurar el timeout para completar el proceso (30 minutos)
+        const timeoutId = setTimeout(async () => {
+            try {
+                const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`
+
+                await flowDynamic([
+                    '✅ *Autenticador desconfigurado correctamente* ✅',
+                    '',
+                    '💡 **Instrucciones para reconfigurar:**',
+                    '*Es importante que estos pasos los realices en una computadora*',
+                    '',
+                    '1. Cierra la pestaña actual donde intentabas acceder al correo',
+                    '2. Ingresa a: https://office.com o https://login.microsoftonline.com/?whr=tecnm.mx',
+                    '3. Ingresa tu correo institucional: ' + correoUsuario,
+                    '4. Ingresa tu contraseña actual',
+                    '5. Te aparecerá una página para reconfigurar tu autenticador',
+                    '6. Sigue los pasos que se muestran en pantalla',
+                    '',
+                    '📱 **Necesitarás:**',
+                    '• Configurar la aplicación de autenticador',
+                    '• Ingresar un número de teléfono',
+                    '',
+                    '🔒 **Será necesario configurar un nuevo método de autenticación**',
+                    '',
+                    '🔙 Escribe *menú* para volver al menú principal.'
+                ].join('\n'))
+
+            } catch (error: any) {
+                console.error('❌ Error enviando mensaje final de autenticador:', error.message)
+                await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.')
+            }
+
+            await limpiarEstado(state)
+            await limpiarEstadoMySQL(ctx.from)
+
+        }, 30 * 60 * 1000) // 30 minutos
+
+        // Guardar el timeoutId en el estado
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                timeoutId: timeoutId,
+                timeoutExpira: Date.now() + (30 * 60 * 1000),
+                tipoProceso: 'AUTENTICADOR'
+            }
+        })
+
+        // Enviar mensaje inicial de bloqueo
+        await flowDynamic([
+            '⏳ *Proceso de autenticador iniciado* ⏳',
+            '',
+            '📋 Tu solicitud de desconfiguración de autenticador ha sido recibida y está siendo procesada.',
+            '',
+            '⏰ **Tiempo estimado:** 30 minutos',
+            '',
+            '🔄 **Durante este tiempo:**',
+            '• No es necesario que escribas nada',
+            '• El proceso continuará automáticamente',
+            '• Recibirás notificaciones periódicas',
+            '',
+            '💡 **Para consultar el estado:**',
+            'Escribe *estado* en cualquier momento',
+            '',
+            '¡Gracias por tu paciencia! 🙏'
+        ].join('\n'))
+
+        // Configurar intervalo para notificaciones periódicas
+        const intervalId = setInterval(async () => {
+            try {
+                const estadoActual = await state.getMyState()
+                if (estadoActual?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+                    clearInterval(intervalId)
+                    return
+                }
+
+                const metadata = estadoActual.estadoMetadata || {}
+                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now())
+                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
+
+                if (minutosRestantes > 0) {
+                    await flowDynamic(`⏳ *Actualización autenticador:* Han pasado ${minutosTranscurridos} minutos. Faltan ${minutosRestantes} minutos.`)
+                }
+            } catch (error) {
+                console.error('❌ Error en notificación periódica de autenticador:', error)
+            }
+        }, 5 * 60 * 1000) // Cada 5 minutos
+
+        // Guardar el intervalId también
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                intervalId: intervalId
+            }
+        })
+
+        // **NO HACER gotoFlow aquí** - Quedarse en este mismo flujo
+        // El flujo principal verificará el estado y mostrará mensajes apropiados
+    })
+
+// ==== SUBMENÚ PARA OPCIÓN 2 - RESTABLECER AUTENTICADOR ====
 const flowSubMenuAutenticador = addKeyword<Provider, Database>(utils.setEvent('SUBMENU_AUTENTICADOR'))
     .addAnswer(
         '🔑 *RESTABLECIMIENTO DE AUTENTICADOR*\n\n' +
@@ -1832,185 +1952,28 @@ const flowSubMenuAutenticador = addKeyword<Provider, Database>(utils.setEvent('S
         }
     )
 
-// =====================================================================================
-// FLUJO FINAL DE AUTENTICADOR (VERSIÓN CORREGIDA)
-// =====================================================================================
-const flowAutenticador = addKeyword<Provider, Database>(utils.setEvent('FLOW_AUTENTICADOR'))
-    .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-        ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-        
-        // 1. VERIFICAR SI ES ADMIN
-        if (ctx.from === CONTACTO_ADMIN) return;
-        
-        // 2. VERIFICAR SI YA ESTÁ BLOQUEADO (IMPORTANTE: Esto debe ir PRIMERO)
-        const bloqueado = await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow });
-        if (bloqueado) {
-            console.log(`🚫 Usuario ${ctx.from} ya está bloqueado, no iniciar nuevo proceso`);
-            return; // No continuar si ya está bloqueado
-        }
-        
-        const myState = await state.getMyState();
-        const nombreCompleto = myState.nombreCompleto;
-        const esTrabajador = myState.esTrabajador || false;
-        const identificacion = esTrabajador ? myState.correoInstitucional : myState.numeroControl;
-
-        if (!nombreCompleto || !identificacion) {
-            await flowDynamic('❌ Información incompleta. Volviendo al inicio.');
-            return gotoFlow(flowMenu);
-        }
-
-        console.log(`🚀 Iniciando proceso de autenticador para ${ctx.from}: ${nombreCompleto}`);
-
-        // 3. **BLOQUEAR AL USUARIO INMEDIATAMENTE**
-        await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-            tipo: "🔑 Configuración de Autenticador",
-            inicio: Date.now(),
-            esTrabajador: esTrabajador,
-            identificacion: identificacion
-        });
-
-        await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
-            tipo: "Configuración de Autenticador",
-            inicio: Date.now()
-        }, {
-            numeroControl: myState.numeroControl,
-            nombreCompleto: myState.nombreCompleto,
-            identificacionSubida: myState.identificacionSubida,
-            timestampIdentificacion: myState.timestampIdentificacion
-        });
-
-        const estadoConexiones = obtenerEstadoConexiones();
-        const tipoUsuario = esTrabajador ? "Trabajador" : "Alumno";
-        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE DESHABILITAR EL AUTENTICADOR* 🔔\n\n📋 *Información:*\n👤 Nombre: ${nombreCompleto}\n👥 Tipo: ${tipoUsuario}\n📧 ${esTrabajador ? 'Correo' : 'Número de control'}: ${identificacion}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n💾 *Estados de conexión:*\n• MySQL: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Usuario BLOQUEADO por 30 minutos`;
-
-        await enviarAlAdmin(mensajeAdmin);
-
-        // 4. CONFIGURAR TIMEOUT DE 30 MINUTOS
-        const userPhone = ctx.from;
-        
-        // Limpiar timeouts previos
-        timeoutManager.clearTimeout(userPhone);
-        timeoutManager.clearInterval(userPhone);
-
-        // Timeout para finalizar el proceso
-        const timeoutId = timeoutManager.setTimeout(userPhone, async () => {
-            try {
-                console.log(`⏰ Timeout completado para ${userPhone} (autenticador), enviando mensaje final...`);
-                
-                const correoUsuario = esTrabajador ? identificacion : `${identificacion}@aguascalientes.tecnm.mx`;
-
-                await flowDynamic([
-                    '✅ *Autenticador desconfigurado correctamente* ✅',
-                    '',
-                    '💡 **Instrucciones para reconfigurar:**',
-                    '1. Cierra sesiones anteriores del correo',
-                    '2. Ingresa a: https://office.com',
-                    '3. Usa tu correo: ' + correoUsuario,
-                    '4. Ingresa tu contraseña actual',
-                    '5. Te pedirá reconfigurar tu autenticador',
-                    '',
-                    '📱 **Necesitarás:**',
-                    '• Configurar aplicación de autenticador',
-                    '• O ingresar un número de teléfono',
-                    '',
-                    '🔒 **Configura un nuevo método de autenticación**',
-                    '',
-                    '🔙 Escribe *menú* para volver al menú principal.'
-                ].join('\n'));
-
-            } catch (error: any) {
-                console.error('❌ Error en finalización de autenticador:', error.message);
-                await flowDynamic('✅ Se ha completado el proceso. Por favor verifica tu correo institucional.');
-            }
-
-            // LIMPIAR TODO AL TERMINAR
-            await limpiarEstado(state);
-            await limpiarEstadoMySQL(userPhone);
-            timeoutManager.clearAll(userPhone);
-
-        }, 30 * 60 * 1000); // 30 minutos
-
-        // 5. CONFIGURAR INTERVALO PARA NOTIFICACIONES
-        const intervalId = timeoutManager.setInterval(userPhone, async () => {
-            try {
-                const estadoActual = await state.getMyState();
-                if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-                    timeoutManager.clearInterval(userPhone);
-                    return;
-                }
-
-                const metadata = estadoActual.estadoMetadata || {};
-                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now());
-                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
-                // Solo enviar notificación cada 5 minutos
-                if (minutosTranscurridos > 0 && minutosTranscurridos % 5 === 0) {
-                    await flowDynamic(`⏳ *Actualización autenticador:* ${minutosTranscurridos} min transcurridos, ${minutosRestantes} min restantes.`);
-                }
-
-                // Si ya pasaron 30 minutos, limpiar
-                if (minutosTranscurridos >= 30) {
-                    timeoutManager.clearInterval(userPhone);
-                }
-            } catch (error) {
-                console.error('❌ Error en notificación periódica:', error);
-            }
-        }, 60 * 1000); // Verificar cada minuto
-
-        // 6. GUARDAR IDs EN EL ESTADO
-        await state.update({
-            estadoMetadata: {
-                ...(await state.getMyState())?.estadoMetadata,
-                timeoutId: timeoutId,
-                intervalId: intervalId,
-                timeoutExpira: Date.now() + (30 * 60 * 1000),
-                tipoProceso: 'AUTENTICADOR',
-                userPhone: userPhone
-            }
-        });
-
-        // 7. MENSAJE INICIAL DE BLOQUEO
-        await flowDynamic([
-            '⏳ *¡PROCESO DE AUTENTICADOR INICIADO - BLOQUEADO POR 30 MINUTOS!* ⏳',
-            '',
-            '🔒 **TU SESIÓN HA SIDO BLOQUEADA**',
-            '',
-            '📋 Tu solicitud de desconfiguración de autenticador está siendo procesada.',
-            '⏰ **Tiempo estimado:** 30 minutos',
-            '',
-            '🚫 **NO PUEDES:**',
-            '• Acceder al menú',
-            '• Iniciar otro proceso',
-            '• Cancelar esta solicitud',
-            '',
-            '✅ **PUEDES:**',
-            '• Escribir *estado* para ver progreso',
-            '',
-            '🔄 El proceso es automático y continuará en segundo plano.',
-            '',
-            '¡Gracias por tu paciencia! 🙏'
-        ].join('\n'));
-
-        // 8. **NO HACER gotoFlow** - El usuario queda bloqueado aquí
-        console.log(`✅ Usuario ${ctx.from} BLOQUEADO por 30 minutos para autenticador`);
-    });
-
-// =====================================================================================
-// FLUJO PRINCIPAL PARA PROBLEMAS CON CIAPAGOS (VERSIÓN SIMPLIFICADA)
-// =====================================================================================
+// ==== FLUJO PARA PROBLEMAS CON CIAPAGOS ====
 const flowCiaPagos = addKeyword<Provider, Database>(['ciapagos', utils.setEvent('FLOW_CIAPAGOS')])
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
+
+        // Verificar si es el administrador
         if (ctx.from === CONTACTO_ADMIN) return;
 
         console.log(`🔍 Entrando a flowCiaPagos para usuario: ${ctx.from}`);
 
+        // IMPORTANTE: Limpiar cualquier estado residual
         await state.update({
             estadoUsuario: ESTADOS_USUARIO.LIBRE,
-            tipoProceso: 'CIAPAGOS'
+            tipoProceso: 'CIAPAGOS',
+            esTrabajador: null,
+            numeroControl: null,
+            nombreCompleto: null,
+            correoInstitucional: null,
+            identificacionSubida: false
         });
 
+        // Mostrar el menú de CIAPAGOS
         await flowDynamic([
             '🏦 *PROBLEMAS PARA ACCEDER AL PORTAL DE CIAPAGOS* 🏦',
             '',
@@ -2045,146 +2008,63 @@ const flowCiaPagos = addKeyword<Provider, Database>(['ciapagos', utils.setEvent(
             '🔙 O escribe *menú* para volver al menú principal'
         ].join('\n'));
     })
-    .addAction(
-        { capture: true },
-        async (ctx, { flowDynamic, gotoFlow, state }) => {
-            const opcion = ctx.body.trim().toLowerCase();
-            console.log(`🎯 Opción CIAPAGOS seleccionada: "${opcion}"`);
+    .addAction({ capture: true }, async (ctx, { flowDynamic, gotoFlow, state }) => {
+        const opcion = ctx.body.trim().toLowerCase();
+        console.log(`🎯 Opción CIAPAGOS seleccionada: "${opcion}"`);
 
-            if (opcion === 'menu' || opcion === 'menú') {
-                await limpiarEstado(state);
-                return gotoFlow(flowMenu);
-            }
-
-            if (opcion === '1') {
-                await flowDynamic([
-                    '✅ ¡Excelente! Nos alegra que hayas podido resolver tu problema.',
-                    '',
-                    '💡 **Recuerda que para futuros problemas puedes:**',
-                    '• Escribir *menú* para ver todas las opciones disponibles',
-                    '• Contactar directamente a las áreas correspondientes',
-                    '',
-                ].join('\n'));
-                return gotoFlow(flowEsperaMenu);
-            }
-
-            if (opcion === '2') {
-                await flowDynamic([
-                    '❌ Lamentamos que no hayas podido resolver tu problema con CIAPAGOS.',
-                    '',
-                    '📧 **Para recibir atención personalizada, por favor envía un correo a:**',
-                    '📩 *ccentrocomputo@aguascalientes.tecnm.mx*',
-                    '',
-                    '📋 **En tu correo incluye la siguiente información:**',
-                    '• 🔢 Número de control completo',
-                    '• 👤 Nombre completo',
-                    '• 📝 Descripción detallada del problema',
-                    '',
-                    '⏰ **Tiempo de respuesta estimado:**',
-                    '• 1-24 horas hábiles',
-                    '',
-                ].join('\n'));
-                return gotoFlow(flowEsperaMenu);
-            }
-
-            await flowDynamic('❌ Opción no válida. Escribe 1, 2 o menú.');
-            return gotoFlow(flowCiaPagos);
-        }
-    );
-
-// =====================================================================================
-// FLUJO DE ESPERA PARA MENÚ (SIMPLIFICADO)
-// =====================================================================================
-const flowEsperaMenu = addKeyword<Provider, Database>(utils.setEvent('ESPERA_MENU'))
-    .addAnswer(
-        '🔙 Escribe *menú* para volver al menú principal.',
-        { capture: true },
-        async (ctx, { flowDynamic, gotoFlow, state }) => {
-            const input = ctx.body.trim().toLowerCase();
-
-            if (input === 'menu' || input === 'menú') {
-                await limpiarEstado(state);
-                return gotoFlow(flowMenu);
-            }
-
-            // Si no es "menu", mostrar el mismo mensaje de nuevo
-            await flowDynamic('🔙 Escribe *menú* para volver al menú principal.');
-
-            return gotoFlow(flowEsperaMenu);
-        }
-    );
-
-// =====================================================================================
-// FLUJO PARA MANEJAR LA RESPUESTA DE CIAPAGOS (SEPARADO)
-// =====================================================================================
-const flowCiaPagosRespuesta = addKeyword<Provider, Database>(utils.setEvent('CIAPAGOS_RESPUESTA'))
-    .addAnswer(
-        '💡 *Escribe tu respuesta:*',
-        { capture: true },
-        async (ctx, { flowDynamic, gotoFlow, state, endFlow }) => {
-            const opcion = ctx.body.trim().toLowerCase();
-            console.log(`🎯 Opción CIAPAGOS seleccionada: "${opcion}"`);
-
-            if (opcion === '1') {
-                await flowDynamic([
-                    '✅ ¡Excelente! Nos alegra que hayas podido resolver tu problema.',
-                    '',
-                    '💡 **Recuerda que para futuros problemas puedes:**',
-                    '• Escribir *menú* para ver todas las opciones disponibles',
-                    '• Contactar directamente a las áreas correspondientes',
-                    '',
-                    '🔙 Escribe *menú* para volver al menú principal.'
-                ].join('\n'));
-
-                // Usar endFlow() para terminar este flujo específico
-                return endFlow();
-            }
-
-            if (opcion === '2') {
-                await flowDynamic([
-                    '❌ Lamentamos que no hayas podido resolver tu problema con CIAPAGOS.',
-                    '',
-                    '📧 **Para recibir atención personalizada, por favor envía un correo a:**',
-                    '📩 *ccentrocomputo@aguascalientes.tecnm.mx*',
-                    '',
-                    '📋 **En tu correo incluye la siguiente información:**',
-                    '• 🔢 Número de control completo',
-                    '• 👤 Nombre completo',
-                    '• 📝 Descripción detallada del problema',
-                    '',
-                    '⏰ **Tiempo de respuesta estimado:**',
-                    '• 1-24 horas hábiles',
-                    '',
-                    '🔙 Escribe *menú* para volver al menú principal.'
-                ].join('\n'));
-
-                // Usar endFlow() para terminar este flujo específico
-                return endFlow();
-            }
-
-            if (opcion === 'menu' || opcion === 'menú') {
-                await limpiarEstado(state);
-                return gotoFlow(flowMenu);
-            }
-
-            // Si la opción no es válida, mostrar mensaje y volver a preguntar
+        if (opcion === '1') {
             await flowDynamic([
-                '❌ Opción no válida. Por favor escribe:',
+                '✅ ¡Excelente! Nos alegra que hayas podido resolver tu problema.',
                 '',
-                '1️⃣ - Si ya resolviste tu problema',
-                '2️⃣ - Si necesitas más ayuda',
+                '💡 **Recuerda que para futuros problemas puedes:**',
+                '• Escribir *menú* para ver todas las opciones disponibles',
+                '• Contactar directamente a las áreas correspondientes',
                 '',
-                '🔙 O escribe *menú* para volver al menú principal.'
+                '🔙 Escribe *menú* para volver al menú principal.'
             ].join('\n'));
-
-            // Volver al flujo de respuesta para intentar nuevamente
-            return gotoFlow(flowCiaPagosRespuesta);
+            return;
         }
-    );
 
-// =====================================================================================
-// FLUJO DE RESTABLECIMIENTO DE SIE
-// =====================================================================================
+        if (opcion === '2') {
+            await flowDynamic([
+                '❌ Lamentamos que no hayas podido resolver tu problema con CIAPAGOS.',
+                '',
+                '📧 **Para recibir atención personalizada, por favor envía un correo a:**',
+                '📩 *ccentrocomputo@aguascalientes.tecnm.mx*',
+                '',
+                '📋 **En tu correo incluye la siguiente información:**',
+                '• 🔢 Número de control completo',
+                '• 👤 Nombre completo',
+                '• 📝 Descripción detallada del problema',
+                '',
+                '⏰ **Tiempo de respuesta estimado:**',
+                '• 1-24 horas hábiles',
+                '',
+                '🔙 Escribe *menú* para volver al menú principal.'
+            ].join('\n'));
+            return;
+        }
+
+        if (opcion === 'menu' || opcion === 'menú') {
+            await limpiarEstado(state);
+            return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic);
+        }
+
+        // Si la opción no es válida, mostrar mensaje y volver a preguntar
+        await flowDynamic([
+            '❌ Opción no válida. Por favor escribe:',
+            '',
+            '1️⃣ - Si ya resolviste tu problema',
+            '2️⃣ - Si necesitas más ayuda',
+            '',
+            '🔙 O escribe *menú* para volver al menú principal.'
+        ].join('\n'));
+
+        // Volver a mostrar la pregunta de CIAPAGOS
+        //return gotoFlow(flowCiaPagos);
+    });
+
+// ==== FLUJO DE RESTABLECIMIENTO DE SIE ====
 const flowrestablecerSIE = addKeyword<Provider, Database>(utils.setEvent('RESTABLECER_SIE'))
     .addAnswer(
         [
@@ -2218,67 +2098,60 @@ const flowrestablecerSIE = addKeyword<Provider, Database>(utils.setEvent('RESTAB
         }
     )
 
-// =====================================================================================
-// FLUJO FINAL DE SIE (VERSIÓN CORREGIDA)
-// =====================================================================================
+// ==== FLUJO FINAL DE SIE ====
 const flowFinSIE = addKeyword<Provider, Database>(utils.setEvent('FIN_SIE'))
     .addAction(async (ctx, { state, flowDynamic, provider, gotoFlow }) => {
-        ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-        
-        // 1. VERIFICAR SI ES ADMIN
-        if (ctx.from === CONTACTO_ADMIN) return;
-        
-        // 2. VERIFICAR SI YA ESTÁ BLOQUEADO (IMPORTANTE: Esto debe ir PRIMERO)
-        const bloqueado = await verificarEstadoBloqueado(ctx, { state, flowDynamic, gotoFlow });
-        if (bloqueado) {
-            console.log(`🚫 Usuario ${ctx.from} ya está bloqueado, no iniciar nuevo proceso`);
-            return; // No continuar si ya está bloqueado
-        }
-        
-        const myState = await state.getMyState();
-        const nombreCompleto = myState.nombreCompleto;
-        const numeroControl = myState.numeroControl;
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        const myState = await state.getMyState()
+        const nombreCompleto = myState.nombreCompleto
+        const numeroControl = myState.numeroControl
 
         if (!nombreCompleto || !numeroControl) {
-            console.log('❌ Datos incompletos para SIE, redirigiendo a captura...');
-            await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.');
-            return gotoFlow(flowCapturaNumeroControl);
+            console.log('❌ Datos incompletos para SIE, redirigiendo a captura...')
+            await flowDynamic('❌ No tenemos tu información completa. Volvamos a empezar.')
+            return gotoFlow(flowCapturaNumeroControl)
         }
 
-        console.log(`🚀 Iniciando proceso SIE para ${ctx.from}: ${nombreCompleto}`);
+        // Verificar conexión remota antes de continuar
+        const conexionRemota = await verificarConexionRemota();
+        const estadoConexiones = obtenerEstadoConexiones();
 
-        // 3. **BLOQUEAR AL USUARIO INMEDIATAMENTE**
         await actualizarEstado(ctx, state, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
             tipo: "📊 Sincronización de Datos SIE",
-            inicio: Date.now(),
-            identificacion: numeroControl
-        });
+            inicio: Date.now()
+        })
 
-        const estadoConexiones = obtenerEstadoConexiones();
-        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE SINCRONIZACIÓN DE DATOS* 🔔\n\n📋 *Información:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n💾 *Estados de conexión:*\n• MySQL: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Usuario BLOQUEADO por 30 minutos`;
+        await guardarEstadoMySQL(ctx.from, ESTADOS_USUARIO.EN_PROCESO_LARGO, {
+            tipo: "Sincronización de Datos SIE",
+            inicio: Date.now()
+        }, {
+            numeroControl: numeroControl,
+            nombreCompleto: nombreCompleto
+        })
 
-        await enviarAlAdmin(mensajeAdmin);
+        const mensajeAdmin = `🔔 *NUEVA SOLICITUD DE SINCRONIZACIÓN DE DATOS*\nNo le aparece el horario ni las materias en el SIE 🔔\n\n📋 *Información del usuario:*\n👤 Nombre: ${nombreCompleto}\n🔢 Número de control: ${numeroControl}\n📞 Teléfono: ${ctx.from}\n⏰ Hora: ${new Date().toLocaleString('es-MX')}\n\n💾 *Estados de conexión:*\n• MySQL Local: ${estadoConexiones.mysql}\n• Actextita: ${estadoConexiones.actextita}\n• Sistematickets: ${estadoConexiones.sistematickets}\n\n⚠️ Reacciona para validar que está listo`
 
-        // 4. CONFIGURAR TIMEOUT DE 30 MINUTOS
-        const userPhone = ctx.from;
-        
-        // Limpiar timeouts previos
-        timeoutManager.clearTimeout(userPhone);
-        timeoutManager.clearInterval(userPhone);
+        // Usar la función singleton corregida
+        const enviado = await enviarAlAdmin(mensajeAdmin)
 
-        // Timeout para finalizar el proceso
-        const timeoutId = timeoutManager.setTimeout(userPhone, async () => {
+        if (!enviado) {
+            console.error('⚠️ No se pudo notificar al admin sobre SIE, continuando proceso...')
+            console.log(`📝 Pendiente de notificar SIE: ${ctx.from} - ${nombreCompleto}`)
+        }
+
+        // Configurar el timeout para completar el proceso (30 minutos)
+        const timeoutId = setTimeout(async () => {
             try {
-                console.log(`⏰ Timeout completado para ${userPhone} (SIE), enviando mensaje final...`);
-
                 await flowDynamic([
                     '✅ *Sincronización de datos SIE completada* ✅',
                     '',
                     '📋 **Se sincronizaron los datos correctamente en tu portal del SIE**',
                     '',
                     '💡 **Pasos a seguir:**',
-                    '1. Cierra sesión actual del SIE si la tienes abierta',
-                    '2. Accede a: https://sie.ita.mx',
+                    '1. Cierra la sesión actual del SIE si la tienes abierta',
+                    '2. Accede nuevamente a: https://sie.ita.mx',
                     '3. Ingresa con tu número de control y contraseña',
                     '4. Verifica que ahora aparezcan:',
                     '   • Tu horario completo',
@@ -2290,90 +2163,87 @@ const flowFinSIE = addKeyword<Provider, Database>(utils.setEvent('FIN_SIE'))
                     '• Limpia el caché de tu navegador',
                     '• Intenta en otro navegador',
                     '',
+                    '📞 **Si el problema persiste:**',
+                    '• Contacta a tu coordinador de carrera',
+                    '• Centro de cómputo: 449 910 50 02 EXT. 145',
+                    '',
                     '🔙 Escribe *menú* para volver al menú principal.'
-                ].join('\n'));
+                ].join('\n'))
 
             } catch (error: any) {
-                console.error('❌ Error en finalización de SIE:', error.message);
-                await flowDynamic('✅ Se ha completado la sincronización. Por favor verifica tu portal del SIE.');
+                console.error('❌ Error enviando mensaje final de SIE:', error.message)
+                await flowDynamic('✅ Se ha completado la sincronización. Por favor verifica tu portal del SIE.')
             }
 
-            // LIMPIAR TODO AL TERMINAR
-            await limpiarEstado(state);
-            await limpiarEstadoMySQL(userPhone);
-            timeoutManager.clearAll(userPhone);
+            await limpiarEstado(state)
+            await limpiarEstadoMySQL(ctx.from)
 
-        }, 30 * 60 * 1000); // 30 minutos
+        }, 30 * 60 * 1000) // 30 minutos
 
-        // 5. CONFIGURAR INTERVALO PARA NOTIFICACIONES
-        const intervalId = timeoutManager.setInterval(userPhone, async () => {
-            try {
-                const estadoActual = await state.getMyState();
-                if (!estadoActual || estadoActual.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-                    timeoutManager.clearInterval(userPhone);
-                    return;
-                }
-
-                const metadata = estadoActual.estadoMetadata || {};
-                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now());
-                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-
-                // Solo enviar notificación cada 5 minutos
-                if (minutosTranscurridos > 0 && minutosTranscurridos % 5 === 0) {
-                    await flowDynamic(`⏳ *Actualización SIE:* ${minutosTranscurridos} min transcurridos, ${minutosRestantes} min restantes.`);
-                }
-
-                // Si ya pasaron 30 minutos, limpiar
-                if (minutosTranscurridos >= 30) {
-                    timeoutManager.clearInterval(userPhone);
-                }
-            } catch (error) {
-                console.error('❌ Error en notificación periódica:', error);
-            }
-        }, 60 * 1000); // Verificar cada minuto
-
-        // 6. GUARDAR IDs EN EL ESTADO
+        // Guardar el timeoutId en el estado
         await state.update({
             estadoMetadata: {
                 ...(await state.getMyState())?.estadoMetadata,
                 timeoutId: timeoutId,
-                intervalId: intervalId,
                 timeoutExpira: Date.now() + (30 * 60 * 1000),
-                tipoProceso: 'SIE',
-                userPhone: userPhone
+                tipoProceso: 'SIE'
             }
-        });
+        })
 
-        // 7. MENSAJE INICIAL DE BLOQUEO
+        // Enviar mensaje inicial de bloqueo
         await flowDynamic([
-            '⏳ *¡PROCESO DE SINCRONIZACIÓN SIE INICIADO - BLOQUEADO POR 30 MINUTOS!* ⏳',
+            '⏳ *Proceso de sincronización SIE iniciado* ⏳',
             '',
-            '🔒 **TU SESIÓN HA SIDO BLOQUEADA**',
+            '📋 Tu solicitud de sincronización de datos en el SIE ha sido recibida y está siendo procesada.',
             '',
-            '📋 Tu solicitud de sincronización de datos en el SIE está siendo procesada.',
             '⏰ **Tiempo estimado:** 30 minutos',
             '',
-            '🚫 **NO PUEDES:**',
-            '• Acceder al menú',
-            '• Iniciar otro proceso',
-            '• Cancelar esta solicitud',
+            '🔄 **Durante este tiempo:**',
+            '• No es necesario que escribas nada',
+            '• El proceso continuará automáticamente',
+            '• Recibirás notificaciones periódicas',
             '',
-            '✅ **PUEDES:**',
-            '• Escribir *estado* para ver progreso',
-            '',
-            '🔄 El proceso es automático y continuará en segundo plano.',
+            '💡 **Para consultar el estado:**',
+            'Escribe *estado* en cualquier momento',
             '',
             '¡Gracias por tu paciencia! 🙏'
-        ].join('\n'));
+        ].join('\n'))
 
-        // 8. **NO HACER gotoFlow** - El usuario queda bloqueado aquí
-        console.log(`✅ Usuario ${ctx.from} BLOQUEADO por 30 minutos para sincronización SIE`);
-    });
+        // Configurar intervalo para notificaciones periódicas
+        const intervalId = setInterval(async () => {
+            try {
+                const estadoActual = await state.getMyState()
+                if (estadoActual?.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
+                    clearInterval(intervalId)
+                    return
+                }
 
-// =====================================================================================
-// FLUJO DE EDUCACIÓN A DISTANCIA
-// =====================================================================================
+                const metadata = estadoActual.estadoMetadata || {}
+                const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now())
+                const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+                const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
+
+                if (minutosRestantes > 0) {
+                    await flowDynamic(`⏳ *Actualización SIE:* Han pasado ${minutosTranscurridos} minutos. Faltan ${minutosRestantes} minutos.`)
+                }
+            } catch (error) {
+                console.error('❌ Error en notificación periódica de SIE:', error)
+            }
+        }, 5 * 60 * 1000) // Cada 5 minutos
+
+        // Guardar el intervalId también
+        await state.update({
+            estadoMetadata: {
+                ...(await state.getMyState())?.estadoMetadata,
+                intervalId: intervalId
+            }
+        })
+
+        // **NO HACER gotoFlow aquí** - Quedarse en este mismo flujo
+        // El flujo principal verificará el estado y mostrará mensajes apropiados
+    })
+
+// ==== FLUJO DE EDUCACIÓN A DISTANCIA ====
 const flowDistancia = addKeyword<Provider, Database>(utils.setEvent('FLOW_DISTANCIA'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
@@ -2397,9 +2267,25 @@ const flowDistancia = addKeyword<Provider, Database>(utils.setEvent('FLOW_DISTAN
         return
     })
 
-// =====================================================================================
-// FLUJO DE SIE
-// =====================================================================================
+/*
+// ==== FLUJO DE ESPERA PARA MENÚ SIE ====
+const flowEsperaMenuSIE = addKeyword<Provider, Database>(utils.setEvent('ESPERA_MENU_SIE'))
+.addAnswer(
+    '🔙 Escribe *menú* para volver al menú principal.',
+    { capture: true },
+    async (ctx, { flowDynamic, gotoFlow, state }) => {
+        const input = ctx.body.trim().toLowerCase()
+
+        if (input === 'menu' || input === 'menú') {
+            await limpiarEstado(state)
+            return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
+        }
+
+        await flowDynamic('🔙 Solo escribe *menú* para volver al menú principal.')
+        return gotoFlow(flowEsperaMenuSIE)
+    }
+)*/
+
 const flowSIE = addKeyword<Provider, Database>(['sie', utils.setEvent('FLOW_SIE')])
     .addAnswer(
         '📚 *ACCESO AL SISTEMA SIE*\n\n' +
@@ -2425,7 +2311,7 @@ const flowSIE = addKeyword<Provider, Database>(['sie', utils.setEvent('FLOW_SIE'
                     'Ellos podrán asistirte directamente con el restablecimiento.\n\n' +
                     '🔙 Escribe *menú* para volver al menú principal.'
                 )
-                return;
+                //return gotoFlow(flowEsperaMenuSIE)
             }
 
             if (opcion === '2') {
@@ -2438,9 +2324,7 @@ const flowSIE = addKeyword<Provider, Database>(['sie', utils.setEvent('FLOW_SIE'
         }
     )
 
-// =====================================================================================
-// FLUJO DE INFORMACIÓN ADICIONAL
-// =====================================================================================
+// ==== FLUJO DE INFORMACIÓN ADICIONAL ====
 const flowInfoAdicional = addKeyword<Provider, Database>(utils.setEvent('FLOW_INFO_ADICIONAL'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
@@ -2467,9 +2351,7 @@ const flowInfoAdicional = addKeyword<Provider, Database>(utils.setEvent('FLOW_IN
         ].join('\n'))
     })
 
-// =====================================================================================
-// FLUJO DE INFORMACIÓN DE CREDENCIALES
-// =====================================================================================
+// ==== FLUJO DE INFORMACIÓN DE CREDENCIALES ====
 const flowInfoCredenciales = addKeyword<Provider, Database>(utils.setEvent('FLOW_INFO_CREDENCIALES'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state, provider }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
@@ -2511,9 +2393,7 @@ const flowInfoCredenciales = addKeyword<Provider, Database>(utils.setEvent('FLOW
         ].join('\n'))
     })
 
-// =====================================================================================
-// FLUJO DE GESTIÓN DE SERVICIOS
-// =====================================================================================
+// ==== FLUJO DE GESTIÓN DE SERVICIOS (NUEVO) ====
 const flowGestionServicios = addKeyword<Provider, Database>(utils.setEvent('FLOW_GESTION_SERVICIOS'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
@@ -2564,9 +2444,7 @@ const flowGestionServicios = addKeyword<Provider, Database>(utils.setEvent('FLOW
         }
     })
 
-// =====================================================================================
-// FLUJO DE CONEXIÓN A BASE DE DATOS ACTEXTITA
-// =====================================================================================
+// ==== FLUJO DE CONEXIÓN A BASE DE DATOS ACTEXTITA (NUEVO) ====
 const flowConexionBaseDatos = addKeyword<Provider, Database>(utils.setEvent('FLOW_CONEXION_BASE_DATOS'))
     .addAction(async (ctx, { flowDynamic, gotoFlow, state }) => {
         ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
@@ -2623,30 +2501,28 @@ const flowConexionBaseDatos = addKeyword<Provider, Database>(utils.setEvent('FLO
         }
     })
 
-// =====================================================================================
-// FLUJO DE BLOQUEO ACTIVO MEJORADO
-// =====================================================================================
+// ==== FLUJO DE BLOQUEO ACTIVO MEJORADO ====
 const flowBloqueoActivo = addKeyword<Provider, Database>(utils.setEvent('BLOQUEO_ACTIVO'))
-    .addAction(async (ctx, { state, flowDynamic }) => {
-        ctx.from = normalizarIdWhatsAppBusiness(ctx.from);
-        if (ctx.from === CONTACTO_ADMIN) return;
-        
-        const input = ctx.body?.toLowerCase().trim();
-        const myState = await state.getMyState();
-        
+    .addAction(async (ctx, { state, flowDynamic, gotoFlow }) => {
+        ctx.from = normalizarIdWhatsAppBusiness(ctx.from)
+        if (ctx.from === CONTACTO_ADMIN) return
+
+        const myState = await state.getMyState()
+
         if (!myState?.estadoUsuario || myState.estadoUsuario !== ESTADOS_USUARIO.EN_PROCESO_LARGO) {
-            console.log(`🔓 Usuario ${ctx.from} ya no está bloqueado`);
-            // Aquí deberías redirigir al menú principal
-            return;
+            console.log(`🔓 Usuario ${ctx.from} ya no está bloqueado, liberando...`)
+            await limpiarEstado(state)
+            return await redirigirAMenuConLimpieza(ctx, state, gotoFlow, flowDynamic)
         }
-        
-        // Manejar comandos específicos durante el bloqueo
+
+        const input = ctx.body?.toLowerCase().trim()
+
         if (input === 'estado') {
-            const metadata = myState.estadoMetadata || {};
-            const tiempoTranscurrido = Date.now() - (metadata.inicio || Date.now());
-            const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000);
-            const minutosRestantes = Math.max(0, 30 - minutosTranscurridos);
-            
+            const metadata = myState.estadoMetadata || {}
+            const tiempoTranscurrido = Date.now() - (metadata.ultimaActualizacion || Date.now())
+            const minutosTranscurridos = Math.floor(tiempoTranscurrido / 60000)
+            const minutosRestantes = Math.max(0, 30 - minutosTranscurridos)
+
             await flowDynamic([
                 '📊 **Estado del Proceso**',
                 '',
@@ -2655,51 +2531,58 @@ const flowBloqueoActivo = addKeyword<Provider, Database>(utils.setEvent('BLOQUEO
                 `⏳ Tiempo restante: ${minutosRestantes} min`,
                 '',
                 '🔄 El proceso continúa en segundo plano...',
+                '',
                 '⏰ Se completará automáticamente.'
-            ].join('\n'));
-        } 
-        else if (input === 'menu' || input === 'menú') {
+            ].join('\n'))
+        } else if (input === 'menu' || input === 'menú') {
+            // Si intenta ir al menú durante el proceso, mostrar mensaje especial
             await flowDynamic([
-                '🚫 *ACCESO DENEGADO* 🚫',
+                '⏳ *Proceso en curso* ⏳',
                 '',
-                '⏳ Tu sesión está bloqueada mientras procesamos tu solicitud.',
+                '📋 No puedes acceder al menú mientras tu solicitud está siendo procesada.',
                 '',
-                '📋 **Proceso activo:**',
-                `• ${myState.estadoMetadata?.tipo || 'Restablecimiento en curso'}`,
-                `• Tiempo restante: ${Math.max(0, 30 - Math.floor((Date.now() - (myState.estadoMetadata?.inicio || Date.now())) / 60000))} min`,
+                '🔄 **Para ver el estado escribe:**',
+                '*estado*',
                 '',
-                '🚫 **No puedes acceder al menú durante este proceso**',
+                '⚠️ **No intentes cancelar o detener el proceso**',
+                'Se completará automáticamente en unos minutos.',
                 '',
-                '✅ **Solo puedes escribir:**',
+                '¡Gracias por tu paciencia! 🙏'
+            ].join('\n'))
+        } else if (input) {
+            // Cualquier otro mensaje
+            await flowDynamic([
+                '⏳ *Proceso en curso* ⏳',
+                '',
+                '📋 Tu solicitud está siendo procesada activamente...',
+                '',
+                '🔄 **No es necesario que escribas nada**',
+                '⏰ El proceso continuará automáticamente',
+                '',
+                '💡 **Solo escribe:**',
                 '*estado* - Para ver el progreso actual',
                 '',
                 '¡Gracias por tu paciencia! 🙏'
-            ].join('\n'));
-        }
-        else if (input) {
-            // Cualquier otro mensaje
+            ].join('\n'))
+        } else {
+            // Si no hay input (puede ser por notificación)
             await flowDynamic([
                 '⏳ *Proceso en curso* ⏳',
                 '',
                 '📋 Tu solicitud está siendo procesada...',
                 '',
-                '🔄 **No es necesario que escribas nada**',
-                '⏰ El proceso continuará automáticamente',
-                '',
-                '💡 **Solo puedes escribir:**',
-                '*estado* - Para ver el progreso actual',
+                '🔄 **Para ver el estado escribe:**',
+                '*estado*',
                 '',
                 '¡Gracias por tu paciencia! 🙏'
-            ].join('\n'));
+            ].join('\n'))
         }
-        
-        // Quedarse en este flujo, no redirigir a ningún lado
-        return;
-    });
 
-// =====================================================================================
-// FLUJO DEL MENÚ (solo para redirecciones internas)
-// =====================================================================================
+        // Importante: No redirigir a otro flujo, quedarse aquí
+        return
+    })
+
+// ==== FLUJO DEL MENÚ (solo para redirecciones internas) ====
 const flowMenu = addKeyword<Provider, Database>(utils.setEvent('SHOW_MENU'))
     .addAction(async (ctx, { flowDynamic, state, gotoFlow }) => {
         // Verificar si está bloqueado primero
@@ -2710,9 +2593,7 @@ const flowMenu = addKeyword<Provider, Database>(utils.setEvent('SHOW_MENU'))
         await mostrarOpcionesMenu(flowDynamic)
     })
 
-// =====================================================================================
-// FLUJO DE DOCUMENTACIÓN
-// =====================================================================================
+// ==== FLUJO DE DOCUMENTACIÓN ====
 const discordFlow = addKeyword<Provider, Database>('doc').addAnswer(
     ['You can see the documentation here', '📄 https://builderbot.app/docs \n', 'Do you want to continue? *yes*'].join(
         '\n'
@@ -2727,9 +2608,7 @@ const discordFlow = addKeyword<Provider, Database>('doc').addAnswer(
     }
 )
 
-// =====================================================================================
-// FLUJO DE REGISTRO
-// =====================================================================================
+// ==== FLUJO DE REGISTRO ====
 const registerFlow = addKeyword<Provider, Database>(utils.setEvent('REGISTER_FLOW'))
     .addAnswer(`What is your name?`, { capture: true }, async (ctx, { state }) => {
         await state.update({ name: ctx.body })
@@ -2741,9 +2620,7 @@ const registerFlow = addKeyword<Provider, Database>(utils.setEvent('REGISTER_FLO
         await flowDynamic(`${state.get('name')}, thanks for your information!: Your age: ${state.get('age')}`)
     })
 
-// =====================================================================================
-// FLUJO DE MUESTRAS
-// =====================================================================================
+// ==== FLUJO DE MUESTRAS ====
 const fullSamplesFlow = addKeyword<Provider, Database>(['samples', utils.setEvent('SAMPLES')])
     .addAnswer(`💪 I'll send you a lot files...`)
     .addAnswer(`Send image from Local`, { media: join(process.cwd(), 'assets', 'sample.png') })
@@ -2755,9 +2632,7 @@ const fullSamplesFlow = addKeyword<Provider, Database>(['samples', utils.setEven
         media: 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf',
     })
 
-// =====================================================================================
-// FLUJO POR DEFECTO
-// =====================================================================================
+// ==== FLUJO POR DEFECTO ====
 const flowDefault = addKeyword<Provider, Database>('')
     .addAction(async (ctx, { flowDynamic, gotoFlow }) => {
         const input = ctx.body?.toLowerCase().trim()
@@ -2767,9 +2642,6 @@ const flowDefault = addKeyword<Provider, Database>('')
         return gotoFlow(flowPrincipal)
     })
 
-// =====================================================================================
-// CONFIGURACIÓN DE ENDPOINTS DE HEALTH
-// =====================================================================================
 healthApp.get('/health', (req, res) => {
     const estadoConexiones = obtenerEstadoConexiones();
 
@@ -2801,64 +2673,57 @@ setInterval(() => {
     console.log(`🔗 Conexiones:`, estadoConexiones);
 }, 5 * 60 * 1000); // Cada 5 minutos
 
-// =====================================================================================
-// FUNCIÓN PRINCIPAL
-// =====================================================================================
 const main = async () => {
     // Inicializar todas las conexiones a bases de datos
     console.log('🚀 Inicializando conexiones a bases de datos...');
     await inicializarTodasLasConexiones();
 
-    // =================================================================================
-    // ORDEN DE FLUJOS - VERSIÓN CORREGIDA (IMPORTANTE)
-    // =================================================================================
+    // ORDEN DE FLUJOS - ORDEN CRÍTICO CORREGIDO
     const adapterFlow = createFlow([
-        // 1. FLUJO DE BLOQUEO ACTIVO - DEBE IR PRIMERO SIEMPRE
-        flowBloqueoActivo,
-
-        // 2. FLUJO PRINCIPAL - DEBE IR SEGUNDO
-        flowPrincipal,
-
-        // 3. FLUJO DEL MENÚ
-        flowMenu,
-
-        // 4. FLUJOS LARGOS (que bloquean usuarios)
-        flowContrasena,        // ← Ya verifica bloqueo
-        flowAutenticador,      // ← Ya verifica bloqueo
-        flowFinSIE,            // ← Ya verifica bloqueo
-
-        // 5. FLUJOS DE CAPTURA (antes de los largos)
-        flowSubMenuContrasena,
-        flowSubMenuAutenticador,
-        flowCapturaCorreoTrabajador,
-        flowCapturaNumeroControl,
-        flowCapturaNombre,
-        flowCapturaIdentificacion,
-
-        // 6. FLUJOS SIE
-        flowSIE,
-        flowrestablecerSIE,
-
-        // 7. FLUJOS INFORMATIVOS
+        // 1. Flujos informativos que NO capturan entrada
         flowDistancia,
         flowInfoAdicional,
         flowInfoCredenciales,
         flowGestionServicios,
         flowConexionBaseDatos,
 
-        // 8. FLUJO CIAPAGOS
-        flowCiaPagos,
-        flowCiaPagosRespuesta,
-        flowEsperaMenu,
+        // 2. Flujo CIAPAGOS - debe estar ANTES de flowPrincipal
+        flowCiaPagos,  // ← MOVER ESTE FLUJO ARRIBA
 
-        // 9. FLUJOS DE EJEMPLO
+        // 3. Flujo principal que maneja todo
+        flowPrincipal,
+
+        // 4. Flujo del menú (solo para eventos internos)
+        flowMenu,
+
+        // 5. Flujos de restablecimiento de contraseña
+        flowSubMenuContrasena,
+        flowCapturaCorreoTrabajador,
+        flowCapturaNumeroControl,
+        flowCapturaNombre,
+        flowCapturaIdentificacion,
+        flowContrasena,
+
+        // 6. Flujos de autenticador
+        flowSubMenuAutenticador,
+        flowAutenticador,
+
+        // 7. Flujo de bloqueo activo
+        flowBloqueoActivo,
+
+        // 8. FLUJOS DE SIE
+        flowSIE,
+        flowrestablecerSIE,
+        flowFinSIE,
+
+        // 9. Flujos existentes
         discordFlow,
         registerFlow,
         fullSamplesFlow,
 
-        // 10. FLUJO POR DEFECTO (último)
+        // 10. Flujo por defecto (solo redirecciona)
         flowDefault
-    ]);
+    ])
 
     const adapterProvider = createProvider(Provider,
         { version: [2, 3000, 1027934701] as any }
