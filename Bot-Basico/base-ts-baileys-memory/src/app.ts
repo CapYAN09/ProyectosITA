@@ -1266,7 +1266,7 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
                     await flowDynamic([
                         '❌ Lamentamos que no hayas podido resolver tu problema.',
                         '',
-                        '📧 **Envía un correo a:** ccentrocomputo@aguascalientes.tecnm.mx',
+                        '📧 **Envía un correo a:** cccomputo@aguascalientes.tecnm.mx',
                         '',
                         '🔙 Escribe *menú* para volver al menú principal.'
                     ].join('\n'));
@@ -2072,14 +2072,16 @@ const flowCiaPagos = addKeyword<Provider, Database>(['ciapagos', utils.setEvent(
                 await flowDynamic([
                     '❌ Lamentamos que no hayas podido resolver tu problema con CIAPAGOS.',
                     '',
-                    '📧 **Para recibir atención personalizada, por favor envía un correo a:**',
-                    '📩 *ccentrocomputo@aguascalientes.tecnm.mx*',
+                    '📧 **Para recibir atención personalizada, por favor envía un correo, deste tú correo institucional a:**',
+                    '📩 *ccomputo@aguascalientes.tecnm.mx*',
                     '',
+                    '🔔 Asunto del correo: *Ayuda con CIAPAGOS - [Tu Número de Control]*',
                     '📋 **En tu correo incluye la siguiente información:**',
                     '• 🔢 Número de control completo',
                     '• 👤 Nombre completo',
                     '• 📝 Descripción detallada del problema',
                     '',
+                    '*Recuerda que es importante que el correo sea enviado desde tu correo institucional para una correcta atención, ya que por motivos de seguridad no se atienden solicitudes desde correos personales.*',
                     '⏰ **Tiempo de respuesta estimado:**',
                     '• 1-24 horas hábiles',
                     '',
