@@ -6,7 +6,7 @@ const axios = require('axios');
 // ============= CONFIGURACIÓN =============
 const BOT_PORT = 3008;
 const HEALTH_PORT = 3010; // Cambiado para evitar conflicto
-const ADMIN_NUMBER = '5214494877990@s.whatsapp.net';
+const ADMIN_NUMBER = '5212226061577@s.whatsapp.net';
 const MAX_RESTARTS = 12;
 const HEALTH_CHECK_INTERVAL = 45000; // 45 segundos (más que 30s del bot)
 const MAX_INACTIVITY = 4 * 60 * 1000; // 4 minutos

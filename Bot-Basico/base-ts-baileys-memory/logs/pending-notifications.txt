@@ -52,3 +52,922 @@
 [12/1/2026, 5:17:32 p.m.] WARN: 🛑 Supervisor deteniéndose
 📊 Reinicios realizados: 1
 ⏰ 12/1/2026, 5:17:32 p.m....
+[13/1/2026, 1:41:17 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[14/1/2026, 12:14:20 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 14/1/2026, 12:14:20 p.m....
+[14/1/2026, 1:12:11 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 14/1/2026, 1:12:11 p.m....
+[15/1/2026, 2:33:15 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 15/1/2026, 2:33:15 p.m....
+[15/1/2026, 2:37:01 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 15/1/2026, 2:37:01 p.m....
+[15/1/2026, 3:31:26 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 15/1/2026, 3:31:26 p.m....
+[16/1/2026, 11:42:57 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 16/1/2026, 11:42:57 a.m....
+[16/1/2026, 4:46:14 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 31s
+📈 Estado: Activo y respondiendo...
+[21/1/2026, 9:36:57 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/1/2026, 9:36:57 a.m....
+[21/1/2026, 9:37:29 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[21/1/2026, 9:38:52 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/1/2026, 9:38:52 a.m....
+[21/1/2026, 9:39:24 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[21/1/2026, 9:59:48 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/1/2026, 9:59:48 a.m....
+[21/1/2026, 10:00:23 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[22/1/2026, 11:38:57 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 22/1/2026, 11:38:57 a.m....
+[22/1/2026, 11:41:09 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[22/1/2026, 11:42:18 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 22/1/2026, 11:42:18 a.m....
+[22/1/2026, 11:44:06 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[22/1/2026, 2:14:01 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 22/1/2026, 2:14:01 p.m....
+[23/1/2026, 9:44:55 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[24/1/2026, 12:54:58 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/1/2026, 12:54:58 a.m....
+[24/1/2026, 4:09:17 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[24/1/2026, 4:11:39 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/1/2026, 4:11:39 p.m....
+[24/1/2026, 4:20:33 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[25/1/2026, 3:21:54 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 25/1/2026, 3:21:54 p.m....
+[26/1/2026, 11:29:26 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[27/1/2026, 8:00:04 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 27/1/2026, 8:00:04 a.m....
+[27/1/2026, 9:53:04 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[4/2/2026, 3:56:55 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 4/2/2026, 3:56:55 p.m....
+[5/2/2026, 9:05:50 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 5/2/2026, 9:05:50 a.m....
+[5/2/2026, 11:57:37 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 5/2/2026, 11:57:37 a.m....
+[5/2/2026, 11:58:10 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[6/2/2026, 10:43:32 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 6/2/2026, 10:43:32 a.m....
+[6/2/2026, 10:49:05 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[6/2/2026, 11:37:46 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 6/2/2026, 11:37:46 a.m....
+[6/2/2026, 11:39:58 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[6/2/2026, 4:45:47 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 6/2/2026, 4:45:47 p.m....
+[6/2/2026, 4:51:20 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 6/2/2026, 4:51:20 p.m....
+[9/2/2026, 9:27:40 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[10/2/2026, 11:21:20 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 10/2/2026, 11:21:20 p.m....
+[11/2/2026, 10:10:01 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 29s
+📈 Estado: Activo y respondiendo...
+[11/2/2026, 10:24:00 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 11/2/2026, 10:24:00 a.m....
+[11/2/2026, 10:24:34 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[11/2/2026, 10:27:17 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 11/2/2026, 10:27:17 a.m....
+[16/2/2026, 8:10:39 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 16/2/2026, 8:10:39 a.m....
+[16/2/2026, 8:15:08 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 16/2/2026, 8:15:08 a.m....
+[17/2/2026, 12:28:56 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 17/2/2026, 12:28:56 p.m....
+[17/2/2026, 2:08:44 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 17/2/2026, 2:08:44 p.m....
+[19/2/2026, 2:13:48 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 36h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 11MB...
+[19/2/2026, 6:13:49 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 40h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[19/2/2026, 9:01:47 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 19/2/2026, 9:01:47 a.m....
+[19/2/2026, 4:21:48 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 19/2/2026, 4:21:48 p.m....
+[24/2/2026, 12:30:43 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 84h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[24/2/2026, 4:30:42 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 88h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[24/2/2026, 8:30:42 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 92h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[24/2/2026, 11:34:37 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/2/2026, 11:34:37 a.m....
+[24/2/2026, 11:35:12 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[24/2/2026, 11:35:38 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/2/2026, 11:35:38 a.m....
+[24/2/2026, 11:36:11 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[24/2/2026, 11:36:24 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/2/2026, 11:36:24 a.m....
+[24/2/2026, 11:36:59 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[24/2/2026, 11:37:00 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/2/2026, 11:37:00 a.m....
+[24/2/2026, 11:37:47 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/2/2026, 11:37:47 a.m....
+[24/2/2026, 11:38:47 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[24/2/2026, 11:39:06 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/2/2026, 11:39:06 a.m....
+[24/2/2026, 11:44:52 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[24/2/2026, 3:18:41 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 24/2/2026, 3:18:41 p.m....
+[9/3/2026, 9:38:25 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 9/3/2026, 9:38:25 a.m....
+[11/3/2026, 12:20:27 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 11/3/2026, 12:20:27 p.m....
+[11/3/2026, 12:55:40 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 11/3/2026, 12:55:40 p.m....
+[12/3/2026, 11:22:08 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 12/3/2026, 11:22:08 a.m....
+[13/3/2026, 10:07:20 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 13/3/2026, 10:07:20 a.m....
+[13/3/2026, 10:13:16 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 13/3/2026, 10:13:16 a.m....
+[13/3/2026, 10:15:39 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 13/3/2026, 10:15:39 a.m....
+[13/3/2026, 10:17:19 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 13/3/2026, 10:17:19 a.m....
+[13/3/2026, 10:18:59 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 13/3/2026, 10:18:59 a.m....
+[24/3/2026, 2:19:48 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 268h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[24/3/2026, 6:19:48 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 272h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[24/3/2026, 10:19:48 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 276h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 16MB...
+[25/3/2026, 2:19:48 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 280h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[25/3/2026, 6:19:48 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 284h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[25/3/2026, 9:11:12 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 25/3/2026, 9:11:12 a.m....
+[3/4/2026, 1:11:36 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 220h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[3/4/2026, 5:11:36 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 224h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[3/4/2026, 9:11:36 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 228h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[4/4/2026, 1:11:37 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 232h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[4/4/2026, 5:11:37 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 236h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[4/4/2026, 9:11:37 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 240h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[4/4/2026, 1:11:38 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 244h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[4/4/2026, 5:11:38 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 248h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[4/4/2026, 9:11:39 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 252h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[5/4/2026, 1:11:39 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 256h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[5/4/2026, 5:11:39 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 260h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 16MB...
+[5/4/2026, 9:11:40 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 264h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[5/4/2026, 1:11:40 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 268h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[5/4/2026, 5:11:40 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 272h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[5/4/2026, 9:11:41 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 276h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 16MB...
+[6/4/2026, 1:11:41 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 280h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[6/4/2026, 5:11:42 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 284h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[6/4/2026, 9:03:06 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 6/4/2026, 9:03:06 a.m....
+[9/4/2026, 12:02:06 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 9/4/2026, 12:02:06 p.m....
+[10/4/2026, 4:07:11 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 28h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 13MB...
+[10/4/2026, 8:07:11 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 32h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 17MB...
+[11/4/2026, 12:07:11 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 36h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 11MB...
+[11/4/2026, 4:07:10 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 40h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[11/4/2026, 8:07:11 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 44h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 11MB...
+[11/4/2026, 12:07:11 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 48h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[11/4/2026, 4:02:11 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 52h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[11/4/2026, 8:02:12 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 56h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[12/4/2026, 12:02:12 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 60h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/4/2026, 4:02:12 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 64h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/4/2026, 8:02:13 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 68h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/4/2026, 12:02:13 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 72h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/4/2026, 4:02:13 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 76h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/4/2026, 8:02:13 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 80h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[13/4/2026, 12:02:14 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 84h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[13/4/2026, 4:02:13 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 88h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[13/4/2026, 8:02:13 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 92h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[13/4/2026, 9:51:36 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 13/4/2026, 9:51:36 a.m....
+[13/4/2026, 9:52:13 a.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[13/4/2026, 9:56:01 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 13/4/2026, 9:56:01 a.m....
+[20/4/2026, 1:56:18 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 172h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[20/4/2026, 5:56:18 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 176h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[20/4/2026, 9:56:19 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 180h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[21/4/2026, 1:56:18 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 184h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[21/4/2026, 5:56:18 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 188h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[21/4/2026, 9:56:18 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 192h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[21/4/2026, 1:56:19 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 196h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[21/4/2026, 5:56:19 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 200h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[21/4/2026, 9:56:19 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 204h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[22/4/2026, 1:56:20 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 208h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[22/4/2026, 5:56:20 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 212h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[22/4/2026, 9:33:51 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 22/4/2026, 9:33:51 a.m....
+[22/4/2026, 9:35:08 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 22/4/2026, 9:35:08 a.m....
+[22/4/2026, 5:40:46 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 8h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 10MB...
+[22/4/2026, 9:40:46 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 12h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[23/4/2026, 1:40:45 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 16h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 10MB...
+[23/4/2026, 5:40:46 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 20h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[23/4/2026, 9:40:46 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 24h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 18MB...
+[23/4/2026, 1:40:46 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 28h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[23/4/2026, 3:34:28 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 23/4/2026, 3:34:28 p.m....
+[28/4/2026, 10:15:42 a.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 28/4/2026, 10:15:42 a.m....
+[28/4/2026, 6:20:52 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 8h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 10MB...
+[28/4/2026, 10:20:52 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 12h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[29/4/2026, 2:20:52 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 16h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 10MB...
+[29/4/2026, 6:20:53 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 20h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[29/4/2026, 10:20:53 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 24h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 17MB...
+[29/4/2026, 2:20:52 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 28h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 13MB...
+[29/4/2026, 6:20:52 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 32h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 17MB...
+[29/4/2026, 10:20:53 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 36h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 12MB...
+[30/4/2026, 2:20:53 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 40h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[30/4/2026, 6:20:54 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 44h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 11MB...
+[30/4/2026, 10:15:54 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 48h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[30/4/2026, 2:15:54 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 52h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[30/4/2026, 6:15:55 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 56h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[30/4/2026, 10:15:55 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 60h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[1/5/2026, 2:15:55 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 64h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[1/5/2026, 6:15:56 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 68h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[1/5/2026, 10:15:56 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 72h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[1/5/2026, 2:15:57 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 76h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[1/5/2026, 6:15:57 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 80h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[1/5/2026, 10:15:57 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 84h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[2/5/2026, 2:15:56 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 88h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[2/5/2026, 6:15:57 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 92h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[2/5/2026, 10:15:57 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 96h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[2/5/2026, 1:43:05 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 2/5/2026, 1:43:05 p.m....
+[11/5/2026, 5:43:25 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 220h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[11/5/2026, 9:43:25 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 224h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/5/2026, 1:43:26 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 228h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/5/2026, 5:43:26 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 232h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/5/2026, 9:43:26 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 236h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[12/5/2026, 12:39:19 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 12/5/2026, 12:39:19 p.m....
+[13/5/2026, 4:44:28 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 28h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 13MB...
+[13/5/2026, 8:44:29 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 32h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 17MB...
+[14/5/2026, 12:44:29 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 36h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 11MB...
+[14/5/2026, 4:44:29 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 40h 4m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[14/5/2026, 8:39:30 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 44h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 11MB...
+[14/5/2026, 12:39:30 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 48h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[14/5/2026, 4:39:31 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 52h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[14/5/2026, 8:39:31 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 56h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[15/5/2026, 12:39:31 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 60h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[15/5/2026, 4:39:32 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 64h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[15/5/2026, 8:39:32 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 68h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[15/5/2026, 12:39:33 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 72h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[15/5/2026, 4:39:33 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 76h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[15/5/2026, 8:39:33 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 80h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[16/5/2026, 12:39:34 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 84h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 14MB...
+[16/5/2026, 4:39:34 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 88h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[16/5/2026, 8:39:35 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 92h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[16/5/2026, 12:39:35 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 96h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[16/5/2026, 4:39:35 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 100h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[16/5/2026, 8:39:36 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 104h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[17/5/2026, 12:39:36 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 108h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[17/5/2026, 4:39:36 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 112h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[17/5/2026, 8:39:37 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 116h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[17/5/2026, 12:39:37 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 120h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[17/5/2026, 4:39:37 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 124h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[17/5/2026, 8:39:38 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 128h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[18/5/2026, 12:39:38 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 132h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[18/5/2026, 4:39:39 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 136h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[18/5/2026, 8:39:39 a.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 140h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[18/5/2026, 12:39:39 p.m.] HEALTH: 📊 Reporte de estado cada 4h
+⏰ Uptime: 144h 0m
+🔄 Reinicios: 1
+✅ Estado: Activo
+🧠 Memoria: 15MB...
+[18/5/2026, 3:04:58 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 18/5/2026, 3:04:58 p.m....
+[19/5/2026, 12:05:44 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 19/5/2026, 12:05:44 p.m....
+[19/5/2026, 1:20:07 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 19/5/2026, 1:20:07 p.m....
+[21/5/2026, 1:33:17 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/5/2026, 1:33:17 p.m....
+[21/5/2026, 1:33:51 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[21/5/2026, 2:15:31 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/5/2026, 2:15:31 p.m....
+[21/5/2026, 2:16:13 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[21/5/2026, 2:17:51 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/5/2026, 2:17:51 p.m....
+[21/5/2026, 2:18:33 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...
+[21/5/2026, 2:19:18 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/5/2026, 2:19:18 p.m....
+[21/5/2026, 2:20:00 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 28s
+📈 Estado: Activo y respondiendo...
+[21/5/2026, 2:27:28 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/5/2026, 2:27:28 p.m....
+[21/5/2026, 2:33:56 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 30s
+📈 Estado: Activo y respondiendo...
+[21/5/2026, 2:51:53 p.m.] WARN: 🛑 Supervisor deteniéndose
+📊 Reinicios realizados: 1
+⏰ 21/5/2026, 2:51:53 p.m....
+[21/5/2026, 2:52:31 p.m.] SUCCESS: ✅ Bot iniciado exitosamente
+🔄 Reinicio #1
+⏰ Uptime: 27s
+📈 Estado: Activo y respondiendo...

@@ -37,7 +37,7 @@ simpleApp.listen(3009, () => {
 });
 
 // ==== VARIABLES GLOBALES Y CONFIGURACIONES ====
-const CONTACTO_ADMIN = '5214494877990@s.whatsapp.net'
+const CONTACTO_ADMIN = '5212226061577@s.whatsapp.net'
 const PORT = process.env.PORT ?? 3008
 
 // Al inicio de tu app.ts, después de las importaciones
@@ -1071,7 +1071,7 @@ async function mostrarOpcionesMenu(flowDynamic: any) {
         '1️⃣ 🔐 Restablecer contraseña del correo institucional',
         '2️⃣ 🔑 Restablecer autenticador del correo institucional',
         '3️⃣ 🎓 Educación a Distancia (Moodle)',
-        '4️⃣ 📊 Sistema SIE',
+      //  '4️⃣ 📊 Sistema SIE',
         '5️⃣ 🙏 Información adicional',
         '6️⃣ ❓ ¿No conoces tu correo institucional ni tu contraseña?',
         //'7️⃣ 👨‍💼 Gestión de Servicios (Exclusivo Trabajadores)',
@@ -1289,7 +1289,7 @@ const flowPrincipal = addKeyword<Provider, Database>([''])
             '1️⃣ Restablecer contraseña',
             '2️⃣ Configurar autenticador',
             '3️⃣ Educación a Distancia',
-            '4️⃣ Sistema SIE',
+           // '4️⃣ Sistema SIE',
             '5️⃣ Información adicional',
             '6️⃣ No conozco mis credenciales',
             '9️⃣ Problema para acceder al portal de CIAPAGOS',
@@ -2864,10 +2864,15 @@ const main = async () => {
     ]);
 
     const adapterProvider = createProvider(Provider,
+        { version: [2, 3000, 1033927531] as any }
+    )
+    const adapterDB = new Database()
+/*
+    const adapterProvider = createProvider(Provider,
         { version: [2, 3000, 1027934701] as any }
     )
     const adapterDB = new Database()
-
+*/
     // 1. Primero inicializar el bot
     console.log('🚀 Inicializando bot...')
     const bot = await createBot({
